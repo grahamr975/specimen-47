@@ -11,7 +11,8 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | WASD | Move |
 | Mouse or arrow keys | Aim and shoot |
 | Space / Shift | Dash (brief invulnerability; becomes a charge with some mutations) |
-| Right click / E | Limb ability (Tentacles: grapple; Grasping Hands: grab, then throw) |
+| Right click / E | Limb ability (every LIMBS root has one; Tentacles grapple, Grasping Hands grab and throw) |
+| Q | Head ability (every HEAD root has one) |
 | Esc on the cards / hold F | Put an evolution off, then evolve later in any cleared room |
 | M / P | Mute / pause |
 
@@ -21,19 +22,24 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Attack it until it bursts, then collect the DNA globules that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **You're fragile.** You start with 3 HP.
 - **Evolve.** DNA banks while you fight. Once the room is clear, a full bar wraps you in a cocoon by itself; it splits and you choose 1 of 3 mutations. Never mid-fight. (Esc on the cards puts it off; hold F in any cleared room to evolve later.) Cards don't say what a mutation does; you learn by growing it.
-- **Body slots.** Every mutation grows in one of five slots: MOUTH, HEAD, BACK, LIMBS or CORE.
-  - **LIMBS is how you move.** You start limbless, as a slow, inching slug. Spider Legs skitter, Wings fly (floaty, and over obstacles), Tentacles grapple, Burrowing Claws dig and Pseudopods glide on slime.
-  - **MOUTH is your attack.** You start spitting weak little slime blobs; your first MOUTH pick (Bone Spike, Bile Spit, Mandibles, Tendrils, Proboscis) replaces it.
-- **Branching paths.** Each slot grows one path per run, so no two runs end the same:
-  - An empty slot is offered **roots**. Planting one locks that slot's other roots for the rest of the run.
-  - A planted slot **branches**: two ways to go, and taking one locks out the other. Usually both show up side by side, and the card says what you'd give up.
+- **Open slots.** Your body has a few slots (shown along the bottom of the screen). You start with 3, and the slime blob takes one. Every devoured boss core adds a slot, and every splice frees one. Fill them however you like: several mouths for a glass cannon, or backs and cores for a tank. Each part still grows somewhere on the body:
+  - **MOUTH: an attack.** You start spitting weak slime blobs; your first MOUTH pick replaces them. Grow more mouths and they all fire.
+  - **LIMBS: how you move, plus a right-click ability.** One set at a time. You start limbless, as a slow, inching slug. Spider Legs skitter and spit webs, Wings fly and beat a gust that blows enemies and their shots away, Tentacles grapple, Burrowing Claws dig and send out a stunning tremor, Pseudopods glide on slime and roll out a slime wave, Root Legs take root and burst roots up to hold enemies.
+  - **HEAD: senses, plus a Q ability.** One head. Extra Eyes mark prey (it takes more damage from everything), Battering Skull headbutts, Night Eyes black out your light (everything counts as in the dark), Parasite Brain mind-spikes one enemy, Bloom bursts pollen over everything near you.
+  - **BACK: what happens when you dash or get hurt.** As many as you have room for.
+  - **CORE: your engine.** Only grows from devoured boss cores.
+  - **Big parts** (Tentacles, Parasite Brain, Heartwood) take 2 slots; the card says so.
+- **Branching paths.** Each part grows one path, so no two runs end the same:
+  - A free slot is offered new **roots**, one per kind of part you don't have yet.
+  - A planted part **branches**: two ways to go, and taking one locks out the other. Usually both show up side by side, and the card says what you'd give up.
+  - **A part grows at most twice per floor** (planting counts), so nothing is fully grown on floor 1. Going deep takes time; going wide is always on the table.
   - Root, then branch, then branch: four end forms per root. Branches mostly add interactions, not bigger numbers (Bone Spike > Bone Shotgun > Bone Jaws: every bite drives a spike out the back of the victim).
-- **Sets.** Every mutation belongs to a set: Bone, Fungal, Hive, Predator, Abomination or Plant (shown on the card). Each slot counts as the set of its current form, so a branch can switch it. 3 matching slots wake a set bonus; all 5 wake a stronger one (Fungal: kills burst into spore clouds; Hive: kills hatch spiderlings...).
-- **Body forms.** Once two of your slots share a set, your whole body reshapes into that set's creature: a skeletal Bone crawler, a mushroom-sprouting Fungal mass, a Hive insect, a hunched Predator beast, or a lopsided Abomination. Mutation parts still grow on top.
-- **Cores.** Your CORE slot never shows up in normal evolutions. Each floor's boss (or, on floors without one yet, the exit room's Warden) drops its still-beating core: eat it to evolve your CORE. The first one always offers Thick Hide.
+- **Sets.** Every mutation belongs to a set: Bone, Fungal, Hive, Predator, Abomination or Plant (shown on the card). Each part counts as the set of its current form, so a branch can switch it. 3 matching parts wake a set bonus; 5 wake a stronger one (Fungal: kills burst into spore clouds; Hive: kills hatch spiderlings...).
+- **Body forms.** Once two of your parts share a set, your whole body reshapes into that set's creature: a skeletal Bone crawler, a mushroom-sprouting Fungal mass, a Hive insect, a hunched Predator beast, or a lopsided Abomination. Mutation parts still grow on top.
+- **Cores.** CORE parts never show up in normal evolutions. Each floor's boss (or, on floors without one yet, the exit room's Warden) drops its still-beating core: eat it to gain a slot and grow a CORE part (Thick Hide is always offered), or Gorge and keep the slot free for anything.
 - **Playstyle mouths.** Some MOUTH roots don't shoot at all: Ovipositor (larvae that infest hosts and burst out), Miasma (a toxic aura; hold fire to vent it), Howl (no damage, but it hurls enemies into walls and each other), Polyp Seeder (plant turret polyps), Frog Tongue (swallow small prey whole, spit it back) and Silk Spinner (lay sticky, cutting webs).
 - **The Plant path.** Polyp Seeder (MOUTH), Bloom (HEAD: a pollen-puffing flower), Thornbark (BACK), Root Legs (LIMBS: stand still to take root) and Heartwood (CORE). Its body form is bark, leaves and a flower for a head.
-- **Splices.** Certain parts in different slots fuse when you grow both (Spore Fire + Crop Duster = Firestorm: your flying spore trail burns). They're never named in advance; a card that would complete one just says SOMETHING STIRS.
+- **Splices.** Certain parts from different places on the body fuse when you grow both (Spore Fire + Crop Duster = Firestorm: your flying spore trail burns). The two become one part, which frees a slot. They're never named in advance; a card that would complete one just says SOMETHING STIRS.
 - **Rarity.** Mutations are Common, Uncommon, Rare or Legendary. Rare ones get likelier on deeper floors.
 - **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most have a branch that cures them, and a sibling branch that doubles down.
 - **Mutagen vials** (dropped by elites and found in vaults) give a free evolution with Uncommon-or-better cards.
@@ -43,8 +49,8 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 
 | File | What's in it |
 |---|---|
-| `src/mutations.js` | The mutation tree (roots and branches per slot), whispers, rarities and card rolling. Start here. |
-| `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing |
+| `src/mutations.js` | The mutation tree (roots and branches per body location), open slots, whispers, rarities and card rolling. Start here. |
+| `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing, and the right-click / Q abilities (ACTIVES) |
 | `src/dna.js` | Corpses, bursting, DNA amounts and the level curve |
 | `src/floors.js` | Each floor's name, enemy mix, hazard and boss |
 | `src/bosses.js` | Bosses, telegraphed attacks, floor-specific enemy behaviors, elite affixes |

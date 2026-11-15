@@ -4,13 +4,14 @@
 // ---------------------------------------------------------------------------
 
 // --- Evolution screen -----------------------------------------------------------
-// Pick one of 3 cards. A card is a new ROOT for an empty slot, or the next
-// BRANCH of a path you're growing (which locks out its sibling). Cards
+// Pick one of 3 cards. A card is a new PART for a free slot, or the next
+// BRANCH of a part you're growing (which locks out its sibling). Cards
 // deliberately do NOT explain what mutations do: you learn by growing them.
 function openEvolution(opts) {
   const p = game.player;
   game.menu = {
     choices: rollChoices(p, 3, opts.minRarity, opts.slot),
+    slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
     sub: opts.slot ? 'ITS CORE BECOMES YOURS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
@@ -113,12 +114,10 @@ function drawCard(ctx, info, i, x, y, menu) {
   if (info.slot) drawText(ctx, `[${info.slot}]`, cx, ty, PAL.slate, 1, 'center', null);
   // Its set, and whether it moves you toward a set bonus.
   if (info.set) {
-    const S = SETS[info.set], have = setCounts(game.player)[info.set] || 0;
-    const m = game.player.slots[info.slot], same = m && !m.starter && setOf(m.id) === info.set;
-    const after = same ? have : have + 1;
+    const S = SETS[info.set], after = info.setAfter;
     ctx.fillStyle = S.color; ctx.fillRect(x + 4, y + 4, 4, 4); ctx.fillRect(x + w - 8, y + 4, 4, 4);
     ty += 8;
-    drawText(ctx, S.name + (after >= 3 ? ` ${after}/5` : ''), cx, ty, S.color, 1, 'center', null);
+    drawText(ctx, S.name + (after >= 2 ? ` ${after}/${after >= 3 ? 5 : 3}` : ''), cx, ty, S.color, 1, 'center', null);
   }
   // Growth pips: how far along its path this card takes the slot.
   if (info.tier) {
@@ -144,6 +143,8 @@ function drawMenu(ctx) {
   const mutagen = menu.title === 'MUTAGEN';
   drawText(ctx, menu.title, VIEW_W / 2, 18, mutagen ? VIAL_COLOR : PAL.red, 2, 'center');
   drawText(ctx, menu.sub, VIEW_W / 2, 36, PAL.slate, 1, 'center');
+  const free = freeSlots(p);
+  drawText(ctx, free > 0 ? `${free} FREE SLOT${free > 1 ? 'S' : ''}` : 'NO FREE SLOTS', VIEW_W - 4, 4, free > 0 ? VIAL_COLOR : PAL.slate, 1, 'right');
 
   const n = menu.choices.length;
   menu.choices.forEach((c, i) => {
@@ -198,6 +199,7 @@ function drawHUD(ctx) {
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');
 
   drawMinimap(ctx);
+  drawActiveIcons(ctx, p);
   drawMutationList(ctx);
 }
 
@@ -257,38 +259,74 @@ function mutColor(p, id) {
   return d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color;
 }
 
-// Your body: the five slots along the bottom, each with its mutation's art.
+// Your body: one panel per slot along the bottom. Big parts span two slots;
+// spliced parts are joined by a glowing seam; free slots wait, empty.
 function drawMutationList(ctx) {
   const p = game.player;
   const top = ROOM_Y + ROOM_PX_H + 3;
-  SLOTS.forEach((slot, i) => {
-    const x = 3 + i * 63;
-    const m = p.slots[slot];
-    drawText(ctx, slot, x + 4, top + 3, '#5a4e4c', 1, 'left', null);
-    if (!m) {
-      ctx.fillStyle = '#0e0b0c'; ctx.fillRect(x + 4, top + 9, 16, 16);
-      drawText(ctx, 'EMPTY', x + 23, top + 12, '#3a3232', 1, 'left', null);
-      return;
-    }
+  const cap = slotCapacity(p), cells = Math.max(cap, slotsUsed(p));
+  const pitch = Math.floor(316 / cells);
+  const spliced = new Set();
+  for (const k of p.splices) for (const ids of SPLICES[k].parts) for (const m of p.parts) if (ids.some(id => m.path.includes(id))) spliced.add(m);
+  const act = activeSet(p);
+  const panel = (x, w) => {
+    ctx.fillStyle = '#070506'; ctx.fillRect(x, top, w, 26);
+    ctx.fillStyle = '#0e0b0c'; ctx.fillRect(x + 1, top + 1, w - 2, 24);
+    ctx.fillStyle = '#2e2627'; ctx.fillRect(x, top + 26, w, 1); ctx.fillRect(x + w, top, 1, 27);
+  };
+  let cell = 0;
+  for (const m of p.parts) {
+    const span = partSize(m), x = 3 + cell * pitch, w = span * pitch - 2;
+    cell += span;
+    panel(x, w);
     const d = getMutDef(m.id), col = mutColor(p, m.id);
     ctx.fillStyle = col; ctx.fillRect(x, top, 2, 26); // rarity stripe
+    if (spliced.has(m)) { ctx.fillStyle = VIAL_COLOR; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(game.time * 4); ctx.fillRect(x + 2, top, w - 2, 1); ctx.fillRect(x + 2, top + 25, w - 2, 1); ctx.globalAlpha = 1; }
+    drawText(ctx, m.loc, x + 4, top + 2, '#5a4e4c', 1, 'left', null);
     const set = !m.starter && setOf(m.id);
     if (set) { // set gem (glows when it's part of an active bonus)
-      const act = activeSet(p), lit = act && act.set === set;
-      ctx.fillStyle = PAL.black; ctx.fillRect(x + 54, top + 2, 6, 6);
-      ctx.fillStyle = SETS[set].color; ctx.globalAlpha = lit ? 1 : 0.45; ctx.fillRect(x + 55, top + 3, 4, 4); ctx.globalAlpha = 1;
-      if (lit && Math.floor(game.time * 2) % 2) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 55, top + 3, 1, 1); }
+      const lit = act && act.set === set;
+      ctx.fillStyle = PAL.black; ctx.fillRect(x + w - 7, top + 2, 6, 6);
+      ctx.fillStyle = SETS[set].color; ctx.globalAlpha = lit ? 1 : 0.45; ctx.fillRect(x + w - 6, top + 3, 4, 4); ctx.globalAlpha = 1;
+      if (lit && Math.floor(game.time * 2) % 2) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + w - 6, top + 3, 1, 1); }
     }
     const icon = mutIcon(m.id);
     if (icon) ctx.drawImage(icon, x + 4, top + 9);
-    wrapText(d.name.toUpperCase(), 9).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
-    // How far the path has grown (root, branch, branch).
+    if (w >= 56) wrapText(d.name.toUpperCase(), Math.floor((w - 24) / 4)).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
+    // How far the path has grown (root, branch, branch). The next pip glows
+    // if it can grow again this floor.
+    const ready = childrenOf(m.id).length && !m.starter && canGrowYet(m);
     for (let l = 0; l < 3; l++) {
-      ctx.fillStyle = l < m.path.length ? col : '#2a2222';
+      ctx.fillStyle = l < m.path.length ? col : l === m.path.length && ready ? '#5a4e4c' : '#2a2222';
       ctx.fillRect(x + 23 + l * 4, top + 23, 3, 2);
     }
+  }
+  for (; cell < cap; cell++) {
+    const x = 3 + cell * pitch, w = pitch - 2;
+    panel(x, w);
+    drawText(ctx, 'FREE', x + w / 2, top + 10, '#3a3232', 1, 'center', null);
+  }
+}
+
+// The right-click (E) and Q abilities, with their cooldowns.
+function drawActiveIcons(ctx, p) {
+  const s = p.stats, limb = partAt(p, 'LIMBS'), head = partAt(p, 'HEAD');
+  const items = [];
+  if (limb && (s.limbActive || s.grapple || s.hands)) {
+    const own = !!s.limbActive && !s.grapple && !s.hands;
+    items.push({ key: 'E', id: limb.path[0], k: p.limbWear > 0 ? 1 : own ? p.limbCd / (p.limbCdMax || 1) : p.grappleCd / (s.grapple || 1) });
+  }
+  if (head && s.headActive) items.push({ key: 'Q', id: head.path[0], k: p.headCd / (p.headCdMax || 1) });
+  items.forEach((it, i) => {
+    const x = 218 + i * 17, y = 17, k = clamp(it.k, 0, 1);
+    ctx.fillStyle = '#070506'; ctx.fillRect(x - 1, y - 1, 14, 14);
+    const icon = mutIcon(it.id);
+    if (icon) ctx.drawImage(icon, x, y, 12, 12);
+    if (k > 0) { const h = Math.ceil(12 * k); ctx.fillStyle = 'rgba(6,4,5,0.78)'; ctx.fillRect(x, y, 12, h); }
+    drawText(ctx, it.key, x + 10, y - 2, k > 0 ? PAL.slate : PAL.white, 1, 'left');
   });
 }
+
 // --- Whispers: cryptic hints when something new grows in you ---------------------
 const WHISPER_TIME = 5;
 
@@ -371,6 +409,7 @@ function drawTitle(ctx) {
     ['MOUSE / ARROWS', 'AIM + SHOOT'],
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
+    ['Q', 'HEAD ABILITY'],
     ['ESC ON CARDS', 'EVOLVE LATER (HOLD F)'],
     ['M / P', 'MUTE / PAUSE'],
   ];
@@ -389,14 +428,14 @@ function drawGameOver(ctx) {
 
   const p = game.player;
   drawText(ctx, 'FINAL FORM', VIEW_W / 2, 120, PAL.slate, 1, 'center');
-  SLOTS.forEach((slot, i) => {
-    const m = p.slots[slot];
-    drawText(ctx, slot, VIEW_W / 2 - 8, 132 + i * 9, PAL.slate, 1, 'right');
-    if (!m) { drawText(ctx, '-', VIEW_W / 2 + 8, 132 + i * 9, PAL.dark); return; }
+  const shown = p.parts.slice(0, 6), row = shown.length > 5 ? 8 : 9;
+  shown.forEach((m, i) => {
+    drawText(ctx, m.loc, VIEW_W / 2 - 8, 130 + i * row, PAL.slate, 1, 'right');
     const d = getMutDef(m.id);
-    const label = d.name.toUpperCase() + (m.path.length >= 3 ? '' : ` (${m.path.length}/3)`);
-    drawText(ctx, label, VIEW_W / 2 + 8, 132 + i * 9, mutColor(p, m.id));
+    const label = d.name.toUpperCase() + (m.path.length >= 3 || m.starter ? '' : ` (${m.path.length}/3)`);
+    drawText(ctx, label, VIEW_W / 2 + 8, 130 + i * row, mutColor(p, m.id));
   });
+  if (p.parts.length > 6) drawText(ctx, `+${p.parts.length - 6} MORE`, VIEW_W / 2 + 8, 130 + 6 * row, PAL.slate);
   if (p.splices.length) drawText(ctx, 'SPLICED: ' + p.splices.map(k => SPLICES[k].name.toUpperCase()).join(', '), VIEW_W / 2, 182, VIAL_COLOR, 1, 'center');
 
   if (game.overT > 1 && Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK TO TRY AGAIN', VIEW_W / 2, 200, PAL.white, 1, 'center');

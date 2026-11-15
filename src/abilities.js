@@ -974,3 +974,236 @@ function updateExtras(dt) {
   updateWebs(dt);
   updateHeld(game.player);
 }
+
+// ---------------------------------------------------------------------------
+// ACTIVE ABILITIES. Your LIMBS give you a right-click (or E) ability, and your
+// HEAD a Q ability. The root decides which; growing the part makes it
+// stronger (l = how far the path has grown). Tentacles and Grasping Hands
+// keep their own right-click (grapple / grab).
+// ---------------------------------------------------------------------------
+const ACTIVES = {
+  web:         { name: 'WEB SNARE',    key: 'limb', cd: l => 3.6 - 0.3 * l },
+  gust:        { name: 'WING GUST',    key: 'limb', cd: l => 4.2 - 0.3 * l },
+  tremor:      { name: 'TREMOR',       key: 'limb', cd: l => 5.2 - 0.4 * l },
+  slimewave:   { name: 'SLIME WAVE',   key: 'limb', cd: l => 3.6 - 0.3 * l },
+  entangle:    { name: 'ENTANGLE',     key: 'limb', cd: l => 5.2 - 0.4 * l },
+  mark:        { name: 'MARK PREY',    key: 'head', cd: () => 4.5 },
+  headbutt:    { name: 'HEADBUTT',     key: 'head', cd: l => 2.6 - 0.2 * l },
+  blackout:    { name: 'BLACKOUT',     key: 'head', cd: l => 10 - l },
+  mindspike:   { name: 'MIND SPIKE',   key: 'head', cd: l => 4.6 - 0.3 * l },
+  pollenburst: { name: 'POLLEN BURST', key: 'head', cd: l => 6 - 0.5 * l },
+};
+
+// Where you're pointing, at most `range` away (mouse, or the arrow-key aim).
+function aimPoint(p, range) {
+  let tx = p.x + p.aimX * range, ty = p.y + p.aimY * range;
+  if (!Input.down('arrowleft', 'arrowright', 'arrowup', 'arrowdown')) {
+    const mx = Input.mouse.x, my = Input.mouse.y - ROOM_Y, d = Math.hypot(mx - p.x, my - p.y);
+    if (d > 1) { const k = Math.min(1, range / d); tx = p.x + (mx - p.x) * k; ty = p.y + (my - p.y) * k; }
+  }
+  return { x: tx, y: ty };
+}
+
+// The enemy you mean: the one nearest where you're pointing.
+function pointedEnemy(p, range) {
+  const pt = aimPoint(p, range);
+  let best = null, bd = 48;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const d = Math.hypot(e.x - pt.x, e.y - pt.y) - e.r;
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
+const isBoss = e => !!ENEMY_TYPES[e.type].boss;
+
+// Right-click / E (key 'limb') or Q (key 'head').
+function tryActive(p, key) {
+  const s = p.stats, a = key === 'limb' ? s.limbActive : s.headActive;
+  if (!a || p.dashT > 0 || p.pullT > 0 || p.withdrawn || p.burrowT > 0) return;
+  if (key === 'limb' && p.limbWear > 0) { floatText(p.x, p.y - 18, 'LIMBS TORN', COST_COLOR); return; }
+  const cdKey = key === 'limb' ? 'limbCd' : 'headCd';
+  if (p[cdKey] > 0) return;
+  if (useActive(p, a)) { p[cdKey] = ACTIVES[a.kind].cd(a.l); p[cdKey + 'Max'] = p[cdKey]; }
+}
+
+function useActive(p, a) {
+  const s = p.stats, l = a.l, dmg = s.damage;
+  const ang = Math.atan2(p.aimY, p.aimX);
+  switch (a.kind) {
+    case 'web': // Spider Legs: a glob of silk that bursts into a sticky web
+      game.actShots.push({ kind: 'web', x: p.x, y: p.y - 2, vx: p.aimX * 200, vy: p.aimY * 200, life: 0.6, r: 3, l });
+      Sfx.play('spine');
+      return true;
+    case 'slimewave': // Pseudopods: a rolling wave of slime you can ride
+      game.actShots.push({ kind: 'slime', x: p.x, y: p.y + 2, vx: p.aimX * 150, vy: p.aimY * 150, life: 0.65, r: 7, l, hit: new Set(), dropT: 0 });
+      Sfx.play('splat');
+      return true;
+    case 'gust': { // Wings: one huge beat blows enemies and their shots away
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > 66 + e.r || (dx * p.aimX + dy * p.aimY) / d < 0.45) continue;
+        damageEnemy(e, (1 + 0.5 * l) * dmg, dx / d, dy / d, true, isBoss(e) ? 60 : 300 + 40 * l);
+      }
+      for (const b of game.bullets) {
+        if (b.team !== 'enemy') continue;
+        const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d < 72 && (dx * p.aimX + dy * p.aimY) / d > 0.35) { b.life = 0; burst(b.x, b.y, '#c8c0d8', 2, 40, 0.2); }
+      }
+      game.fx.push({ kind: 'howl', x: p.x, y: p.y, a: ang, cone: 0.45, r: 6, max: 66, t: 0.25 });
+      for (let i = 0; i < 10; i++) game.particles.push({ x: p.x, y: p.y, vx: Math.cos(ang + rand(-0.6, 0.6)) * rand(120, 220), vy: Math.sin(ang + rand(-0.6, 0.6)) * rand(120, 220), life: 0.25, color: '#8a809a', size: 1 });
+      Sfx.play('dash');
+      return true;
+    }
+    case 'tremor': { // Burrowing Claws: claws into the floor; the ground heaves
+      const R = 44 + 4 * l;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > R + e.r) continue;
+        e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.3 : 1 + 0.25 * l);
+        damageEnemy(e, (1.5 + l) * dmg, dx / d, dy / d, true, 90);
+      }
+      game.fx.push({ kind: 'ring', x: p.x, y: p.y + 3, r: 4, max: R, t: 0.3 });
+      burst(p.x, p.y + 4, '#3a3230', 14, 90, 0.4);
+      game.shake = Math.max(game.shake, 4);
+      Sfx.play('slam');
+      return true;
+    }
+    case 'entangle': { // Root Legs: roots burst up where you point and hold everything
+      const pt = aimPoint(p, 110), R = 22 + 2 * l;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - pt.x, e.y - pt.y) > R + e.r) continue;
+        if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 1.4 + 0.3 * l);
+        damageEnemy(e, (2 + l) * dmg, 0, 0, true);
+      }
+      game.fx.push({ kind: 'act', what: 'roots', x: pt.x, y: pt.y, r: R, t: 1.2, max: 1.2 });
+      burst(pt.x, pt.y, '#6a5030', 12, 70, 0.4);
+      Sfx.play('whip');
+      return true;
+    }
+    case 'mark': { // Extra Eyes: mark one victim; everything hits it harder
+      const e = pointedEnemy(p, 170);
+      if (!e) return false;
+      e.markUntil = game.time + 6; e.markMul = 0.4 + 0.15 * l;
+      floatText(e.x, e.y - 12, 'MARKED', PAL.red);
+      Sfx.play('flicker');
+      return true;
+    }
+    case 'headbutt': { // Battering Skull: a short, brutal butt
+      moveEntity(game.room, p, p.aimX * 10, p.aimY * 10);
+      let hit = false;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > 18 + e.r || (dx * p.aimX + dy * p.aimY) / d < 0.2) continue;
+        e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : 0.6 + 0.2 * l);
+        damageEnemy(e, (3 + 2 * l) * dmg + s.dashDmg * 0.5, p.aimX, p.aimY, false, isBoss(e) ? 60 : 280);
+        hit = true;
+      }
+      if (hit) { hitstop(0.05); game.shake = Math.max(game.shake, 3); }
+      Sfx.play('ram');
+      return true;
+    }
+    case 'blackout': { // Night Eyes: snuff your own light; it's all dark out there now
+      p.blackoutT = 3 + 0.5 * l;
+      for (const e of game.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < 90) e.blindT = Math.max(e.blindT || 0, 1.5 + 0.25 * l);
+      floatText(p.x, p.y - 18, 'BLACKOUT', '#6a6aa0');
+      Sfx.play('flicker');
+      return true;
+    }
+    case 'mindspike': { // Parasite Brain: it lashes out with your mind
+      const e = pointedEnemy(p, 170);
+      if (!e) return false;
+      e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.4 : 1.2 + 0.2 * l);
+      damageEnemy(e, (4 + 2 * l) * dmg, 0, 0, false);
+      game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 6, x2: e.x, y2: e.y, t: 0.15 });
+      burst(e.x, e.y, '#b464c8', 8, 60, 0.3);
+      Sfx.play('scream');
+      return true;
+    }
+    case 'pollenburst': { // Bloom: the flower bursts, dusting everything around you
+      const R = 66 + 6 * l;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > R + e.r) continue;
+        pollinate(e, s);
+        if (!isBoss(e)) knock(e, dx / d, dy / d, 120);
+      }
+      game.fx.push({ kind: 'act', what: 'pollen', x: p.x, y: p.y - 6, r: 4, max: R, t: 0.45, life: 0.45 });
+      burst(p.x, p.y - 6, '#e8c860', 18, 110, 0.6);
+      Sfx.play('splat');
+      return true;
+    }
+  }
+  return false;
+}
+
+function updateActives(p, dt) {
+  p.limbCd -= dt; p.headCd -= dt;
+  if (p.blackoutT > 0) p.blackoutT -= dt;
+  for (const b of game.actShots) {
+    b.life -= dt;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    const wall = circleHitsWall(game.room, b.x, b.y, 1, true);
+    if (b.kind === 'web') {
+      const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && Math.hypot(o.x - b.x, o.y - b.y) < o.r + b.r);
+      if (e || wall || b.life <= 0) { webBurst(b); b.dead = true; }
+    } else if (b.kind === 'slime') {
+      if ((b.dropT -= dt) <= 0) { b.dropT = 0.02; addSlime(b.x + rand(-3, 3), b.y + rand(-3, 3)); stainPx(b.x + rand(-4, 4), b.y + rand(-2, 2), ['#2a2e28', '#323630', '#3c4238'], 2); }
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || b.hit.has(e) || Math.hypot(e.x - b.x, e.y - b.y) > e.r + b.r) continue;
+        b.hit.add(e);
+        e.slowT = Math.max(e.slowT || 0, 2 + 0.5 * b.l);
+        damageEnemy(e, (0.6 + 0.3 * b.l) * p.stats.damage, b.vx, b.vy, true, isBoss(e) ? 0 : 160);
+      }
+      if (wall || b.life <= 0) b.dead = true;
+    }
+  }
+  game.actShots = game.actShots.filter(b => !b.dead);
+}
+
+function webBurst(b) {
+  const R = 18 + 3 * b.l;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0 || Math.hypot(e.x - b.x, e.y - b.y) > R + e.r) continue;
+    if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 1.6 + 0.35 * b.l);
+    damageEnemy(e, (0.8 + 0.3 * b.l) * game.player.stats.damage, 0, 0, true);
+  }
+  game.fx.push({ kind: 'act', what: 'web', x: b.x, y: b.y, r: R, t: 0.6, max: 0.6 });
+  Sfx.play('splat');
+}
+
+function drawActShots(ctx) {
+  for (const b of game.actShots) {
+    if (b.kind === 'web') { pxCircle(ctx, b.x, b.y, 2.5, '#3a3436'); pxCircle(ctx, b.x, b.y, 1.8, '#e0d8d0'); }
+    else { pxCircle(ctx, b.x, b.y, 5 + Math.sin(game.time * 30) * 1, '#2a3a2a'); pxCircle(ctx, b.x, b.y, 3.5, '#9aae8a'); }
+  }
+}
+
+// Effects for the actives (drawn by drawFx).
+function drawActFx(ctx, f) {
+  const k = f.t / (f.max || f.life || 1);
+  if (f.what === 'web') {
+    ctx.globalAlpha = Math.min(1, k * 2);
+    ctx.fillStyle = '#e0d8d0';
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; for (let rr = 3; rr < f.r; rr += 2) ctx.fillRect(Math.round(f.x + Math.cos(a) * rr), Math.round(f.y + Math.sin(a) * rr * 0.8), 1, 1); }
+    pxRing(ctx, f.x, f.y, f.r * 0.5, '#9a9294'); pxRing(ctx, f.x, f.y, f.r * 0.9, '#9a9294');
+    ctx.globalAlpha = 1;
+  } else if (f.what === 'roots') {
+    ctx.fillStyle = '#4a3420';
+    for (let i = 0; i < 9; i++) {
+      const a = i * 2.4, rr = f.r * (0.3 + (i % 3) * 0.3), up = Math.round(6 * Math.min(1, (f.max - f.t) * 8) * (k > 0.15 ? 1 : k / 0.15));
+      const x = Math.round(f.x + Math.cos(a) * rr), y = Math.round(f.y + Math.sin(a) * rr * 0.7);
+      ctx.fillRect(x, y - up, 2, up);
+      ctx.fillStyle = '#7a5a34'; ctx.fillRect(x, y - up, 1, 1); ctx.fillStyle = '#4a3420';
+    }
+  } else if (f.what === 'pollen') {
+    const rr = f.max * (1 - k);
+    ctx.fillStyle = '#e8c860';
+    for (let i = 0; i < 24; i++) { const a = i * Math.PI / 12 + rr * 0.05; ctx.fillRect(Math.round(f.x + Math.cos(a) * rr), Math.round(f.y + Math.sin(a) * rr), 1, 1); }
+  }
+}

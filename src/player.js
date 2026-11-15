@@ -9,9 +9,10 @@ function makePlayer() {
   return {
     x: ROOM_PX_W / 2, y: ROOM_PX_H / 2, r: 5,
     hp: BASE_HP, maxHp: BASE_HP,
-    // One growing path per body slot: { id: where it is now, path: [root, branch, branch] }.
+    // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
     // You're born spitting slime; your first MOUTH pick replaces it.
-    slots: { MOUTH: { id: 'slime', path: ['slime'], starter: true }, HEAD: null, BACK: null, LIMBS: null, CORE: null },
+    parts: [{ id: 'slime', path: ['slime'], loc: 'MOUTH', starter: true }], capacity: START_SLOTS,
+    limbCd: 0, headCd: 0,
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
     moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,
     dna: 0, level: 0,
@@ -31,22 +32,22 @@ function makePlayer() {
   };
 }
 
-// Rebuild the stat sheet from scratch from all five slots.
+// Rebuild the stat sheet from scratch from all your parts.
 function recomputeStats(p) {
   const s = baseStats();
-  for (const slot of SLOTS) if (p.slots[slot]) applyMutation(s, p.slots[slot], p);
+  for (const m of p.parts) applyMutation(s, m, p);
   if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
-  // Set bonus: 3 (or all 5) slots of the same set.
+  // Set bonus: 3 (or 5) parts of the same set.
   const set = activeSet(p);
   if (set) SETS[set.set].bonus[set.tier].apply(s, p);
   if (p.frenzyT > 0 && s.setKillFrenzy) s.damageMul *= 1.4; // Apex frenzy
-  // Splices: parts in different slots that have fused.
+  // Splices: parts that have fused (each one frees a slot).
   const splices = activeSplices(p);
   for (const k of splices) SPLICES[k].apply(s, p);
   finalizeStats(s);
   for (const k of splices) {
     if (p.splices.includes(k) || !game.room) continue;
-    game.banner = { text: 'SPLICED', sub: SPLICES[k].name, color: VIAL_COLOR, t: 2.8 };
+    game.banner = { text: 'SPLICED', sub: SPLICES[k].name + ' - A SLOT FREES UP', color: VIAL_COLOR, t: 2.8 };
     whisper(SPLICES[k].whisper);
     bloodSpray(p.x, p.y, 0, 0, 20, FLUID.blood, 120);
     burst(p.x, p.y, VIAL_COLOR, 24, 110, 0.8);
@@ -94,9 +95,8 @@ function recomputeStats(p) {
 // nothing more colorful is there.
 function bodyTint(p) {
   const all = [];
-  for (const sl of SLOTS) {
-    const m = p.slots[sl];
-    if (!m || m.starter) continue;
+  for (const m of p.parts) {
+    if (m.starter) continue;
     for (const id of m.path) if (TINTS[id]) all.push(TINTS[id]);
   }
   if (!all.length) return null;
@@ -121,7 +121,7 @@ function bodyTint(p) {
   return tint;
 }
 
-// Which creature your body has become: the set most of your slots share
+// Which creature your body has become: the set most of your parts share
 // (at least 2), once you've started to degenerate. Ties go to the set you grew
 // most recently. null = still the slug.
 function specimenForm(p, stage) {
@@ -145,14 +145,14 @@ const STAGE_AT = [0, 2, 4, 7, 11];
 function specimenStage(p) {
   let st = 0;
   STAGE_AT.forEach((n, i) => { if (p.evolutions >= n) st = i; });
-  const malignant = SLOTS.some(sl => p.slots[sl] && slotMalignant(p.slots[sl]));
+  const malignant = p.parts.some(slotMalignant);
   return Math.min(4, st + (malignant ? 1 : 0));
 }
 
 // Movement abilities right now. Torn limbs (limb wear) leave you a slug again.
 function movement(p) {
   const s = p.stats;
-  if (p.limbWear > 0 && p.slots.LIMBS) {
+  if (p.limbWear > 0 && partAt(p, 'LIMBS')) {
     return { slug: true, speed: SLUG_SPEED * s.speedMul, accel: 0, drag: 0, hop: 0, flyover: false, grapple: 0, hands: false, shell: false, fins: 0, burrow: 0, stilts: false, slime: true };
   }
   return { slug: s.slug, speed: s.speed, accel: s.accel, drag: s.drag, hop: s.hop, flyover: s.flyover, grapple: s.grapple, hands: s.hands, shell: s.shell, fins: s.fins, burrow: s.burrow, stilts: s.stilts, slime: s.slimeTrail };
@@ -237,6 +237,10 @@ function updatePlayer(dt) {
   const limbAbility = Input.mouse.rightClicked || Input.hit('e');
   if (limbAbility && mv.hands && !(s.puppeteer && !p.held && mv.grapple && p.grappleCd <= 0)) handAction(p);
   else if (limbAbility && mv.grapple && p.grappleCd <= 0 && p.dashT <= 0 && !p.grappleShot) fireGrapple(p);
+  else if (limbAbility && !mv.grapple && !mv.hands) tryActive(p, 'limb');
+  // --- Head ability: Q ---
+  if (Input.hit('q')) tryActive(p, 'head');
+  updateActives(p, dt);
   updateGrappleShot(p, dt);
   updateTongue(p, dt);
   if (p.eatT > 0) p.eatT -= dt;
@@ -732,7 +736,11 @@ function lash(p) {
   const spare = s.lashTargets - targets.length;
   if (spare > 0) for (const c of corpsesNear(p.x, p.y, s.lashRange, p.aimX, p.aimY, 0.35).slice(0, spare)) send(c.x, c.y, null, c);
   for (const e of targets) send(e.x, e.y, e, null);
-  if (!targets.length) send(p.x + p.aimX * s.lashRange * 0.8, p.y + p.aimY * s.lashRange * 0.8, null, null); // a lash at nothing
+  if (!targets.length) { // a lash at nothing: it cracks against the first wall (or sealed door) in the way
+    let reach = s.lashRange * 0.8;
+    for (let d = 6; d < reach; d += 3) if (pointSolid(game.room, p.x + p.aimX * d, p.y + p.aimY * d)) { reach = d; break; }
+    send(p.x + p.aimX * reach, p.y + p.aimY * reach, null, null);
+  }
   Sfx.play('whip');
 }
 
@@ -1025,7 +1033,7 @@ function hurtPlayer(dmg) {
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   // Limb wear: the hit tears your limbs; for a moment you're a slug again.
-  if (p.slots.LIMBS && p.hp > 0) { p.limbWear = 2.5; p.held && throwHeld(p); floatText(p.x, p.y - 22, 'LIMBS TORN', COST_COLOR); }
+  if (partAt(p, 'LIMBS') && p.hp > 0) { p.limbWear = 2.5; p.held && throwHeld(p); floatText(p.x, p.y - 22, 'LIMBS TORN', COST_COLOR); }
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
     for (const e of game.enemies) {
@@ -1053,7 +1061,7 @@ function hurtPlayer(dmg) {
     if (s.secondHeart && !p.secondHeartUsed) {
       p.secondHeartUsed = true;
       // Reborn small and pure: your limbs are gone and the body starts over.
-      p.slots.LIMBS = null;
+      p.parts = p.parts.filter(m => m.loc !== 'LIMBS');
       p.evolutions = 0;
       p.limbWear = 0;
       recomputeStats(p);
@@ -1094,6 +1102,7 @@ function pxLine(ctx, x1, y1, x2, y2, color, w = 1, wiggle = 2) {
 
 function drawFx(ctx) {
   drawWhips(ctx);
+  drawActShots(ctx);
   for (const f of game.fx) {
     if (f.kind === 'whip') {
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#120a0e', 2);
@@ -1119,6 +1128,8 @@ function drawFx(ctx) {
         ctx.fillStyle = rr === f.r ? '#e8dcc8' : '#8a8070';
         for (let k = -14; k <= 14; k++) { const a = f.a + span * k / 14; ctx.fillRect(Math.round(f.x + Math.cos(a) * rr), Math.round(f.y + Math.sin(a) * rr), 1, 1); }
       }
+    } else if (f.kind === 'act') {
+      drawActFx(ctx, f);
     } else if (f.kind === 'bite') {
       // Two rows of teeth snapping shut.
       const gap = Math.round(f.t * 30);
@@ -1138,7 +1149,7 @@ const LIMB_OVERLAYS = new Set(['wings', 'tentlimbs', 'hindlegs', 'spiderlegs', '
 
 function playerOverlays(p) {
   const set = new Set();
-  for (const slot of SLOTS) if (p.slots[slot]) for (const id of p.slots[slot].path) for (const ov of mutOverlays(id)) set.add(ov);
+  for (const m of p.parts) for (const id of m.path) for (const ov of mutOverlays(id)) set.add(ov);
   return set;
 }
 
@@ -1190,7 +1201,7 @@ function drawPlayer(ctx) {
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
   if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
-  if (limbsOk && p.slots.LIMBS && p.slots.LIMBS.path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
+  if (limbsOk && partAt(p, 'LIMBS') && partAt(p, 'LIMBS').path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
   for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
   let body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
@@ -1206,7 +1217,7 @@ function drawPlayer(ctx) {
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
   drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
-  if (p.limbWear > 0 && p.slots.LIMBS) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
+  if (p.limbWear > 0 && partAt(p, 'LIMBS')) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
 
   ctx.globalAlpha = 1;
   // Whatever you're holding in your hands.
@@ -1240,7 +1251,7 @@ const LEG_STEP_TIME = 0.065; // how long a foot is in the air
 const LEG_STRIDE = 12;       // how far the body travels before a foot steps
 
 function spiderLegsActive(p) {
-  const m = p.slots.LIMBS;
+  const m = partAt(p, 'LIMBS');
   return !!(m && m.path[0] === 'spider' && !(p.limbWear > 0) && p.burrowT <= 0 && !p.withdrawn && !p.flying);
 }
 
@@ -1378,7 +1389,7 @@ function nightEyesMul(e) {
   const p = game.player, s = p.stats;
   let m = 1;
   const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
-  if (s.nightEyes && d > 45) m *= 1 + s.nightEyes;
+  if (s.nightEyes && (d > 45 || p.blackoutT > 0)) m *= 1 + s.nightEyes; // Blackout: it's all dark
   if (s.gaze && (dx * p.aimX + dy * p.aimY) / d > 0.92) m *= 1 + s.gaze;
   return m;
 }

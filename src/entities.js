@@ -353,13 +353,16 @@ function updatePickups(dt) {
         Sfx.play('pickup');
       }
     } else if (p.kind === 'core') {
-      // A boss's core: eat it. It grows your CORE (or, if that's fully grown, makes you tougher).
+      // A boss's core: eat it. Your body makes room (+1 slot), and the core
+      // offers CORE growth (or, if there's none left, makes you tougher).
       p.dead = true;
       bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 130);
       game.shake = Math.max(game.shake, 4);
       Sfx.play('gulp');
       pl.hp = Math.min(pl.maxHp, pl.hp + 1);
-      if (slotOffers(pl, 'CORE').length) {
+      pl.capacity++;
+      floatText(pl.x, pl.y - 24, 'YOUR BODY MAKES ROOM', VIAL_COLOR);
+      if (bodyOffers(pl, 'CORE').length) {
         game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
 

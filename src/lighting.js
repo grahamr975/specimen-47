@@ -61,8 +61,11 @@ function drawLighting(ctx) {
   };
 
   const night = p.stats.lightMul < 1, big = p.stats.lightMul > 1;
-  if (!flickering) light(night ? LIGHT.haloNight : LIGHT.halo, p.x, p.y, 0.55);
-  light(night ? LIGHT.playerNight : big ? LIGHT.playerBig : flickering ? LIGHT.playerFlicker : LIGHT.player, p.x, p.y, flickering ? 0.6 : 1);
+  if (p.blackoutT > 0) light(LIGHT.haloNight, p.x, p.y, 0.3); // Blackout: your light is out
+  else {
+    if (!flickering) light(night ? LIGHT.haloNight : LIGHT.halo, p.x, p.y, 0.55);
+    light(night ? LIGHT.playerNight : big ? LIGHT.playerBig : flickering ? LIGHT.playerFlicker : LIGHT.player, p.x, p.y, flickering ? 0.6 : 1);
+  }
   if (p.stats.lure) { const l = lurePoint(p); light(LIGHT.med, l.x, l.y, 0.9); }
   for (const a of game.allies) light(LIGHT.small, a.x, a.y, 0.4);
 

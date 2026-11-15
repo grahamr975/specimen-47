@@ -111,7 +111,7 @@ function paintSpecimen(ramp, o = {}) {
 }
 
 // --- Body forms -------------------------------------------------------------------
-// Once two of your slots share a set, your whole body reshapes into that set's
+// Once two of your parts share a set, your whole body reshapes into that set's
 // creature (see specimenForm in player.js). Same 24x24 frame, head at the
 // front (right) near SPECIMEN.eye, so mutation overlays still land roughly right.
 // `br` is the breathing frame; `st` the stage (1-4: more grotesque each time).
@@ -886,7 +886,7 @@ function paintHudBar(h, seed, panels) {
 function bakeHud() {
   if (SPR.hudTop) return;
   SPR.hudTop = paintHudBar(ROOM_Y, 101, [[106, 2, 108, 13], [VIEW_W - 70, 1, 68, 29]]);
-  SPR.hudBottom = paintHudBar(VIEW_H - ROOM_Y - ROOM_PX_H, 102, [0, 1, 2, 3, 4].map(i => [3 + i * 63, 3, 61, 26]));
+  SPR.hudBottom = paintHudBar(VIEW_H - ROOM_Y - ROOM_PX_H, 102, []); // slot panels are drawn live (drawMutationList)
   SPR.dnaTube = paintDnaTube(100);
 }
 

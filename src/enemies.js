@@ -137,6 +137,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
   if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
   if (e.corrodeUntil > game.time) dmg *= 1.5;                // Corrode
+  if (e.markUntil > game.time) dmg *= 1 + (e.markMul || 0.4);  // Mark Prey
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
@@ -473,6 +474,11 @@ function drawEnemyGlow(ctx) {
       ctx.globalAlpha = 1;
     }
     if (e.stunT > 0 && Math.floor(game.time * 8) % 2) drawText(ctx, '*', e.x, e.y - 12, PAL.yellow, 1, 'center');
+    if (e.markUntil > game.time && !e.dead) { // marked: a red reticle
+      const r = e.r + 3 + (Math.floor(game.time * 6) % 2);
+      ctx.fillStyle = PAL.red;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(Math.round(e.x + sx * r) - (sx > 0 ? 1 : 0), Math.round(e.y + sy * r), 2, 1); ctx.fillRect(Math.round(e.x + sx * r), Math.round(e.y + sy * r) - (sy > 0 ? 1 : 0), 1, 2); }
+    }
     if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
     if (e.pollenUntil > game.time && !e.dead) { // dusted with pollen
       ctx.fillStyle = '#e8d040';
