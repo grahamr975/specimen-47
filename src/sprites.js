@@ -378,6 +378,38 @@ function paintDoor(horiz, locked) {
   return P.outline().toCanvas();
 }
 
+// The Mutagen Vault's hazmat seal: a heavy plate with yellow-black hazard
+// stripes and a hazard roundel. `dmg` 0-2 dents and cracks it.
+function paintHazmat(horiz, dmg) {
+  const w = horiz ? 32 : 16, h = horiz ? 16 : 32;
+  const P = new Painter(w, h, 77 + dmg);
+  P.rect(0, 0, w - 1, h - 1, R.metal, 0.5, { noise: 0.2 });
+  // Hazard stripes along both long edges.
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const edge = horiz ? (y < 3 || y > h - 4) : (x < 3 || x > w - 4);
+    if (edge) P.set(x, y, Math.floor((x + y) / 3) % 2 ? '#e8c020' : '#1a1610', null);
+  }
+  // Hazard roundel in the middle.
+  P.blob(w / 2, h / 2, 4, 4, R.amber, { spec: 1 });
+  P.blob(w / 2, h / 2, 1.5, 1.5, R.metal);
+  for (let a = 0; a < 3; a++) {
+    const ang = a * Math.PI * 2 / 3 - Math.PI / 2;
+    P.dot(Math.round(w / 2 + Math.cos(ang) * 2.8), Math.round(h / 2 + Math.sin(ang) * 2.8), '#1a1610');
+  }
+  for (const [x, y] of [[1, 1], [w - 2, 1], [1, h - 2], [w - 2, h - 2]]) P.dot(x, y, '#8a8a92');
+  // Damage: dents and cracks.
+  if (dmg >= 1) {
+    P.blob(w * 0.3, h * 0.35, 2.4, 2, R.rust, { shift: -0.3 });
+    P.scratch([[w * 0.2, h * 0.25], [w * 0.4, h * 0.5], [w * 0.35, h * 0.7]], '#060404');
+  }
+  if (dmg >= 2) {
+    P.blob(w * 0.7, h * 0.65, 2.6, 2.2, R.rust, { shift: -0.3 });
+    P.scratch([[w * 0.55, h * 0.3], [w * 0.7, h * 0.55], [w * 0.85, h * 0.6], [w * 0.75, h * 0.85]], '#060404');
+    P.dot(Math.round(w * 0.7), Math.round(h * 0.6), '#c96a8f'); // the vault's glow leaks through
+  }
+  return P.outline().toCanvas();
+}
+
 // --- Mutation art (16x16 illustrations for cards and the slot bar) ---------------
 const ICON_PAINT = {
   // MOUTH
@@ -397,7 +429,38 @@ const ICON_PAINT = {
     for (const x of [5, 7, 9, 11]) P.tube([[x, 7], [x + 0.2, 9.8]], 0.8, 0.3, R.bone);
     for (const x of [6, 10]) P.tube([[x, 12.5], [x, 10]], 0.7, 0.3, R.bone);
   },
+  slime: P => {
+    P.blob(8, 9.5, 5.4, 4.6, R.murk, { spec: 1, noise: 0.25 });
+    P.blob(12.5, 4.5, 1.8, 1.6, R.murk, { spec: 1 }).blob(3.5, 4, 1.1, 1, R.murk, { spec: 1 });
+    P.tube([[6, 13.5], [5.6, 15.5]], 0.8, 0.4, R.murk);
+  },
+  proboscis: P => {
+    P.blob(4, 12, 3.4, 2.8, R.flesh, { spec: 1 });
+    P.tube([[5.5, 10.5], [9, 7], [13.5, 2.5]], 1.4, 0.5, R.flesh, { spec: 1 });
+    P.blob(13.6, 2.4, 1.1, 1, R.blood, { spec: 1 }).tube([[13.2, 3.4], [13, 6]], 0.4, 0.3, R.blood);
+  },
+  eggsac: P => {
+    P.blob(8, 9, 6.6, 5.6, R.cyst, { shift: 0.1, noise: 0.3 });
+    for (const [x, y, r] of [[5.5, 7.5, 1.6], [9.5, 6.5, 1.4], [8, 10.5, 1.7], [11.5, 10, 1.2], [4.5, 11, 1.1]]) P.blob(x, y, r, r, R.pus, { spec: 1 });
+    P.vein(3, 9, 5, '#7a1420', 0.4);
+  },
   // HEAD
+  antennae: P => {
+    P.tube([[6.5, 15], [5.5, 9], [3, 4], [1.5, 1.5]], 0.9, 0.4, R.chitin).tube([[9.5, 15], [10.5, 9], [13, 4], [14.5, 1.5]], 0.9, 0.4, R.chitin);
+    P.blob(1.6, 1.8, 1.2, 1.2, R.chitin, { spec: 1 }).blob(14.4, 1.8, 1.2, 1.2, R.chitin, { spec: 1 });
+  },
+  echo: P => {
+    P.blob(6, 9, 5, 4.6, R.bone, { spec: 1 });
+    P.blob(4.5, 8.5, 1.1, 1.1, R.socket, { noise: 0 }).blob(7.6, 8.5, 1.1, 1.1, R.socket, { noise: 0 });
+    P.blob(6, 12, 1.8, 1.4, R.socket, { noise: 0 });
+    for (const r of [3, 5.5]) P.scratch([[11 + r * 0.4, 9 - r], [12 + r * 0.6, 9], [11 + r * 0.4, 9 + r]], '#c8c0b0');
+  },
+  parasite: P => {
+    P.blob(8, 9, 6.6, 5.4, R.cyst, { spec: 1, noise: 0.3 });
+    P.vein(4, 8, 5, '#5a0c12', 0.3).vein(9, 11, 4, '#5a0c12', -1.5);
+    P.tube([[12, 6], [14, 3], [12.5, 1.2]], 1, 0.5, R.muscle, { spec: 1 });
+    P.eye(10, 7.5, 1.5, '#a04ad0');
+  },
   eyes: P => {
     for (const [x, y] of [[3.5, 5], [8, 3], [12.5, 5]]) P.tube([[8, 15], [x, y]], 1.2, 0.8, R.flesh);
     for (const [x, y] of [[3.5, 5], [8, 3], [12.5, 5]]) P.eye(x, y, 2, '#8a2a14', { bloodshot: true });
@@ -536,11 +599,15 @@ function comboIcon(a, b) {
   return c;
 }
 
+// A node's art: its own painting, a pair it borrows (`icon: ['a', 'b']` or
+// 'a'), or failing that, its parent's.
 function mutIcon(id) {
   if (SPR.icons[id]) return SPR.icons[id];
-  const d = RECIPES[id];
-  if (d) return (SPR.icons[id] = comboIcon(d.parts[0], d.parts[1]));
-  return null;
+  const d = MUTATIONS[id];
+  if (!d) return null;
+  if (Array.isArray(d.icon)) return (SPR.icons[id] = comboIcon(d.icon[0], d.icon[1]));
+  if (d.icon) return (SPR.icons[id] = mutIcon(d.icon));
+  return d.from ? mutIcon(d.from) : null;
 }
 
 // --- HUD art --------------------------------------------------------------------
@@ -690,6 +757,18 @@ function paintScavenger() {
   return P.outline().toCanvas();
 }
 
+// Engorged: a swollen, translucent sack with stolen DNA glowing inside.
+// `glow` = the brighter frame it pulses to when it's about to escape.
+function paintScavengerFat(glow) {
+  const P = new Painter(17, 13, 54);
+  P.blob(7, 7, 6.6, 5, GRUB, { spec: 1, shift: 0.15 });
+  for (const [x, y, r] of [[5, 6, 1.4], [8.5, 8, 1.2], [6.5, 9.5, 0.9], [9, 5, 0.8]]) P.blob(x, y, r, r, R.pink, { spec: 1, shift: glow ? 0.35 : 0 });
+  P.vein(3, 7, 4, '#6a2a44', 0.3).vein(10, 9, 3, '#6a2a44', -1.5);
+  P.blob(14, 7, 1.6, 1.5, R.chitin, { spec: 1 });
+  P.tube([[15, 6.5], [16.5, 6]], 0.4, 0.3, R.chitin).tube([[15, 7.5], [16.5, 8.2]], 0.4, 0.3, R.chitin);
+  return P.outline().toCanvas();
+}
+
 // The Mother Culture: a vast sac of culture with half-formed specimens inside.
 function paintMother(frame, small) {
   const W = small ? 30 : 50, H = small ? 26 : 42;
@@ -805,6 +884,8 @@ function withFlash(name, img) {
   withFlash('culture', paintCulture(false));
   withFlash('culture2', paintCulture(true));
   withFlash('scavenger', paintScavenger());
+  withFlash('scavengerfat', paintScavengerFat(false));
+  withFlash('scavengerfat2', paintScavengerFat(true));
   withFlash('mother', paintMother(0, false));
   withFlash('mother2', paintMother(1, false));
   withFlash('motherling', paintMother(0, true));
@@ -824,6 +905,11 @@ function withFlash(name, img) {
     h_open: paintDoor(true, false), h_locked: paintDoor(true, true),
     v_open: paintDoor(false, false), v_locked: paintDoor(false, true),
   };
+  for (const horiz of [true, false]) {
+    const k = horiz ? 'h_' : 'v_';
+    for (const d of [0, 1, 2]) SPR.doors[k + 'hazmat' + d] = paintHazmat(horiz, d);
+    SPR.doors[k + 'hazmatFlash'] = silhouette(SPR.doors[k + 'hazmat0'], '#fff0c0');
+  }
 })();
 
 function vialSprite(color) {

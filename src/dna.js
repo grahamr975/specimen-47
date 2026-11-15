@@ -60,6 +60,11 @@ function burstCorpse(c) {
     game.room.orbs.push({ x: c.x, y: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
   }
   p.hungerT = 0; // Starving Cells: the smell of it is enough
+  if (s.feedFrenzy) { // Feeding Frenzy
+    if (!(p.frenzyT > 0)) floatText(p.x, p.y - 22, 'FRENZY', PAL.red);
+    p.frenzyT = 5;
+    recomputeStats(p);
+  }
   if (s.hemophage > 0 && p.hp < p.maxHp && Math.random() < s.hemophage) {
     p.hp++;
     floatText(p.x, p.y - 20, '+1 HP', PAL.red);
@@ -79,14 +84,30 @@ function corpsesNear(x, y, range, ax = 0, ay = 0, minDot = -1) {
   });
 }
 
+// DNA just piles up. Once the bar is full you can evolve, but only by
+// cocooning yourself (hold F; see updateCocoon in player.js).
 function gainDna(n) {
   const p = game.player;
+  const wasReady = evolveReady(p);
   p.dna += n;
-  while (p.dna >= dnaNeeded(p.level)) {
+  if (!wasReady && evolveReady(p)) { floatText(p.x, p.y - 22, 'HOLD F TO COCOON', VIAL_COLOR); Sfx.play('evolve'); }
+}
+
+// Is there an evolution waiting (a full DNA bar, or a mutagen vial)?
+function evolveReady(p) {
+  return p.dna >= dnaNeeded(p.level) || game.pendingEvolutions.length > 0;
+}
+
+// After the cocoon splits: one card screen per vial, then per full bar of DNA.
+function nextEvolution() {
+  const p = game.player;
+  if (game.pendingEvolutions.length) return game.pendingEvolutions.shift();
+  if (p.dna >= dnaNeeded(p.level)) {
     p.dna -= dnaNeeded(p.level);
     p.level++;
-    game.pendingEvolutions.push({ minRarity: null, title: 'EVOLUTION' });
+    return { minRarity: null, title: 'EVOLUTION' };
   }
+  return null;
 }
 
 function updateCorpses(dt) {

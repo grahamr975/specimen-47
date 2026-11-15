@@ -107,7 +107,7 @@ function generateFloor(depth) {
   const grid = new Map();
   const key = (x, y) => x + ',' + y;
   const rooms = [];
-  const target = Math.min(5 + depth, 12);
+  const target = Math.min(5 + depth, 12) + 1; // + the vault
 
   const add = (gx, gy, type) => {
     const r = {
@@ -119,11 +119,15 @@ function generateFloor(depth) {
     return r;
   };
 
-  add(0, 0, 'start');
+  const start = add(0, 0, 'start');
   const dirList = Object.values(DIRS);
+  // The Mutagen Vault sits right next to where you wake up, behind a hazmat seal.
+  const vd = pick(dirList);
+  const vault = add(vd.dx, vd.dy, 'vault');
   let guard = 0;
   while (rooms.length < target && guard++ < 2000) {
     const base = pick(rooms);
+    if (base === vault) continue; // the vault stays a dead end
     const d = pick(dirList);
     const nx = base.gx + d.dx, ny = base.gy + d.dy;
     if (grid.has(key(nx, ny))) continue;
@@ -137,7 +141,14 @@ function generateFloor(depth) {
   for (const r of rooms) {
     for (const name in DIRS) {
       const nb = grid.get(key(r.gx + DIRS[name].dx, r.gy + DIRS[name].dy));
-      if (nb) r.doors[name] = nb;
+      if (!nb) continue;
+      if ((r === vault && nb !== start) || (nb === vault && r !== start)) continue; // one way in
+      r.doors[name] = nb;
+      if (nb === vault) { // seal it; both sides share the same door
+        const seal = { hits: 0, broken: false, cd: 0 };
+        r.seals = { [name]: seal };
+        vault.seals = { [DIRS[name].opp]: seal };
+      }
     }
   }
 
@@ -151,13 +162,9 @@ function generateFloor(depth) {
       if (!distMap.has(nb)) { distMap.set(nb, distMap.get(r) + 1); queue.push(nb); }
     }
   }
-  let exit = rooms[0];
-  for (const r of rooms) if (distMap.get(r) > distMap.get(exit)) exit = r;
+  let exit = rooms.find(r => r.type === 'combat');
+  for (const r of rooms) if (r.type === 'combat' && distMap.get(r) > distMap.get(exit)) exit = r;
   exit.type = 'exit';
-
-  // A dead-end room becomes a Mutagen Vault with a free sample.
-  const deadEnds = rooms.filter(r => r.type === 'combat' && Object.keys(r.doors).length === 1);
-  if (deadEnds.length) pick(deadEnds).type = 'vault';
 
   for (const r of rooms) buildRoom(r, depth);
   return { rooms, start: rooms[0], depth };
@@ -310,7 +317,7 @@ function isSolid(room, tx, ty, flying) {
   if (tx < 0 || ty < 0 || tx >= ROOM_W || ty >= ROOM_H) return true;
   const t = room.tiles[ty * ROOM_W + tx];
   if (t === T_FLOOR) return false;
-  if (t === T_DOOR) return room.locked;
+  if (t === T_DOOR) return room.locked || !!sealAt(room, doorDirOfTile(tx, ty));
   if (t === T_BLOCK) return !flying;
   return true;
 }
@@ -334,6 +341,57 @@ function moveEntity(room, e, dx, dy) {
     if (!circleHitsWall(room, e.x, e.y + dy, e.r, e.flying)) e.y += dy; else bumped = true;
   }
   return bumped;
+}
+
+// --- Hazmat seals --------------------------------------------------------------------
+// The Mutagen Vault's door is sealed. A few attacks (any kind) break it open.
+const SEAL_HITS = 4;
+
+function doorDirOfTile(tx, ty) {
+  if (ty === 0) return 'up';
+  if (ty === ROOM_H - 1) return 'down';
+  return tx === 0 ? 'left' : 'right';
+}
+
+function doorCenter(dir) {
+  const [[x1, y1], [x2, y2]] = DOOR_TILES[dir];
+  return { x: (x1 + x2 + 1) * TILE / 2, y: (y1 + y2 + 1) * TILE / 2 };
+}
+
+function sealAt(room, dir) {
+  const s = room.seals && room.seals[dir];
+  return s && !s.broken ? s : null;
+}
+
+// An attack landing at (x, y) with some `reach`: hit any sealed door there.
+function strikeSeal(x, y, reach) {
+  const room = game.room;
+  if (!room || !room.seals) return false;
+  for (const dir in room.seals) {
+    const s = sealAt(room, dir);
+    if (!s) continue;
+    const c = doorCenter(dir);
+    if (Math.hypot(c.x - x, c.y - y) > reach + 16) continue;
+    if (s.cd > game.time) return true; // one hit per attack, not one per pellet
+    s.cd = game.time + 0.18;
+    s.hits++;
+    s.flash = 0.08;
+    burst(c.x, c.y, '#ffd070', 6, 80, 0.25);
+    burst(c.x, c.y, '#e8c020', 3, 50, 0.3);
+    game.shake = Math.max(game.shake, 2);
+    Sfx.play('clank');
+    if (s.hits >= SEAL_HITS) {
+      s.broken = true;
+      burst(c.x, c.y, '#e8c020', 20, 130, 0.6);
+      burst(c.x, c.y, '#3e3e46', 16, 110, 0.6);
+      burst(c.x, c.y, VIAL_COLOR, 10, 60, 0.8); // the vault breathes out
+      floatText(c.x, c.y + 10, 'SEAL BROKEN', '#e8c020');
+      game.shake = Math.max(game.shake, 5);
+      Sfx.play('slam');
+    }
+    return true;
+  }
+  return false;
 }
 
 function pointSolid(room, x, y) {

@@ -49,6 +49,10 @@ function updateBullets(dt) {
     b.x += b.vx * bdt;
     b.y += b.vy * bdt;
     b.life -= dt;
+    // Venom Lance: spikes drip burning bile as they fly.
+    if (b.venom && (b.dripT = (b.dripT || 0) - dt) <= 0) { b.dripT = 0.08; spawnPuddle(b.x, b.y, 4, 1.2, 'player'); }
+    // Spore Fire: bile flame sets off any spore cloud it touches.
+    if (b.flame && game.clouds.length && igniteCloudAt(b.x, b.y)) { b.dead = true; continue; }
 
     if (b.kind === 'lob') {
       // Your spore mortar: flies over everything, bursts where it lands.
@@ -56,6 +60,8 @@ function updateBullets(dt) {
         b.dead = true;
         for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - b.x, e.y - b.y) < 14 + e.r) damageEnemy(e, b.dmg, e.x - b.x, e.y - b.y, true);
         for (const c of corpsesNear(b.x, b.y, 14)) damageCorpse(c, b.dmg);
+        strikeSeal(b.x, b.y, 14);
+        if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Bile Mortar
         burst(b.x, b.y, '#7a8a52', 8, 60);
         endPlayerBullet(b);
       }
@@ -78,6 +84,7 @@ function updateBullets(dt) {
       b.dead = true;
       endPlayerBullet(b);
       burst(b.x, b.y, b.color, 3, 40);
+      if (b.team === 'player') strikeSeal(b.x, b.y, 4); // hazmat seals
       if (b.team === 'player' && b.acid) spawnPuddle(b.x - b.vx * dt * 2, b.y - b.vy * dt * 2, b.acid * 0.7, 2, 'player');
       continue;
     }
@@ -86,9 +93,8 @@ function updateBullets(dt) {
       for (const e of game.enemies) {
         if (e.spawnT > 0 || e.dead || (b.hitSet && b.hitSet.has(e))) continue;
         if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + b.r) {
-          damageEnemy(e, b.dmg * nightEyesMul(e), b.vx, b.vy);
+          damageEnemy(e, b.dmg * nightEyesMul(e), b.vx, b.vy, false, b.dmg * KNOCK_PER_DMG + (b.knock || 0));
           onPlayerBulletHit(b, e);
-          if (b.knock) { const sp = Math.hypot(b.vx, b.vy) || 1; e.kx += b.vx / sp * b.knock; e.ky += b.vy / sp * b.knock; }
           if (b.kind === 'thrown' || b.spore) { b.dead = true; endPlayerBullet(b); break; }
           if (b.pierce > 0) {
             b.pierce--;
@@ -134,7 +140,14 @@ function endPlayerBullet(b) {
 
 // Hit effects come from the bullet's flags, which come from mutations.
 function onPlayerBulletHit(b, enemy) {
+  const p = game.player, s = p.stats;
   if (b.acid) spawnPuddle(b.x, b.y, b.acid, 2.2, 'player');
+  // Clutch: whatever your fragments kill hatches a maggot.
+  if (b.kind === 'frag' && enemy.dead && s.clutch) { spawnAlly('maggot', enemy.x, enemy.y); Sfx.play('hatch'); }
+  if (!enemy.dead) {
+    if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) enemy.stunT = Math.max(enemy.stunT || 0, s.darkStun); // Abyss Stare
+    if (s.stunChance && Math.random() < s.stunChance) enemy.stunT = Math.max(enemy.stunT || 0, 0.8);    // Brain Worm
+  }
   if (b.bleed) { enemy.bleedT = 3; enemy.bleedDps = b.bleed; }
   if (b.split > 0) spawnFragments(b.x, b.y, Math.atan2(b.vy, b.vx), b.split, b.dmg * 0.5, b.homing, b.acid ? b.acid * 0.6 : 0, enemy);
 }
@@ -328,6 +341,7 @@ function updatePickups(dt) {
       Sfx.play('gulp');
       floatText(p.x, p.y - 8, 'MUTAGEN', VIAL_COLOR);
       game.pendingEvolutions.push({ minRarity: p.minRarity || 'uncommon', title: 'MUTAGEN' });
+      floatText(game.player.x, game.player.y - 22, 'HOLD F TO COCOON', VIAL_COLOR);
     }
   }
   game.room.pickups = game.room.pickups.filter(p => !p.dead);

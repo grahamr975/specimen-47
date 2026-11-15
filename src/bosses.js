@@ -92,7 +92,14 @@ function updateCulture(e, dt) {
 }
 
 // Scavenger Maggot: ignores you. It eats corpses, and the DNA with them.
+// Once it's eaten enough it swells up ENGORGED and flees: kill it before it
+// squeezes down a drain and it bursts with more DNA than it took.
+const ENGORGE_DNA = 4;      // DNA eaten before it's full
+const ENGORGE_ESCAPE = 15;  // seconds until a fat one gets away
+const ENGORGE_BONUS = 1.3;  // an engorged kill pays back 130%
+
 function updateScavenger(e, dt) {
+  if (e.engorged) return fleeScavenger(e, dt);
   let best = null, bd = 9999;
   for (const c of game.room.corpses) {
     if (c.held) continue;
@@ -113,13 +120,50 @@ function updateScavenger(e, dt) {
       best.dead = true;
       game.room.corpses = game.room.corpses.filter(c => !c.dead);
       stain(best.x, best.y + 1, best.r, best.fluid);
-      floatText(best.x, best.y - 8, 'DNA LOST', PAL.slate);
+      e.ate = (e.ate || 0) + best.dna;
       Sfx.play('chomp');
+      if (e.ate >= ENGORGE_DNA) engorge(e);
+      else floatText(best.x, best.y - 8, 'IT FEEDS', PAL.slate);
     }
     return [0, 0];
   }
   e.eatT = 0;
   return [(best.x - e.x) / bd * e.speed, (best.y - e.y) / bd * e.speed];
+}
+
+function engorge(e) {
+  e.engorged = true;
+  e.fleeT = ENGORGE_ESCAPE;
+  e.r = 6;
+  e.maxHp = e.hp = 4 * (1 + (game.depth - 1) * 0.3); // a fat, tougher sack
+  e.speed *= 1.35;                                    // panicked
+  bloodSpray(e.x, e.y, 0, 0, 6, FLUID.bile, 50);
+  floatText(e.x, e.y - 10, 'ENGORGED', VIAL_COLOR);
+  Sfx.play('gulp');
+}
+
+// Engorged: run from the specimen, then slip down a drain.
+function fleeScavenger(e, dt) {
+  const p = game.player;
+  e.fleeT -= dt;
+  if (Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + rand(1, 3), ['#6a2a44', '#3a0e22'], 1); // leaking DNA
+  if (e.fleeT <= 0) {
+    // Gone: down the drain with everything it ate.
+    e.dead = true;
+    burst(e.x, e.y, '#3a3230', 12, 60);
+    floatText(e.x, e.y - 10, 'IT GOT AWAY', COST_COLOR);
+    Sfx.play('splat');
+    return [0, 0];
+  }
+  let dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+  if (d > 110) return [Math.sin(e.t * 3) * 10, Math.cos(e.t * 2) * 10]; // far enough: catch its breath
+  // Away from you, curving along walls instead of cowering in a corner.
+  const side = Math.sin(e.t * 0.7) > 0 ? 1 : -1;
+  let vx = dx / d + (-dy / d) * 0.6 * side, vy = dy / d + (dx / d) * 0.6 * side;
+  if (e.x < TILE * 2 || e.x > ROOM_PX_W - TILE * 2) vx *= 0.3;
+  if (e.y < TILE * 2 || e.y > ROOM_PX_H - TILE * 2) vy *= 0.3;
+  const l = Math.hypot(vx, vy) || 1;
+  return [vx / l * e.speed, vy / l * e.speed];
 }
 
 // --- Bosses --------------------------------------------------------------------------

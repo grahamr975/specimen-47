@@ -9,8 +9,11 @@ function makePlayer() {
   return {
     x: ROOM_PX_W / 2, y: ROOM_PX_H / 2, r: 5,
     hp: BASE_HP, maxHp: BASE_HP,
-    // One mutation per body slot. You're born with a bone spike in your mouth.
-    slots: { MOUTH: { id: 'spike', level: 1 }, HEAD: null, BACK: null, LIMBS: null, CORE: null },
+    // One growing path per body slot: { id: where it is now, path: [root, branch, branch] }.
+    // You're born spitting slime; your first MOUTH pick replaces it.
+    slots: { MOUTH: { id: 'slime', path: ['slime'], starter: true }, HEAD: null, BACK: null, LIMBS: null, CORE: null },
+    cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
+    moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '',
     dna: 0, level: 0,
     evolutions: 0, stage: 0,  // how far it has degenerated from its pure form
     stats: baseStats(),
@@ -18,7 +21,7 @@ function makePlayer() {
     aimX: 1, aimY: 0, trailT: 0, ghostT: 0, t: 0, moving: false,
     regenT: 0, adrenalT: 0, dripT: 0, chompT: 0,
     lungeT: 0, lungeX: 1, lungeY: 0, hungerT: 0, cancerRooms: 0,
-    chargeT: 0, dmgBoost: 1,
+    chargeT: 0, dmgBoost: 1, evolveT: 0,
     mvx: 0, mvy: 0, hopT: 0, hopAir: 0, hopX: 0, hopY: 0, slimeT: 0, flying: false,
     grappleCd: 0, pullT: 0, pull: null,
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
@@ -31,7 +34,23 @@ function makePlayer() {
 function recomputeStats(p) {
   const s = baseStats();
   for (const slot of SLOTS) if (p.slots[slot]) applyMutation(s, p.slots[slot], p);
+  if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
+  // Set bonus: 3 (or all 5) slots of the same set.
+  const set = activeSet(p);
+  if (set) SETS[set.set].bonus[set.tier].apply(s, p);
+  if (p.frenzyT > 0 && s.setKillFrenzy) s.damageMul *= 1.4; // Apex frenzy
   finalizeStats(s);
+  const key = set ? set.set + set.tier : '';
+  if (key !== (p.setKey || '')) {
+    if (set && game.room) {
+      const S = SETS[set.set], b = S.bonus[set.tier];
+      game.banner = { text: (set.tier ? 'FULL SET: ' : 'SET: ') + S.name, sub: b.name, color: S.color, t: 2.6 };
+      whisper(S.whisper[set.tier]);
+      burst(p.x, p.y, S.color, 30, 120, 0.8);
+      Sfx.play('splice');
+    } else if (p.setKey && game.room) floatText(p.x, p.y - 24, 'SET BROKEN', PAL.slate);
+    p.setKey = key;
+  }
   p.stats = s;
   p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp) * s.hpMul));
   if (!s.flyover && game.room && circleHitsWall(game.room, p.x, p.y, p.r, false)) {
@@ -57,12 +76,7 @@ const STAGE_AT = [0, 2, 4, 7, 11];
 function specimenStage(p) {
   let st = 0;
   STAGE_AT.forEach((n, i) => { if (p.evolutions >= n) st = i; });
-  const malignant = SLOTS.some(s => {
-    const m = p.slots[s];
-    if (!m) return false;
-    if (m.parts) return Object.keys(m.parts).some(pt => MUTATIONS[pt].malignant);
-    return !!MUTATIONS[m.id].malignant;
-  });
+  const malignant = SLOTS.some(sl => p.slots[sl] && slotMalignant(p.slots[sl]));
   return Math.min(4, st + (malignant ? 1 : 0));
 }
 
@@ -70,14 +84,17 @@ function specimenStage(p) {
 function movement(p) {
   const s = p.stats;
   if (p.limbWear > 0 && p.slots.LIMBS) {
-    return { slug: true, speed: 50 * s.speedMul, accel: 0, drag: 0, hop: 0, flyover: false, grapple: 0, hands: false, shell: false, fins: 0, burrow: 0, stilts: false, slime: true };
+    return { slug: true, speed: SLUG_SPEED * s.speedMul, accel: 0, drag: 0, hop: 0, flyover: false, grapple: 0, hands: false, shell: false, fins: 0, burrow: 0, stilts: false, slime: true };
   }
   return { slug: s.slug, speed: s.speed, accel: s.accel, drag: s.drag, hop: s.hop, flyover: s.flyover, grapple: s.grapple, hands: s.hands, shell: s.shell, fins: s.fins, burrow: s.burrow, stilts: s.stilts, slime: s.slimeTrail };
 }
 
 function updatePlayer(dt) {
   const p = game.player, s = p.stats;
-  p.t += dt; p.inv -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt;
+  p.t += dt; p.inv -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
+  for (const k in p.cd) p.cd[k] -= dt;
+  if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
+  if (s.setSporeAura && game.room.locked && (p.sporeT = (p.sporeT || s.setSporeAura) - dt) <= 0) { p.sporeT = s.setSporeAura; spawnCloud(p.x, p.y, 24); } // Fruiting Body
   const mv = movement(p);
 
   // --- Movement input (WASD) ---
@@ -108,9 +125,17 @@ function updatePlayer(dt) {
     if (l > 1) { p.aimX = dx / l; p.aimY = dy / l; }
     firing = Input.mouse.down;
   }
+  // Berserker Host: while the parasite drives, it hunts the nearest enemy for you.
+  if (s.parasiteFrenzy && p.controlT > 0) {
+    const prey = nearestEnemy(p.x, p.y, 200);
+    if (prey) { const d = Math.hypot(prey.x - p.x, prey.y - p.y) || 1; p.aimX = (prey.x - p.x) / d; p.aimY = (prey.y - p.y) / d; firing = true; }
+  }
 
   // --- Burrowed underground: nothing else happens until you erupt ---
   if (p.burrowT > 0) { updateBurrow(p, dt, ix, iy); return; }
+
+  // --- Cocooning to evolve: hold F, helpless, until it splits ---
+  if (updateCocoon(p, dt)) return;
 
   // --- Snail shell: hold still to withdraw ---
   if (mv.shell && !p.moving && !firing && p.dashT <= 0) p.withdrawT += dt; else p.withdrawT = 0;
@@ -130,6 +155,10 @@ function updatePlayer(dt) {
     p.inv = Math.max(p.inv, s.dashTime + 0.06);
     p.dashHit.clear();
     if (il) { p.dashX = ix; p.dashY = iy; } else { p.dashX = p.aimX; p.dashY = p.aimY; }
+    // Huntsman: the pounce leaps straight at the nearest prey.
+    const prey = s.homingPounce && nearestEnemy(p.x, p.y, 130);
+    if (prey) { const d = Math.hypot(prey.x - p.x, prey.y - p.y) || 1; p.dashX = (prey.x - p.x) / d; p.dashY = (prey.y - p.y) / d; }
+    if (s.dashReload) p.cd = {}; // Jitter: every dash reloads every weapon
     Sfx.play('dash');
   }
 
@@ -212,6 +241,7 @@ function updatePlayer(dt) {
       addSlime(p.x, p.y + 3);
     }
   }
+  updateBranchUpkeep(p, dt);
 
   // --- Upkeep: shell, regrowth, hunger, bleeding ---
   if (s.shieldCd > 0 && !p.shieldUp) {
@@ -245,120 +275,203 @@ function updatePlayer(dt) {
     }
   }
 
-  // --- Attack (whatever is in your MOUTH). Not while dashing or in your shell. ---
-  const canAttack = p.dashT <= 0 && p.lungeT <= 0 && !p.withdrawn;
-  if (s.charge && !s.beam) {
-    // Dense Marrow: hold to charge, release to blast.
-    if (firing && canAttack && p.fireT <= 0) {
+  // --- Attack (everything in your MOUTH). Not while dashing or in your shell. ---
+  const canAttack = p.dashT <= 0 && p.lungeT <= 0 && !p.withdrawn && p.fireT <= 0;
+  if (s.charge) {
+    // Hold to charge, release to blast with everything at once.
+    if (firing && canAttack) {
       const before = p.chargeT;
-      p.chargeT = Math.min(CHARGE_TIME, p.chargeT + dt);
+      p.chargeT = Math.min(CHARGE_TIME, p.chargeT + dt * (s.chargeSpeed || 1));
       if (Math.floor(p.chargeT * 8) > Math.floor(before * 8) && p.chargeT < CHARGE_TIME) Sfx.play('charge');
       if (p.chargeT >= CHARGE_TIME && before < CHARGE_TIME) Sfx.play('chargeFull');
+      if (s.beam) fireWeapons(p, ['beam']); // the proboscis keeps draining while you charge
     } else if (!firing && p.chargeT > 0) {
-      if (p.chargeT > 0.1 && canAttack) {
-        releaseCharge(p, p.chargeT / CHARGE_TIME);
-        p.fireT = s.fireDelay * 1.1;
-      }
+      if (p.chargeT > 0.1 && canAttack) { releaseCharge(p, p.chargeT / CHARGE_TIME); p.fireT = 0.3; }
       p.chargeT = 0;
     }
-  } else if (firing && p.fireT <= 0 && canAttack) {
-    p.fireT = s.fireDelay * (s.adrenalRage && p.adrenalT > 0 ? 0.5 : 1);
-    attack(p);
+  } else if (firing && canAttack) {
+    fireWeapons(p);
   }
 }
 
 const CHARGE_TIME = 1.0; // seconds to a full charge
 
-// Releasing a charge: melee hits much harder, ranged weapons fire a blast.
+// Hitstop: freeze the action for a split second on a heavy hit, so it lands.
+function hitstop(t) {
+  game.hitstop = Math.min(0.08, Math.max(game.hitstop || 0, t));
+}
+
+// --- Cocoon: how you evolve ---------------------------------------------------------
+// With a full DNA bar (or a mutagen vial), hold F to wrap yourself in a cocoon.
+// You can't move or attack while it grows. Let go, or get hit, and it tears.
+// Returns true while you're inside it.
+const COCOON_TIME = 2.0;
+function updateCocoon(p, dt) {
+  const can = evolveReady(p) && p.dashT <= 0 && p.pullT <= 0 && p.lungeT <= 0 && !p.withdrawn;
+  if (!(can && Input.down('f'))) {
+    if (p.evolveT > 0) {
+      if (p.evolveT > 0.3) { burst(p.x, p.y - 3, '#c8b4a0', 8, 50); floatText(p.x, p.y - 18, 'TORN', PAL.slate); }
+      p.evolveT = 0;
+    }
+    return false;
+  }
+  const before = p.evolveT;
+  p.evolveT += dt;
+  p.chargeT = 0; p.mvx = p.mvy = 0;
+  if (p.held) throwHeld(p);
+  // Wet, wrapping sounds, then a heartbeat that quickens.
+  if (before === 0) Sfx.play('gulp');
+  const beat = p.evolveT > COCOON_TIME * 0.6 ? 0.25 : 0.45;
+  if (Math.floor(p.evolveT / beat) > Math.floor(before / beat)) { Sfx.play('heartbeat'); game.shake = Math.max(game.shake, 1 + 2 * p.evolveT / COCOON_TIME); }
+  if (Math.random() < dt * 10) stainPx(p.x + rand(-5, 5), p.y + rand(3, 6), ['#c8b4a0', '#8a6a5a', '#5e2229'], 1);
+  if (p.evolveT >= COCOON_TIME) {
+    // It splits open. Evolve!
+    p.evolveT = 0;
+    game.evolving = true;
+    bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 120);
+    gibs(p.x, p.y, 6, ['#c8b4a0', '#a8907e', '#5e2229'], FLUID.blood);
+    game.shake = Math.max(game.shake, 5);
+    Sfx.play('hatch');
+  }
+  return true;
+}
+
+// Out of the cocoon after the last card: shed the husk.
+function emergeFromCocoon(p) {
+  burst(p.x, p.y, '#c8b4a0', 16, 90, 0.5);
+  for (let i = 0; i < 12; i++) stainPx(p.x + rand(-6, 6), p.y + rand(1, 6), ['#3a2e28', '#4a3a30', '#8a6a5a'], 2);
+  p.inv = Math.max(p.inv, 0.8); // a moment to get your bearings
+}
+
+// How much faster you attack right now (Blood Rage, Slipstream, the Berserker Host).
+function attackRate(p) {
+  const s = p.stats;
+  let rate = 1;
+  if (s.adrenalRage && p.adrenalT > 0) rate *= 0.5;
+  if (s.parasiteFrenzy && p.controlT > 0) rate *= 0.5;
+  if (s.slimeRate && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) rate *= s.slimeRate;
+  return rate;
+}
+
+// Ambush: the first attack after erupting from the ground hits three times as hard.
+function takeAmbush(p) {
+  if (!(p.ambushT > 0)) return 1;
+  p.ambushT = 0;
+  floatText(p.x, p.y - 14, 'AMBUSH', '#e8a020');
+  return 3;
+}
+
+// Every weapon in your mouth fires on its own timer, so they all stack:
+// a slow bone spike never holds back a quick bite.
+function fireWeapons(p, only) {
+  const s = p.stats, cd = p.cd, rate = attackRate(p);
+  const ready = (k, delay) => {
+    if (only && !only.includes(k)) return false;
+    if ((cd[k] || 0) > 0) return false;
+    cd[k] = delay * rate;
+    return true;
+  };
+  let fired = false, mul = 1;
+  const boost = () => { if (!fired) mul = takeAmbush(p); fired = true; };
+  s.guns.forEach((g, i) => { if (ready('gun' + i, g.delay)) { boost(); fireGun(p, g, mul); } });
+  if (s.lunge && ready('lunge', s.lungeDelay)) { boost(); p.dmgBoost = mul; p.lungeT = 0.1; p.lungeX = p.aimX; p.lungeY = p.aimY; }
+  if (s.lash && ready('lash', s.lashDelay)) { boost(); p.dmgBoost = mul; lash(p); }
+  if (s.bite && ready('bite', s.biteDelay)) { boost(); p.dmgBoost = mul; bite(p, s.biteDmg); }
+  if (!s.lunge) p.dmgBoost = 1;
+  if (s.beam && ready('beam', 0.1)) drainBeam(p);
+  if (s.vomit && ready('vomit', s.vomitDelay)) { boost(); vomit(p); }
+  if (fired) twinCopy(p);
+}
+
+// Your twin copies you with a spike of its own (at most a few a second).
+function twinCopy(p) {
+  const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
+  if (!twin || p.twinT > 0) return;
+  p.twinT = 0.35;
+  spawnBullet({ x: twin.x, y: twin.y - 2, vx: p.aimX * 150, vy: p.aimY * 150, r: 1.5, dmg: 0.6 * (p.stats.twinMul || 1) * p.stats.damage, life: 0.6, kind: 'shot', color: '#f4c0c4' });
+}
+
+// Releasing a charge: melee hits much harder, every ranged weapon fires a blast.
 function releaseCharge(p, frac) {
   const s = p.stats;
-  p.dmgBoost = 1 + 1.5 * frac;
+  p.dmgBoost = (1 + 1.5 * frac) * takeAmbush(p);
   if (s.lunge) { p.lungeT = 0.1; p.lungeX = p.aimX; p.lungeY = p.aimY; } // dmgBoost is read when the lunge lands
   if (s.lash) lash(p);
   if (s.bite) bite(p, s.biteDmg);
+  const mul = p.dmgBoost / (1 + 1.5 * frac);
   if (!s.lunge) p.dmgBoost = 1;
-  if (s.spike || s.vomit) blast(p, frac);
+  for (const g of s.guns) blast(p, frac, g, mul);
+  if (s.vomit) blast(p, frac, { id: 'vomit', dmg: s.vomitDmg, speed: 160, range: 0.3, r: 1.5, round: true, color: '#9aae50', acid: 0, bleed: 0 }, mul);
+  // Overcharge: a full charge bursts out of you as a shard ring too.
+  if (s.chargeRing && frac > 0.95) fireRing(p, s.chargeRing);
   if (frac > 0.95) game.shake = Math.max(game.shake, 4);
+  if (frac > 0.5) hitstop(0.05 * frac);
+  // Every weapon reloads after a blast.
+  s.guns.forEach((g, i) => { p.cd['gun' + i] = g.delay; });
   Sfx.play(frac > 0.6 ? 'blast' : 'shoot');
+  twinCopy(p);
 }
 
-// A charged blast of whatever your mouth fires: bone shrapnel, acid
-// buckshot, a cluster of spore mortars, a gut-gush...
-function blast(p, frac) {
+// A charged blast of one weapon: bone shrapnel, acid buckshot, a cluster of
+// spore mortars, a gut-gush...
+function blast(p, frac, g, mul = 1) {
   const s = p.stats, base = Math.atan2(p.aimY, p.aimX);
   const more = s.chargeBonus ? 1.5 : 1;
-  if (s.lob) {
+  if (g.lob) {
     const n = Math.round((2 + 3 * frac) * more);
-    for (let i = 0; i < n; i++) lobAt(p, 10 + 22 * frac);
+    for (let i = 0; i < n; i++) lobAt(p, g, 10 + 22 * frac, mul);
     return;
   }
   const n = Math.round((3 + 7 * frac) * more);
-  const dmg = (s.spike ? s.spikeDmg : s.vomitDmg) * (0.6 + 0.3 * frac);
   for (let i = 0; i < n; i++) {
-    const a = base + (Math.random() - 0.5) * 0.6, sp = (s.spike ? s.shotSpeed : 160) * rand(0.9, 1.3);
+    const a = base + (Math.random() - 0.5) * 0.6, sp = g.speed * rand(0.9, 1.3);
     spawnBullet({
       x: p.x + p.aimX * 5, y: p.y + p.aimY * 5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      r: Math.max(1.5, s.shotR - 0.5), dmg, life: (s.spike ? Math.max(0.3, s.range) : 0.3) * rand(0.55, 0.85),
-      pierce: s.pierce, homing: s.homing * 0.5, split: s.split ? 1 : 0, bleed: s.spikeBleed,
-      acid: s.acid && Math.random() < 0.4 ? s.acid * 0.7 : 0,
-      knock: 60 + 120 * frac, kind: 'shot', round: s.spit || !s.spike, color: s.spike ? shotColor(s) : '#9aae50',
+      r: Math.max(1.5, g.r - 0.5), dmg: g.dmg * (0.6 + 0.3 * frac) * mul, life: Math.max(0.3, g.range) * rand(0.55, 0.85),
+      pierce: s.pierce, homing: s.homing * 0.5, split: s.blastSplit || (s.split ? 1 : 0), bleed: g.bleed,
+      acid: g.acid && Math.random() < 0.4 ? g.acid * 0.7 : 0, venom: g.id === 'spike' && s.venomSpike,
+      flame: g.id === 'bile' && s.sporeFire, knock: 20 + 45 * frac, kind: 'shot', round: g.round, color: shotColor(s, g),
     });
   }
   // Recoil.
-  moveEntity(game.room, p, -p.aimX * 6 * frac, -p.aimY * 6 * frac);
+  moveEntity(game.room, p, -p.aimX * 9 * frac, -p.aimY * 9 * frac);
 }
 
-// Fire button: every attack part in your mouth acts at once.
-function attack(p) {
-  const s = p.stats;
-  if (s.lunge) { p.lungeT = 0.1; p.lungeX = p.aimX; p.lungeY = p.aimY; }
-  if (s.lash) lash(p);
-  if (s.bite) bite(p, s.biteDmg);
-  if (s.spike) shoot(p);
-  if (s.beam) drainBeam(p);
-  if (s.vomit) vomit(p);
-  // Your twin copies you with a weaker spike of its own.
-  const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
-  if (twin && !s.beam) {
-    spawnBullet({ x: twin.x, y: twin.y - 2, vx: p.aimX * 150, vy: p.aimY * 150, r: 1.5, dmg: 0.6 * s.damage, life: 0.6, kind: 'shot', color: '#f4c0c4' });
-  }
-}
-
-// Spikes: bone, or bile for Bile Spit. Mutations tint them.
-function shotColor(s) {
-  if (s.sporeCloud) return '#7a8a52';
-  if (s.pierce) return '#e8a020';  // abyssal
-  if (s.spit || s.acid) return '#b0c040';
+// Bone spikes are tinted by what's modifying them; other weapons keep their color.
+function shotColor(s, g) {
+  if (g.id !== 'spike') return g.color;
+  if (s.venomSpike) return '#b0c040';
+  if (s.pierce) return '#e8a020';  // abyssal / lance
   if (s.homing) return '#e0d0a0';
   if (s.split) return '#c96a8f';
-  return '#cfc4a4';                // plain bone
+  return g.color;                  // plain bone
 }
 
-function shoot(p) {
+function fireGun(p, g, mul = 1) {
   const s = p.stats;
-  if (s.lob) { lobAt(p, s.spread > 0 ? 22 : 0); Sfx.play('splat'); return; } // spore mortar
-  const n = s.spikeCount;
+  if (g.lob) { lobAt(p, g, g.spread > 0 ? 22 : 0, mul); Sfx.play(g.sound); return; } // spore mortar
   const base = Math.atan2(p.aimY, p.aimX);
-  for (let i = 0; i < n; i++) {
-    // Streams (bile flamethrower, Twitch Fibers) spray wide and uneven.
-    const a = base + (i - (n - 1) / 2) * 0.14 + rand(-s.spread, s.spread);
-    const sp = s.shotSpeed * (s.spread ? rand(0.85, 1.15) : 1);
+  for (let i = 0; i < g.count; i++) {
+    // Streams (bile flamethrower, Stream Fibers) spray wide and uneven.
+    const a = base + (i - (g.count - 1) / 2) * 0.14 + rand(-g.spread, g.spread);
+    const sp = g.speed * (g.spread ? rand(0.85, 1.15) : 1);
     spawnBullet({
       x: p.x + Math.cos(a) * 5, y: p.y + Math.sin(a) * 5,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      r: s.shotR, dmg: s.spikeDmg, life: s.range * (s.spread ? rand(0.8, 1.1) : 1), pierce: s.pierce,
-      homing: s.homing, split: s.split, bleed: s.spikeBleed, spore: s.sporeCloud,
-      acid: s.acidChance && Math.random() > s.acidChance ? 0 : s.acid,
-      kind: 'shot', round: s.spit, fade: s.nativeStream, // bile flies as round globs that shrink like flame
-      color: shotColor(s),
+      r: g.r, dmg: g.dmg * mul, life: g.range * (g.spread ? rand(0.8, 1.1) : 1), pierce: s.pierce,
+      homing: s.homing, split: s.split, bleed: g.bleed,
+      acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
+      venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
+      flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
+      kind: 'shot', round: g.round, fade: g.fade, color: shotColor(s, g),
     });
   }
-  Sfx.play(s.nativeStream ? 'spray' : s.spit ? 'splat' : 'shoot');
+  Sfx.play(g.sound);
 }
 
 // Spore Cough: lob a spore glob in an arc to where you're aiming. It flies
 // over cover and bursts where it lands. `scatter` spreads multiple lobs.
-function lobAt(p, scatter) {
+function lobAt(p, g, scatter, mul = 1) {
   const s = p.stats;
   let tx, ty;
   if (Input.mouse.x || Input.mouse.y) { tx = Input.mouse.x; ty = Input.mouse.y - ROOM_Y; }
@@ -369,8 +482,8 @@ function lobAt(p, scatter) {
   tx = clamp(tx, TILE + 6, ROOM_PX_W - TILE - 6); ty = clamp(ty, TILE + 6, ROOM_PX_H - TILE - 6);
   const flight = clamp(Math.hypot(tx - p.x, ty - p.y) / 120, 0.3, 1.1);
   spawnBullet({
-    x: p.x, y: p.y, vx: (tx - p.x) / flight, vy: (ty - p.y) / flight, r: s.shotR, life: flight, maxLife: flight,
-    dmg: s.spikeDmg, spore: s.sporeCloud, kind: 'lob', color: '#7a8a52',
+    x: p.x, y: p.y, vx: (tx - p.x) / flight, vy: (ty - p.y) / flight, r: g.r, life: flight, maxLife: flight,
+    dmg: g.dmg * mul, spore: g.cloud * (s.cloudMul || 1), lobAcid: s.lobAcid || 0, kind: 'lob', color: g.color,
   });
 }
 
@@ -386,25 +499,44 @@ function drainBeam(p) {
   if (!target) {
     const c = corpsesNear(p.x, p.y, range, p.aimX, p.aimY, 0.55)[0];
     if (c) { damageCorpse(c, s.beam); game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 2, x2: c.x, y2: c.y, t: 0.1 }); }
+    else if (strikeSeal(p.x + p.aimX * range * 0.5, p.y + p.aimY * range * 0.5, range * 0.5)) game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 2, x2: p.x + p.aimX * 18, y2: p.y + p.aimY * 18, t: 0.1 });
     return;
   }
-  damageEnemy(target, s.beam, 0, 0, true);
-  if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
-  game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 2, x2: target.x, y2: target.y, t: 0.1 });
-  p.drained = (p.drained || 0) + s.beam;
-  if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+  drainOne(p, target, s.beam, p.x, p.y - 2);
+  // Siphon: the beam forks into a second victim.
+  if (s.beamChain && !target.dead) {
+    const next = game.enemies.find(o => o !== target && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - target.x, o.y - target.y) < 40);
+    if (next) drainOne(p, next, s.beam * 0.7, target.x, target.y);
+  }
   Sfx.play('beam');
+}
+
+function drainOne(p, target, dmg, fromX, fromY) {
+  const s = p.stats;
+  damageEnemy(target, dmg, 0, 0, true);
+  if (s.beamBleed) { target.bleedT = 2; target.bleedDps = Math.max(target.bleedDps || 0, s.beamBleed); }
+  if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
+  game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
+  p.drained = (p.drained || 0) + dmg;
+  if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+  // Bloat: drained to death, it bursts.
+  if (target.dead && s.drainBurst) {
+    bloodSpray(target.x, target.y, 0, 0, 30, ENEMY_TYPES[target.type].fluid, 160);
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - target.x, e.y - target.y) < 30 + e.r) damageEnemy(e, 3 * s.damage, e.x - target.x, e.y - target.y, true);
+    if (s.burstSpores) spawnCloud(target.x, target.y, 26);
+    game.shake = Math.max(game.shake, 3);
+  }
 }
 
 // Vomit Stream: a short, wide gush that shoves enemies back.
 function vomit(p) {
   const s = p.stats, base = Math.atan2(p.aimY, p.aimX);
   for (let i = 0; i < s.vomit; i++) {
-    const a = base + rand(-0.35 - s.spread, 0.35 + s.spread), sp = rand(130, 175);
+    const a = base + rand(-0.35, 0.35), sp = rand(130, 175);
     spawnBullet({
       x: p.x + p.aimX * 6, y: p.y + p.aimY * 6 - 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       r: 1.5, dmg: s.vomitDmg, life: rand(0.16, 0.26), knock: 150, kind: 'shot', round: true, color: '#9aae50',
-      homing: s.homing * 0.5, split: 0, acid: Math.random() < 0.15 ? 7 : 0,
+      homing: s.homing * 0.5, split: 0, acid: Math.random() < 0.25 ? 7 : 0,
     });
   }
   Sfx.play('splat');
@@ -430,7 +562,10 @@ function fireRing(p, n) {
 function meleeHit(p, e, dmg, dx, dy) {
   const s = p.stats;
   dmg *= p.dmgBoost || 1; // charged melee
-  damageEnemy(e, dmg, dx, dy, true);
+  // Melee shoves much harder than shots, but keeps prey just inside your reach.
+  damageEnemy(e, dmg, dx, dy, true, 50 + dmg * 12);
+  hitstop(0.02 + Math.min(0.04, dmg * 0.003));
+  if (s.stunChance && !e.dead && Math.random() < s.stunChance) e.stunT = Math.max(e.stunT || 0, 0.8);
   bloodSpray(e.x, e.y, dx, dy, 8, ENEMY_TYPES[e.type].fluid, 110);
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
 }
@@ -450,11 +585,26 @@ function bite(p, dmg) {
   if (!target) {
     const c = corpsesNear(p.x, p.y, reach, p.aimX, p.aimY, 0.3)[0];
     if (c) damageCorpse(c, dmg, c.x - p.x, c.y - p.y);
+    else strikeSeal(p.x + p.aimX * reach * 0.6, p.y + p.aimY * reach * 0.6, reach * 0.6);
     game.fx.push({ kind: 'bite', x: c ? (p.x + c.x) / 2 : fx, y: c ? (p.y + c.y) / 2 : fy, t: 0.1 });
     Sfx.play('bite');
     return;
   }
+  if (s.meltBite && inOwnPool(target.x, target.y)) { dmg *= 3; floatText(target.x, target.y - 10, 'MELT', '#b0c040'); }
+  const bleeding = target.bleedT > 0;
+  // Devour: a badly wounded enemy is swallowed whole.
+  if (s.devour && !ENEMY_TYPES[target.type].boss && target.hp <= target.maxHp * s.devour) {
+    floatText(target.x, target.y - 10, 'DEVOURED', PAL.red);
+    dmg = target.hp + 1;
+  }
   meleeHit(p, target, dmg, target.x - p.x, target.y - p.y);
+  if (s.boneJaws) {
+    // Bone Jaws: a spike bursts out through the back of the victim.
+    const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;
+    spawnBullet({ x: target.x + ux * 4, y: target.y + uy * 4, vx: ux * 190, vy: uy * 190, r: 2, dmg: dmg * 0.8, life: 0.5, pierce: 1, kind: 'shot', color: '#cfc4a4', hitSet: new Set([target]) });
+  }
+  if (s.acidMaw) target.acidMarked = true; // Acid Maw: it bursts into bile when it dies
+  if (s.bleedFeed && bleeding && p.hp < p.maxHp && Math.random() < s.bleedFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
   if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
   if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
@@ -482,14 +632,35 @@ function lash(p) {
   }
   if (!targets.length) {
     // A lash at nothing, so the attack still feels responsive.
+    strikeSeal(p.x + p.aimX * s.lashRange * 0.4, p.y + p.aimY * s.lashRange * 0.4, s.lashRange * 0.4);
     game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: p.x + p.aimX * s.lashRange * 0.8, y2: p.y + p.aimY * s.lashRange * 0.8, t: 0.1 });
     Sfx.play('whip');
     return;
   }
   for (const e of targets) {
     game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: e.x, y2: e.y, t: 0.14 });
+    const wasBleeding = e.bleedT > 0;
     meleeHit(p, e, s.lashDmg, e.x - p.x, e.y - p.y);
+    if (s.flay && wasBleeding) { // Flay: open wounds tear into a spray of shards
+      spawnFragments(e.x, e.y, Math.atan2(e.y - p.y, e.x - p.x), 5, s.lashDmg * 0.4, 0, 0, e);
+      bloodSpray(e.x, e.y, e.x - p.x, e.y - p.y, 12, ENEMY_TYPES[e.type].fluid, 140);
+    }
     if (s.lashBleed) { e.bleedT = 3; e.bleedDps = s.lashBleed; }
+    if (s.caustic) e.leakT = 3; // Caustic Tendrils: it leaks burning bile as it crawls
+    if (s.lashStun && !e.dead) e.stunT = Math.max(e.stunT || 0, s.lashStun);
+    if (s.lashDrain) {
+      p.drained = (p.drained || 0) + s.lashDmg * 0.35;
+      if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+    }
+    if (s.barbedLash) {
+      // Barbed Lash: a bone spike is flung from the victim to the next enemy.
+      const next = game.enemies.filter(o => o !== e && !o.dead && o.spawnT <= 0)
+        .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
+      if (next) {
+        const d = Math.hypot(next.x - e.x, next.y - e.y) || 1;
+        spawnBullet({ x: e.x, y: e.y, vx: (next.x - e.x) / d * 200, vy: (next.y - e.y) / d * 200, r: 2, dmg: s.lashDmg * 0.8, life: 0.8, kind: 'shot', color: '#cfc4a4', hitSet: new Set([e]) });
+      }
+    }
     if (s.lashAcid) spawnPuddle(e.x, e.y, s.lashAcid, 2, 'player');
     if (s.pull && !e.dead) {
       // Drag them in toward your jaws.
@@ -510,11 +681,14 @@ function lungeBite(p) {
     if (d > 20 + e.r + s.reach) continue;
     if (d > 6 && (dx * p.lungeX + dy * p.lungeY) / d < 0.3) continue;
     for (let k = 0; k < (s.doubleBite ? 2 : 1); k++) if (!e.dead) meleeHit(p, e, s.lungeDmg, dx, dy);
-    e.kx += p.lungeX * 120; e.ky += p.lungeY * 120;
+    if (s.lungeBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.lungeBleed); }
+    if (e.dead && s.lungeChain) { p.cd.lunge = 0; floatText(p.x, p.y - 14, 'AGAIN', '#e8a020'); }
+    knock(e, p.lungeX, p.lungeY, 120);
     if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
     hit++;
   }
   for (const c of corpsesNear(p.x, p.y, 20 + s.reach, p.lungeX, p.lungeY, 0.3)) damageCorpse(c, s.lungeDmg, p.lungeX, p.lungeY);
+  strikeSeal(p.x + p.lungeX * 12, p.y + p.lungeY * 12, 14 + s.reach);
   game.fx.push({ kind: 'bite', x: p.x + p.lungeX * 12, y: p.y + p.lungeY * 12, t: 0.14 });
   if (hit) { game.shake = Math.max(game.shake, 3); Sfx.play('ram'); }
   Sfx.play('bite');
@@ -546,6 +720,15 @@ function fireGrapple(p) {
     game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: enemy.x, y2: enemy.y, t: 0.2 });
     return;
   }
+  if (s.webLine) { // Silk Tendril: everything the line crosses is stuck fast
+    for (const e of game.enemies) {
+      if (!e.dead && e.spawnT <= 0 && distToSegment(e.x, e.y, p.x, p.y, anchor[0], anchor[1]) < e.r + 4) { e.stunT = 1.5; floatText(e.x, e.y - 10, 'WEBBED', '#e0d8d0'); }
+    }
+  }
+  if (s.bileLine) { // Bile Line: burning bile along the whole length
+    const len = Math.hypot(anchor[0] - p.x, anchor[1] - p.y);
+    for (let k = 12; k < len; k += 12) spawnPuddle(p.x + p.aimX * k, p.y + p.aimY * k, 7, 2.5, 'player');
+  }
   p.pull = { x: anchor[0], y: anchor[1], enemy: enemy || null, hit: new Set() };
   p.pullT = 0.6;
   p.dashT = 0; p.lungeT = 0;
@@ -556,7 +739,8 @@ function endGrapple(p, dx, dy) {
   const e = p.pull && p.pull.enemy;
   if (e && !e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.r + p.r + 6) {
     damageEnemy(e, p.stats.pullDmg, dx, dy, true);
-    e.kx += dx * 160; e.ky += dy * 160;
+    knock(e, dx, dy, 220);
+    hitstop(0.05);
     bloodSpray(e.x, e.y, dx, dy, 10, ENEMY_TYPES[e.type].fluid, 130);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('ram');
@@ -580,16 +764,24 @@ function chargeHitsWith(p, dmg, dx, dy) {
 // While dashing with a charge mutation, ram anything you touch.
 function chargeHits(p) {
   const s = p.stats;
+  strikeSeal(p.x, p.y, 8); // ram the seal
   for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0 || p.dashHit.has(e)) continue;
     if (Math.hypot(e.x - p.x, e.y - p.y) > e.r + p.r + 3) continue;
     p.dashHit.add(e);
+    if (s.bleedBurst && e.bleedT > 0) { // Bloodletter: the bleeding ones burst
+      bloodSpray(e.x, e.y, p.dashX, p.dashY, 24, ENEMY_TYPES[e.type].fluid, 160);
+      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 28 + o.r) damageEnemy(o, s.dashDmg * 0.7, o.x - e.x, o.y - e.y, true);
+      floatText(e.x, e.y - 10, 'BURST', PAL.red);
+    }
     damageEnemy(e, s.dashDmg, p.dashX * 3, p.dashY * 3, true);
-    e.kx += p.dashX * 180; e.ky += p.dashY * 180;
+    knock(e, p.dashX, p.dashY, 200);
+    hitstop(0.045);
     if (s.bleed > 0) { e.bleedT = 3; e.bleedDps = s.bleed; }
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('ram');
+    if (s.juggernaut && !e.dead && !ENEMY_TYPES[e.type].boss) e.thrown = { vx: p.dashX * 260, vy: p.dashY * 260, t: 0.5, dmg: s.dashDmg * 0.6, hit: new Set([e]) };
     if (e.dead && s.dashReset) { p.dashCd = 0; floatText(p.x, p.y - 14, 'RAMPAGE', '#e8a020'); }
   }
   for (const c of corpsesNear(p.x, p.y, p.r + 2)) if (!p.dashHit.has(c)) { p.dashHit.add(c); damageCorpse(c, s.dashDmg, p.dashX, p.dashY); }
@@ -598,14 +790,19 @@ function chargeHits(p) {
 function slam(p) {
   const s = p.stats;
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: s.slamR, t: 0.25 });
+  strikeSeal(p.x, p.y, s.slamR);
   for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0) continue;
     const d = Math.hypot(e.x - p.x, e.y - p.y);
-    if (d < s.slamR + e.r) damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true);
+    if (d < s.slamR + e.r) {
+      damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, 260); // shockwave flings them outward
+      if (s.slamStun && !e.dead) e.stunT = s.slamStun;
+    }
   }
   for (const c of corpsesNear(p.x, p.y, s.slamR)) damageCorpse(c, s.slamDmg, c.x - p.x, c.y - p.y);
   burst(p.x, p.y, '#5e5450', 14, 120, 0.4);
   game.shake = Math.max(game.shake, 5);
+  hitstop(0.06);
   Sfx.play('slam');
 }
 
@@ -615,6 +812,7 @@ function slam(p) {
 function hurtPlayer(dmg) {
   const p = game.player, s = p.stats;
   if (p.inv > 0 || p.dashT > 0 || p.burrowT > 0 || game.state !== 'play') return false;
+  if (s.parasiteInv && p.controlT > 0) return false; // Rider: nothing touches you while it drives
 
   // Withdrawn into your snail shell: nothing gets through.
   if (p.withdrawn) {
@@ -623,8 +821,8 @@ function hurtPlayer(dmg) {
     return true;
   }
   // Exoskeleton Molt: once per room, slip out of your skin and leave a decoy.
-  if (s.molt && !game.room.moltUsed) {
-    game.room.moltUsed = true;
+  if (s.molt && !game.room.moltUsed && !(p.moltT > 0)) {
+    if (s.moltCd) p.moltT = s.moltCd; else game.room.moltUsed = true;
     game.decoy = { x: p.x, y: p.y, t: 3, stage: p.stage };
     p.inv = 0.8;
     burst(p.x, p.y, '#8a7a5a', 16, 90);
@@ -639,17 +837,42 @@ function hurtPlayer(dmg) {
     p.inv = 0.6;
     burst(p.x, p.y, '#8a7a5a', 14, 90);
     if (s.shieldRing) fireRing(p, s.shieldRing);
+    if (s.shieldBlast) { // Reactive Plate
+      game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 44, t: 0.25 });
+      for (const e of game.enemies) {
+        const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+        if (!e.dead && e.spawnT <= 0 && d < 44 + e.r) { e.kx += (e.x - p.x) / d * 320; e.ky += (e.y - p.y) / d * 320; e.stunT = Math.max(e.stunT || 0, 0.5); }
+      }
+    }
     floatText(p.x, p.y - 14, 'BLOCKED', '#8a7a5a');
     Sfx.play('shield');
     return true;
   }
 
+  // Bone Cage: every third hit glances off.
+  if (s.hitIgnore && ++p.hitsTaken % s.hitIgnore === 0) {
+    p.inv = 0.6;
+    burst(p.x, p.y, '#d9cfa0', 10, 70);
+    floatText(p.x, p.y - 14, 'GLANCED', '#d9cfa0');
+    Sfx.play('clank');
+    return true;
+  }
+  if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
   p.hp -= dmg * s.hitCost; // Hollow Body: every hit costs double
+  if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   // Limb wear: the hit tears your limbs; for a moment you're a slug again.
   if (p.slots.LIMBS && p.hp > 0) { p.limbWear = 2.5; p.held && throwHeld(p); floatText(p.x, p.y - 22, 'LIMBS TORN', COST_COLOR); }
   if (s.adrenal) p.adrenalT = s.adrenal;
+  if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 44 + e.r) continue;
+      game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: e.x, y2: e.y, t: 0.16 });
+      damageEnemy(e, s.setHurtLash * s.damage, e.x - p.x, e.y - p.y, true);
+    }
+    Sfx.play('whip');
+  }
   game.shake = 5;
   Sfx.play('hurt');
   bloodSpray(p.x, p.y, 0, 0, 16, FLUID.blood, 100);
@@ -738,7 +961,7 @@ const LIMB_OVERLAYS = new Set(['wings', 'tentlimbs', 'hindlegs', 'spiderlegs', '
 
 function playerOverlays(p) {
   const set = new Set();
-  for (const slot of SLOTS) if (p.slots[slot]) for (const ov of mutOverlays(p.slots[slot].id)) set.add(ov);
+  for (const slot of SLOTS) if (p.slots[slot]) for (const id of p.slots[slot].path) for (const ov of mutOverlays(id)) set.add(ov);
   return set;
 }
 
@@ -791,6 +1014,7 @@ function drawPlayer(ctx) {
   const body = hurt ? st.hurt : st[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
   drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[ov], x, y);
+  if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && p.slots.LIMBS) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
 
   // Whatever you're holding in your hands.
@@ -801,6 +1025,35 @@ function drawPlayer(ctx) {
 
   ctx.fillStyle = PAL.white;
   ctx.fillRect(Math.round(p.x + p.aimX * 11), Math.round(p.y + p.aimY * 11), 1, 1);
+}
+
+// The cocoon wraps up from the floor as it grows, then pulses before splitting.
+function drawCocoon(ctx, p, x, y) {
+  const k = Math.min(1, p.evolveT / COCOON_TIME);
+  const rx = Math.round(8 * STAGE_SCALE[p.stage]) + 1, ry = Math.round(10 * STAGE_SCALE[p.stage]) + 1;
+  const jx = k > 0.6 ? Math.round(rand(-1, 1) * (k - 0.6) * 2.5) : 0; // it trembles near the end
+  const cx = Math.round(x + jx), cy = Math.round(y + 1);
+  const top = cy + ry - Math.round(2 * ry * k); // wrapped up to here
+  for (let yy = -ry; yy <= ry; yy++) {
+    const py = cy + yy;
+    if (py < top) continue;
+    const half = Math.round(rx * Math.sqrt(1 - (yy / ry) ** 2));
+    for (let xx = -half; xx <= half; xx++) {
+      const edge = Math.abs(xx) >= half || py === top;
+      const strand = (((xx * 2 + yy * 3 + Math.floor(p.evolveT * 6)) % 7) + 7) % 7;
+      ctx.fillStyle = edge ? '#2a1c18' : strand === 0 ? '#8a6a5a' : strand < 3 ? '#a8907e' : '#c8b4a0';
+      ctx.fillRect(cx + xx, py, 1, 1);
+    }
+  }
+  // Veins, and the glow of what's growing inside.
+  if (k > 0.5) {
+    ctx.fillStyle = '#7a1420';
+    for (let i = 0; i < 6; i++) if (cy - 4 + i * 2 >= top) ctx.fillRect(cx - 3 + ((i * 5) % 7), cy - 4 + i * 2, 1, 2);
+  }
+  if (k > 0.75 && Math.floor(p.evolveT * 8) % 2) {
+    ctx.fillStyle = '#c96a8f';
+    ctx.fillRect(cx - 1, cy - 1, 3, 3);
+  }
 }
 
 // Drawn above the darkness: grapple tentacle, shell ring, glowing night eye.
@@ -833,9 +1086,13 @@ function drawPlayerGlow(ctx) {
     ctx.fillRect(Math.round(p.x + rx), Math.round(p.y - 4 + ey - 12), 1, 1);
   }
 }
-// Night Eyes bonus: is this enemy out in the dark?
+// Bonus damage for your shots: Night Eyes (enemy out in the dark) and
+// Evil Eye (the enemy you're staring at).
 function nightEyesMul(e) {
-  const s = game.player.stats;
-  if (!s.nightEyes) return 1;
-  return Math.hypot(e.x - game.player.x, e.y - game.player.y) > 45 ? 1 + s.nightEyes : 1;
+  const p = game.player, s = p.stats;
+  let m = 1;
+  const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+  if (s.nightEyes && d > 45) m *= 1 + s.nightEyes;
+  if (s.gaze && (dx * p.aimX + dy * p.aimY) / d > 0.92) m *= 1 + s.gaze;
+  return m;
 }

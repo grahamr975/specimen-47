@@ -12,20 +12,24 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | Mouse or arrow keys | Aim and shoot |
 | Space / Shift | Dash (brief invulnerability; becomes a charge with some mutations) |
 | Right click / E | Limb ability (Tentacles: grapple; Grasping Hands: grab, then throw) |
+| Hold F | Cocoon and evolve (when the DNA bar is full, or you've picked up a mutagen vial) |
 | M / P | Mute / pause |
 
 ## How it works
 
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Attack it until it bursts, then collect the DNA globules that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **You're fragile.** You start with 3 HP.
-- **Evolve.** Filling the DNA bar lets you choose 1 of 3 mutations. Cards don't say what a mutation does; you learn by growing it.
+- **Evolve.** When the DNA bar is full, hold F to wrap yourself in a cocoon. It takes 2 seconds and you can't move or attack inside it; letting go or getting hit tears it. When it splits you choose 1 of 3 mutations. Cards don't say what a mutation does; you learn by growing it.
 - **Body slots.** Every mutation grows in one of five slots: MOUTH, HEAD, BACK, LIMBS or CORE.
-  - **LIMBS is how you move.** You start limbless, as a slow, inching slug. Spider Legs skitter, Wings fly (floaty, and over obstacles), Hind Legs hop and pounce, and Tentacles grapple.
-  - **MOUTH is your attack.** You start with a weak Bone Spike. Bile Spit, Mandibles, Tentacles and Feral Lunge replace it or combine with it.
-  - An empty slot just takes the mutation, and the same mutation levels up.
-  - A taken slot lets you **replace** it, or **combine** the two if they form a recipe (for example Bone Spike + Mandibles = Bone Jaws).
+  - **LIMBS is how you move.** You start limbless, as a slow, inching slug. Spider Legs skitter, Wings fly (floaty, and over obstacles), Tentacles grapple, Burrowing Claws dig and Pseudopods glide on slime.
+  - **MOUTH is your attack.** You start spitting weak little slime blobs; your first MOUTH pick (Bone Spike, Bile Spit, Mandibles, Tendrils, Proboscis) replaces it.
+- **Branching paths.** Each slot grows one path per run, so no two runs end the same:
+  - An empty slot is offered **roots**. Planting one locks that slot's other roots for the rest of the run.
+  - A planted slot **branches**: two ways to go, and taking one locks out the other. Usually both show up side by side, and the card says what you'd give up.
+  - Root, then branch, then branch: four end forms per root. Branches mostly add interactions, not bigger numbers (Bone Spike > Bone Shotgun > Bone Jaws: every bite drives a spike out the back of the victim).
+- **Sets.** Every mutation belongs to a set: Bone, Fungal, Hive, Predator or Abomination (shown on the card). Each slot counts as the set of its current form, so a branch can switch it. 3 matching slots wake a set bonus; all 5 wake a stronger one (Fungal: kills burst into spore clouds; Hive: kills hatch spiderlings...).
 - **Rarity.** Mutations are Common, Uncommon, Rare or Legendary. Rare ones get likelier on deeper floors.
-- **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most can be cured by combining with the right partner.
+- **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most have a branch that cures them, and a sibling branch that doubles down.
 - **Mutagen vials** (dropped by elites and found in vaults) give a free evolution with Uncommon-or-better cards.
 - Clear the farthest room on each floor to open the hatch down.
 
@@ -33,7 +37,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 
 | File | What's in it |
 |---|---|
-| `src/mutations.js` | All mutations (with their slot), combine recipes, rarities and card rolling. Start here. |
+| `src/mutations.js` | The mutation tree (roots and branches per slot), whispers, rarities and card rolling. Start here. |
 | `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing |
 | `src/dna.js` | Corpses, bursting, DNA amounts and the level curve |
 | `src/floors.js` | Each floor's name, enemy mix, hazard and boss |
@@ -50,7 +54,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 
 ## Testing
 
-`tests/test.html` loads the real game and forces through scenarios (every mutation, recipe, boss phase and affix, plus full bot runs to floor 5), printing `OK` / `FAIL` lines. Run it after changes:
+`tests/test.html` loads the real game and forces through scenarios (the tree, every end form, boss phase and affix, plus full bot runs to floor 5), printing `OK` / `FAIL` lines. Run it after changes:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests\run-tests.ps1

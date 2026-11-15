@@ -41,7 +41,7 @@ function lurePoint(p) {
 // --- Allies -----------------------------------------------------------------------------
 function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
-  a.life = kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity;
+  a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   game.allies.push(a);
   return a;
 }
@@ -55,7 +55,11 @@ function updateAllies(dt) {
   const p = game.player;
   for (const a of game.allies) {
     a.t += dt; a.life -= dt; a.biteT -= dt; a.inv -= dt;
-    if (a.life <= 0) { a.dead = true; burst(a.x, a.y, '#5a3a28', 4, 30); continue; }
+    if (a.life <= 0) {
+      a.dead = true; burst(a.x, a.y, '#5a3a28', 4, 30);
+      if (a.kind === 'maggot' && p.stats.maggotBurst) { spawnPuddle(a.x, a.y, 14, 3, 'player'); Sfx.play('splat'); }
+      continue;
+    }
     let tx, ty, speed;
     if (a.kind === 'twin') {
       // Hover just behind you, mirroring your aim.
@@ -67,6 +71,7 @@ function updateAllies(dt) {
         if (Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1 && a.biteT <= 0) {
           a.biteT = 0.5;
           damageEnemy(e, a.kind === 'maggot' ? 1 : 0.8, e.x - a.x, e.y - a.y, true);
+          if (a.kind === 'spiderling' && p.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player');
           bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
         }
       } else { tx = p.x + Math.cos(a.t) * 14; ty = p.y + Math.sin(a.t) * 10; speed = 50; }
@@ -116,16 +121,34 @@ function spawnCloud(x, y, r) {
 }
 
 function updateClouds(dt) {
+  const s = game.player.stats;
   for (const c of game.clouds) {
     c.life -= dt;
     for (const e of game.enemies) {
       if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
         if (!(e.blindT > 0)) floatText(e.x, e.y - 10, '?', '#9aae50');
         e.blindT = Math.max(e.blindT || 0, 2);
+        if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
       }
     }
   }
   game.clouds = game.clouds.filter(c => c.life > 0);
+}
+
+// Spore Fire: a bile flame touching a spore cloud sets it off.
+function igniteCloudAt(x, y) {
+  const c = game.clouds.find(c => Math.hypot(c.x - x, c.y - y) < c.r);
+  if (!c) return false;
+  c.life = 0;
+  const dmg = 4 * game.player.stats.damage;
+  game.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, max: c.r + 10, t: 0.25 });
+  for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r + 10 + e.r) damageEnemy(e, dmg, e.x - c.x, e.y - c.y, true);
+  for (let i = 0; i < 3; i++) spawnPuddle(c.x + rand(-8, 8), c.y + rand(-8, 8), 10, 2.5, 'player');
+  burst(c.x, c.y, '#e8a020', 24, 140, 0.5);
+  burst(c.x, c.y, '#b0c040', 14, 90, 0.4);
+  game.shake = Math.max(game.shake, 5);
+  Sfx.play('blast');
+  return true;
 }
 
 function drawClouds(ctx) {
@@ -144,6 +167,13 @@ function drawClouds(ctx) {
 function updateDecoy(dt) {
   if (game.decoy && (game.decoy.t -= dt) <= 0) {
     burst(game.decoy.x, game.decoy.y, '#8a7a5a', 10, 60);
+    if (game.player.stats.huskBomb) {
+      const d = game.decoy;
+      spawnPuddle(d.x, d.y, 22, 3.5, 'player');
+      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - d.x, e.y - d.y) < 30 + e.r) damageEnemy(e, 4 * game.player.stats.damage, e.x - d.x, e.y - d.y, true);
+      game.shake = Math.max(game.shake, 4);
+      Sfx.play('splat');
+    }
     game.decoy = null;
   }
 }
@@ -175,9 +205,36 @@ function segmentBlocks(b) {
   const p = game.player;
   if (!p.stats.centipede) return false;
   for (const s of centipedeSegments(p)) {
-    if (Math.hypot(s.x - b.x, s.y - b.y) < 5) { burst(b.x, b.y, '#8e7254', 4, 40); Sfx.play('clank'); return true; }
+    if (Math.hypot(s.x - b.x, s.y - b.y) < 5) {
+      burst(b.x, b.y, '#8e7254', 4, 40); Sfx.play('clank');
+      if (p.stats.spinedSegments) ringFrom(s.x, s.y, 6);
+      return true;
+    }
   }
   return false;
+}
+
+// Biting Segments: each segment bites whatever touches it.
+function updateSegments(p, dt) {
+  if (!p.stats.segBite) return;
+  for (const seg of centipedeSegments(p)) {
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0 || e.segT > 0 || Math.hypot(e.x - seg.x, e.y - seg.y) > e.r + 4) continue;
+      e.segT = 0.5;
+      damageEnemy(e, p.stats.segBite * p.stats.damage, e.x - seg.x, e.y - seg.y, true);
+      game.fx.push({ kind: 'bite', x: (e.x + seg.x) / 2, y: (e.y + seg.y) / 2, t: 0.1 });
+    }
+  }
+  for (const e of game.enemies) if (e.segT > 0) e.segT -= dt;
+}
+
+// A small ring of bone shards from any point (Spined Segments).
+function ringFrom(x, y, n) {
+  const off = Math.random() * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const a = off + (i / n) * Math.PI * 2;
+    spawnBullet({ x, y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, r: 1.5, kind: 'spine', dmg: 0.8 * game.player.stats.damage, life: 0.45, color: PAL.white });
+  }
 }
 
 function drawCentipede(ctx, p) {
@@ -205,6 +262,14 @@ function handAction(p) {
   }
   if (!best) { Sfx.play('whip'); return; }
   grab(p, best);
+}
+
+// Bile Bomb: whatever you throw lands in a burst of burning bile.
+function bileBombAt(x, y) {
+  if (!game.player.stats.bileBomb) return;
+  spawnPuddle(x, y, 18, 3, 'player');
+  burst(x, y, '#b0c040', 12, 90, 0.4);
+  Sfx.play('splat');
 }
 
 function grab(p, h) {
@@ -239,7 +304,7 @@ function throwHeld(p) {
     });
   } else {
     const e = h.ref;
-    e.thrown = { vx: p.aimX * sp, vy: p.aimY * sp, t: 0.6, dmg: s.handDmg, hit: new Set([e]) };
+    e.thrown = { vx: p.aimX * sp, vy: p.aimY * sp, t: 0.6, dmg: s.handDmg, hit: new Set([e]), bomb: s.bileBomb };
   }
   Sfx.play('dash');
 }
@@ -251,6 +316,7 @@ function landThrownCorpse(b) {
   c.y = clamp(b.y, TILE + 4, ROOM_PX_H - TILE - 4);
   game.room.corpses.push(c);
   for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < 18 + e.r) damageEnemy(e, b.dmg, e.x - c.x, e.y - c.y, true);
+  bileBombAt(c.x, c.y);
   burstCorpse(c);
 }
 
@@ -268,6 +334,8 @@ function updateThrownEnemy(e, dt) {
   }
   if (bumped || t.t <= 0) {
     e.thrown = null;
+    if (bumped) strikeSeal(e.x, e.y, 8); // thrown into the seal
+    if (t.bomb) bileBombAt(e.x, e.y);
     damageEnemy(e, t.dmg * (bumped ? 1 : 0.5), t.vx, t.vy, true);
     game.shake = Math.max(game.shake, 3);
   }
@@ -298,9 +366,19 @@ function updateBurrow(p, dt, ix, iy) {
     // Erupt!
     const s = p.stats;
     game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 24, t: 0.25 });
+    strikeSeal(p.x, p.y, 24);
     for (const e of game.enemies) {
-      if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 24 + e.r) damageEnemy(e, s.burrowDmg, (e.x - p.x) || 1, e.y - p.y, true);
+      if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) >= 24 + e.r) continue;
+      damageEnemy(e, s.burrowDmg, (e.x - p.x) || 1, e.y - p.y, true);
+      if (s.burrowBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.burrowBleed); }
     }
+    if (s.eruptStun) { // Quake
+      game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 56, t: 0.35 });
+      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) e.stunT = Math.max(e.stunT || 0, s.eruptStun);
+    }
+    if (s.eruptRing) fireRing(p, s.eruptRing);
+    for (let i = 0; i < (s.eruptBrood || 0); i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3));
+    if (s.ambush) p.ambushT = 1.5;
     for (const c of corpsesNear(p.x, p.y, 24)) damageCorpse(c, s.burrowDmg);
     burst(p.x, p.y, '#4e4642', 18, 120, 0.5);
     game.shake = Math.max(game.shake, 4);
@@ -311,10 +389,12 @@ function updateBurrow(p, dt, ix, iy) {
 // --- Parasite Brain: sometimes it drives --------------------------------------------------
 function updateParasite(p, dt) {
   if (!p.stats.parasite || p.stats.symbiote) { p.controlT = 0; return; }
+  if (p.controlT > 0 && p.stats.parasiteInv && Math.random() < dt * 20) burst(p.x, p.y - 2, MALIGNANT_COLOR, 1, 30, 0.2);
   if (p.controlT > 0) { p.controlT -= dt; return; }
-  p.parasiteT = (p.parasiteT === undefined ? rand(10, 18) : p.parasiteT) - dt;
+  const gap = () => p.stats.parasiteOften ? rand(5, 9) : rand(10, 18);
+  p.parasiteT = (p.parasiteT === undefined ? gap() : p.parasiteT) - dt;
   if (p.parasiteT <= 0) {
-    p.parasiteT = rand(10, 18);
+    p.parasiteT = gap();
     p.controlT = 1.2;
     const a = rand(0, Math.PI * 2);
     p.controlX = Math.cos(a); p.controlY = Math.sin(a);
@@ -327,9 +407,72 @@ function updateParasite(p, dt) {
 function scream(p) {
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 6, max: 50, t: 0.3 });
   for (const e of game.enemies) {
-    if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 50 + e.r) e.stunT = p.stats.echo;
+    if (e.dead || e.spawnT > 0) continue;
+    const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+    if (d >= 50 + e.r) continue;
+    e.stunT = p.stats.echo;
+    if (p.stats.banshee && !ENEMY_TYPES[e.type].boss) { e.kx += (e.x - p.x) / d * 300; e.ky += (e.y - p.y) / d * 300; }
+  }
+  if (p.stats.banshee) { // Banshee: shreds enemy shots out of the air
+    for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(b.x - p.x, b.y - p.y) < 60) { b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); }
   }
   Sfx.play('scream');
+}
+
+// --- Branch upkeep: things that tick along while you play --------------------------------
+function updateBranchUpkeep(p, dt) {
+  const s = p.stats;
+  if (p.moltT > 0) p.moltT -= dt;
+  // Carrion Fly / Plague Swarm: flies around you bite anything close.
+  if (s.flySwarm && p.flying) {
+    const r = s.flySwarm > 1 ? 36 : 26;
+    if (Math.random() < 0.5 * s.flySwarm) game.particles.push({ x: p.x + rand(-r, r) * 0.6, y: p.y - 4 + rand(-r, r) * 0.4, vx: rand(-40, 40), vy: rand(-40, 40), life: 0.2, color: '#1a1418', size: 1 });
+    p.swarmT = (p.swarmT || 0) - dt;
+    if (p.swarmT <= 0) {
+      p.swarmT = 0.4;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > r + e.r) continue;
+        damageEnemy(e, 0.6 * s.damage, 0, 0, true);
+        if (s.flySwarm > 1 && !e.dead) { e.bleedT = 2; e.bleedDps = Math.max(e.bleedDps || 0, 1); }
+      }
+    }
+  }
+  // Crop Duster: flying drops a trail of spore clouds.
+  if (s.cropDuster && p.flying && p.moving) {
+    p.dustT = (p.dustT || 0) - dt;
+    if (p.dustT <= 0) { p.dustT = 0.5; game.clouds.push({ x: p.x, y: p.y, r: 14, life: 2.2 }); }
+  }
+  // Quill Pulse: the shard ring fires on its own.
+  if (s.autoRing && s.ring > 0 && game.room.locked) {
+    p.ringT -= dt;
+    if (p.ringT <= 0) { p.ringT = s.autoRing; fireRing(p, s.ring); }
+  }
+  // Glare: a flash that blinds everything close.
+  if (s.glare && game.room.locked) {
+    p.glareT -= dt;
+    if (p.glareT <= 0) {
+      p.glareT = s.glare;
+      let hit = false;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 48 + e.r) continue;
+        e.blindT = Math.max(e.blindT || 0, 1.8); hit = true;
+      }
+      if (hit) { game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 6, max: 48, t: 0.2 }); burst(p.x, p.y - 4, '#fff0c0', 10, 90, 0.25); Sfx.play('flicker'); }
+    }
+  }
+  // Anglerfish: the lure bites whatever reaches it.
+  if (s.lureBite && s.lure) {
+    const lp = lurePoint(p);
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0 || e.lureT > 0 || Math.hypot(e.x - lp.x, e.y - lp.y) > e.r + 7) continue;
+      e.lureT = 0.6;
+      damageEnemy(e, s.lureBite * s.damage, e.x - lp.x, e.y - lp.y, true);
+      game.fx.push({ kind: 'bite', x: lp.x, y: lp.y, t: 0.12 });
+      Sfx.play('bite');
+    }
+    for (const e of game.enemies) if (e.lureT > 0) e.lureT -= dt;
+  }
+  updateSegments(p, dt);
 }
 
 // --- Per-frame upkeep for all of the above ----------------------------------------------

@@ -78,8 +78,60 @@ function spawnRoomEnemies(room) {
   }
 }
 
-function damageEnemy(e, dmg, vx, vy, quiet) {
+// Set bonuses that fire when anything dies.
+function onSetKill(e, p, s) {
+  if (e.type === 'scavenger') return; // its own payout
+  if (s.setKillShards) ringFrom(e.x, e.y, s.setKillShards);                        // Bone
+  if (s.setKillCloud) spawnCloud(e.x, e.y, s.setKillCloud);                         // Fungal
+  if (s.setKillBrood && Math.random() < s.setKillBrood) spawnAlly('spiderling', e.x, e.y); // Hive
+  if (s.setKillFrenzy) { if (!(p.frenzyT > 0)) { p.frenzyT = 3; recomputeStats(p); } else p.frenzyT = 3; } // Apex
+  if (s.setKillHeal && ++p.setKills % s.setKillHeal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+}
+
+// --- Knockback ----------------------------------------------------------------------
+// Every hit shoves. `force` defaults to the damage dealt, so a slime blob
+// barely nudges while a bite or a shotgun blast sends things flying. Big
+// enemies and elites are heavier; bosses don't budge. A hard enough shove
+// staggers (interrupts) the enemy, and slamming it into a wall hurts.
+const KNOCK_PER_DMG = 30;  // force per point of damage, for hits with no force given
+const KNOCK_MAX = 320;        // most force a single hit can apply
+const KNOCK_SPEED_CAP = 420;  // fastest an enemy can be flung (~45px of slide)
+function enemyMass(e) {
+  const T = ENEMY_TYPES[e.type];
+  if (T.boss) return Infinity;
+  return Math.max(0.6, (e.r / 5) ** 2) * (e.elite ? 2.5 : 1);
+}
+function knock(e, dx, dy, force) {
+  const l = Math.hypot(dx, dy);
+  if (!l || !(force > 0) || e.dead) return 0;
+  const f = Math.min(KNOCK_MAX, force) / enemyMass(e);
+  e.kx += dx / l * f; e.ky += dy / l * f;
+  const k = Math.hypot(e.kx, e.ky);
+  if (k > KNOCK_SPEED_CAP) { e.kx *= KNOCK_SPEED_CAP / k; e.ky *= KNOCK_SPEED_CAP / k; } // stacked hits can't launch it across the room
+  if (f > 110) e.staggerT = Math.max(e.staggerT || 0, Math.min(0.3, f / 900)); // staggered
+  return f;
+}
+
+// Knockback movement: an enemy flung into a wall takes a hit from it.
+function moveKnocked(e, vx, vy, dt) {
+  const speed = Math.hypot(e.kx, e.ky);
+  const bumped = moveEntity(game.room, e, vx * dt, vy * dt);
+  if (bumped && speed > 170 && !ENEMY_TYPES[e.type].boss) {
+    e.kx = e.ky = 0;
+    burst(e.x, e.y, '#5e5450', 6, 60, 0.3);
+    game.shake = Math.max(game.shake, 2);
+    Sfx.play('ram');
+    damageEnemy(e, speed / 160 * game.player.stats.damage, 0, 0, true);
+  }
+  return bumped;
+}
+
+function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.dead) return;
+  // Predator set: wounded prey takes more.
+  const ps = game.player && game.player.stats;
+  if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
+  if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
@@ -87,10 +139,7 @@ function damageEnemy(e, dmg, vx, vy, quiet) {
   if (dmg < 0.3) { if (e.hp <= 0) killEnemy(e); return; } // tiny damage ticks (bleed) stay quiet
   e.flash = 0.08;
   if (vx || vy) {
-    const s = Math.hypot(vx, vy) || 1;
-    const kb = T.boss ? 0 : e.elite ? 35 : 90;
-    e.kx += (vx / s) * kb;
-    e.ky += (vy / s) * kb;
+    knock(e, vx, vy, force !== undefined ? force : dmg * KNOCK_PER_DMG);
     bloodSpray(e.x, e.y, vx, vy, 6, T.fluid, 110); // spurts out the far side
   } else if (Math.random() < 0.3) {
     bloodSpray(e.x, e.y, 0, 0, 1, T.fluid, 30);
@@ -104,6 +153,18 @@ function killEnemy(e) {
   e.dead = true;
   game.kills++;
   const T = ENEMY_TYPES[e.type];
+  const p = game.player, s = p.stats;
+  // Acid Maw: what you bit bursts into bile.
+  if (e.acidMarked) {
+    spawnPuddle(e.x, e.y, 16, 3, 'player');
+    for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 22 + o.r) damageEnemy(o, 2 * s.damage, o.x - e.x, o.y - e.y, true);
+    burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
+  }
+  onSetKill(e, p, s);
+  // Stalker: kills out in the dark can heal you.
+  if (s.darkHeal && p.hp < p.maxHp && Math.hypot(e.x - p.x, e.y - p.y) > 45 && Math.random() < s.darkHeal) {
+    p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red);
+  }
   bloodSpray(e.x, e.y, 0, 0, e.elite ? 40 : 22, T.fluid, 130);
   gibs(e.x, e.y, e.elite ? 10 : randInt(3, 6), T.gib, T.fluid);
   if (T.robot) {
@@ -129,6 +190,15 @@ function killEnemy(e) {
     }
   }
 
+  // A scavenger bursts with the DNA it stole (130% if it was engorged).
+  if (e.ate) {
+    const n = Math.round(e.ate * (e.engorged ? ENGORGE_BONUS : 1) * s.dnaMul);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(30, 90);
+      game.room.orbs.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
+    }
+    if (e.engorged) { bloodSpray(e.x, e.y, 0, 0, 20, FLUID.bile, 130); floatText(e.x, e.y - 10, 'IT BURSTS', VIAL_COLOR); }
+  }
   onAffixDeath(e);
   if (T.boss) { onBossPartKilled(e); return; }
 
@@ -153,9 +223,9 @@ function updateEnemies(dt) {
       if (!p.held && Math.hypot(p.x - e.x, p.y - e.y) < e.r + 12) { e.grabOnArrive = false; grab(p, { kind: 'enemy', ref: e }); continue; }
       if (Math.hypot(e.kx, e.ky) < 30) e.grabOnArrive = false;
     }
-    if (e.stunT > 0) {
-      e.stunT -= dt;
-      moveEntity(game.room, e, e.kx * dt, e.ky * dt); e.kx *= 0.85; e.ky *= 0.85;
+    if (e.stunT > 0 || e.staggerT > 0) { // stunned, or staggered by a heavy hit
+      e.stunT -= dt; e.staggerT -= dt;
+      moveKnocked(e, e.kx, e.ky, dt); e.kx *= 0.85; e.ky *= 0.85;
       continue;
     }
 
@@ -238,10 +308,19 @@ function updateEnemies(dt) {
     if (e.blindT > 0 && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
     // Your slime is slippery: things crawling through it slow and slide.
     if (!e.flying && game.room.slime.length && onSlime(e.x, e.y + 2, 5)) {
-      mx = mx * 0.55 + rand(-25, 25); my = my * 0.55 + rand(-25, 25);
+      const slow = p.stats.slimeSlow || 0.55; // Slime Glands: much stickier
+      mx = mx * slow + rand(-25, 25); my = my * slow + rand(-25, 25);
       if (p.stats.toxicBlood > 0) damageEnemy(e, 0.8 * dt, 0, 0, true); // toxic slime
+      if (p.stats.slimeBurn) damageEnemy(e, p.stats.slimeBurn * dt, 0, 0, true); // Acid Slime
+      if (e.dead) continue;
     }
-    const bumped = moveEntity(game.room, e, (mx + e.kx) * dt, (my + e.ky) * dt);
+    // Caustic Tendrils: it leaks burning bile as it crawls.
+    if (e.leakT > 0) {
+      e.leakT -= dt;
+      e.leakDrip = (e.leakDrip || 0) - dt;
+      if (e.leakDrip <= 0) { e.leakDrip = 0.25; spawnPuddle(e.x, e.y + 2, 6, 1.8, 'player'); }
+    }
+    const bumped = moveKnocked(e, mx + e.kx, my + e.ky, dt);
     e.kx *= 0.85; e.ky *= 0.85;
     if (bumped && e.state === 'charge') {
       e.state = 'rest'; e.timer = 0.7;
@@ -263,7 +342,16 @@ function updateEnemies(dt) {
       if (p.stats.pustules && !(e.pusT > 0)) {
         e.pusT = 0.8; e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, p.stats.pustules);
         spawnPuddle(e.x, e.y, 8, 1.5, 'player');
+        if (p.stats.eggPods) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Egg Pods
         Sfx.play('splat');
+      }
+      // Urchin Hide: touching you sets off your shard ring.
+      if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
+      // Thorned Plate: your shell shreds whatever touches it.
+      if (p.stats.plateThorns && p.shieldUp && !(e.plateT > game.time)) {
+        e.plateT = game.time + 0.4;
+        damageEnemy(e, p.stats.plateThorns * p.stats.damage, e.x - p.x, e.y - p.y, true);
+        if (e.dead) continue;
       }
       // Barbed Hide shreds anything that touches you.
       if (p.stats.thorns > 0 && !(e.thornT > 0)) {
@@ -299,6 +387,7 @@ function enemySpriteName(e) {
   let n = e.type;
   if (e.type === 'rat' && Math.floor(e.t * 10) % 2) n = 'rat2';
   if (e.type === 'drone' && Math.floor(e.t * 16) % 2) n = 'drone2';
+  if (e.type === 'scavenger' && e.engorged) n = e.fleeT < 4 && Math.floor(e.t * 8) % 2 ? 'scavengerfat2' : 'scavengerfat'; // pulses when about to escape
   if (e.type === 'culture' && (e.growT || 0) > floorDef(game.depth).cultureSplit * 0.6) n = 'culture2'; // swelling, about to divide
   if ((e.type === 'mother' || e.type === 'motherling') && Math.floor(e.t * 2.5) % 2) n = e.type + '2'; // pulsing
   if (e.face < 0) n += '_L';

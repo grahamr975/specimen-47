@@ -25,6 +25,8 @@ function newRun() {
   game.state = 'play';
   game.menu = null;
   game.pendingEvolutions = [];
+  game.evolving = false;
+  game.hitstop = 0;
   game.allies = [];
   game.paused = false;
   startFloor();
@@ -54,6 +56,9 @@ function enterRoom(room, side) {
   const p = game.player;
   if (side) { p.x = DOOR_SPAWN[side].x; p.y = DOOR_SPAWN[side].y; }
   p.dashT = 0;
+  game.slowT = 0;
+  // Broodmother: a fresh litter in every room.
+  for (let i = 0; i < (p.stats.roomBrood || 0); i++) spawnAlly('spiderling', p.x + rand(-6, 6), p.y + rand(-4, 4));
 
   if (!room.cleared) {
     if (room.type === 'combat' || room.type === 'exit') {
@@ -115,9 +120,18 @@ function update(dt) {
     return;
   }
   if (game.menu) { updateMenu(dt); return; }
-  if (game.pendingEvolutions.length) { openEvolution(game.pendingEvolutions.shift()); return; }
+  // The cocoon has split: work through every evolution that was waiting.
+  if (game.evolving) {
+    const next = nextEvolution();
+    if (next) { openEvolution(next); return; }
+    game.evolving = false;
+    emergeFromCocoon(game.player);
+  }
   if (Input.hit('p', 'escape')) game.paused = !game.paused;
   if (game.paused) return;
+
+  // Hitstop: a heavy hit freezes everything for a beat.
+  if (game.hitstop > 0) { game.hitstop -= dt; return; }
 
   game.shake = Math.max(0, game.shake - dt * 20);
   game.fade = Math.max(0, game.fade - dt);
@@ -125,8 +139,11 @@ function update(dt) {
   updateWhisper(dt);
 
   updatePlayer(dt);
-  updateEnemies(dt);
-  updateBullets(dt);
+  // Fight or Flight: for a moment after you're hurt, everything else crawls.
+  let wdt = dt;
+  if (game.slowT > 0) { game.slowT -= dt; wdt = dt * 0.35; }
+  updateEnemies(wdt);
+  updateBullets(wdt);
   updatePuddles(dt);
   updatePickups(dt);
   updateCorpses(dt);
@@ -153,6 +170,7 @@ function update(dt) {
     room.locked = false;
     room.cleared = true;
     Sfx.play('door');
+    if (p.stats.setRoomHeal && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', SETS.ABOMINATION.color); }
     // Cancerous Growth feeds on every victory.
     if (hasMutation(p, 'cancer')) {
       p.cancerRooms++;
@@ -186,6 +204,15 @@ function drawDoors(ctx) {
   for (const name in room.doors) {
     const [tx, ty] = DOOR_TILES[name][0];
     const horiz = name === 'up' || name === 'down';
+    const seal = sealAt(room, name);
+    if (seal) {
+      // Hazmat seal: dents and cracks as you hit it; flashes on each hit.
+      const dmg = Math.min(2, Math.floor(seal.hits * 3 / SEAL_HITS));
+      let img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmat' + dmg];
+      if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash']; }
+      ctx.drawImage(img, tx * TILE, ty * TILE);
+      continue;
+    }
     ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + (room.locked ? 'locked' : 'open')], tx * TILE, ty * TILE);
   }
 }

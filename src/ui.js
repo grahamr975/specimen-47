@@ -4,9 +4,9 @@
 // ---------------------------------------------------------------------------
 
 // --- Evolution screen -----------------------------------------------------------
-// Two stages: pick one of 3 cards; if its slot is taken, choose Replace /
-// Combine / Back. Cards deliberately do NOT explain what mutations do:
-// you learn by growing them.
+// Pick one of 3 cards. A card is a new ROOT for an empty slot, or the next
+// BRANCH of a path you're growing (which locks out its sibling). Cards
+// deliberately do NOT explain what mutations do: you learn by growing them.
 function openEvolution(opts) {
   const p = game.player;
   game.menu = {
@@ -14,13 +14,12 @@ function openEvolution(opts) {
     title: opts.title || 'EVOLUTION',
     sub: opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
-    stage: 'cards', pick: -1, opts: null, stageT: 0,
+    stage: 'cards', stageT: 0,
   };
   Sfx.play('evolve');
 }
 
 const CARD = { w: 94, h: 146, gap: 7, y: 50 };
-const PROMPT = { x: 40, y: 64, w: 240, optY: 70, optH: 16 };
 
 function cardX(i, n) {
   const total = n * CARD.w + (n - 1) * CARD.gap;
@@ -37,26 +36,6 @@ function updateMenu(dt) {
   menu.t += dt;
   menu.stageT += dt;
   const mx = Input.mouse.x, my = Input.mouse.y;
-
-  if (menu.stage === 'slot') {
-    menu.hover = -1;
-    if (mx > PROMPT.x && mx < PROMPT.x + PROMPT.w) {
-      const i = Math.floor((my - (PROMPT.y + PROMPT.optY - 4)) / PROMPT.optH);
-      if (i >= 0 && i < menu.opts.length) menu.hover = i;
-    }
-    if (menu.stageT < 0.2) return;
-    let choice = -1;
-    for (let i = 0; i < menu.opts.length; i++) if (Input.hit(String(i + 1))) choice = i;
-    if (Input.mouse.clicked && menu.hover >= 0) choice = menu.hover;
-    if (Input.hit('escape')) choice = menu.opts.length - 1; // back
-    if (choice < 0) return;
-    const o = menu.opts[choice];
-    if (o.action === 'back') { menu.stage = 'cards'; menu.stageT = 0; return; }
-    applyChoice(p, menu.choices[menu.pick], o.action);
-    closeMenu();
-    return;
-  }
-
   const n = menu.choices.length;
   menu.hover = -1;
   for (let i = 0; i < n; i++) {
@@ -70,18 +49,7 @@ function updateMenu(dt) {
   if (Input.mouse.clicked && menu.hover >= 0) choice = menu.hover;
   if (choice < 0) return;
 
-  const c = menu.choices[choice];
-  if (c.id !== '_gorge' && pickOutcome(p, c.id) === 'occupied') {
-    // Slot taken: replace it, or combine if a recipe exists.
-    const d = MUTATIONS[c.id], occ = p.slots[d.slot];
-    const recipe = findRecipe(c.id, occ.id);
-    menu.opts = [{ label: `REPLACE ${getMutDef(occ.id).name}`, action: 'replace', color: COST_COLOR }];
-    if (recipe) menu.opts.push({ label: `COMBINE INTO ${RECIPES[recipe].name}`, action: 'combine', color: RARITY[RECIPES[recipe].rarity].color });
-    menu.opts.push({ label: 'BACK', action: 'back', color: PAL.slate });
-    menu.stage = 'slot'; menu.pick = choice; menu.stageT = 0;
-    return;
-  }
-  applyChoice(p, c);
+  applyChoice(p, menu.choices[choice]);
   closeMenu();
 }
 
@@ -129,6 +97,20 @@ function drawCard(ctx, info, i, x, y, menu) {
   let ty = y + 70;
   for (const line of wrapText(info.name.toUpperCase(), 20)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
   if (info.slot) drawText(ctx, `[${info.slot}]`, cx, ty, PAL.slate, 1, 'center', null);
+  // Its set, and whether it moves you toward a set bonus.
+  if (info.set) {
+    const S = SETS[info.set], have = setCounts(game.player)[info.set] || 0;
+    const m = game.player.slots[info.slot], same = m && !m.starter && setOf(m.id) === info.set;
+    const after = same ? have : have + 1;
+    ctx.fillStyle = S.color; ctx.fillRect(x + 4, y + 4, 4, 4); ctx.fillRect(x + w - 8, y + 4, 4, 4);
+    ty += 8;
+    drawText(ctx, S.name + (after >= 3 ? ` ${after}/5` : ''), cx, ty, S.color, 1, 'center', null);
+  }
+  // Growth pips: how far along its path this card takes the slot.
+  if (info.tier) {
+    for (let l = 0; l < 3; l++) { ctx.fillStyle = l <= info.tier ? rc : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty + 8, 4, 2); }
+    ty += 4;
+  }
   ty += 10;
   if (info.status) { drawText(ctx, info.status, cx, ty, PAL.white, 1, 'center'); ty += 10; }
   if (info.note) {
@@ -156,36 +138,7 @@ function drawMenu(ctx) {
     drawCard(ctx, choiceInfo(p, c), i, x, y, menu);
   });
 
-  if (menu.stage === 'slot') {
-    ctx.fillStyle = 'rgba(4,2,4,0.75)';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    const c = menu.choices[menu.pick], d = MUTATIONS[c.id], occ = p.slots[d.slot];
-    const { x, y, w } = PROMPT;
-    const h = PROMPT.optY + menu.opts.length * PROMPT.optH + 6;
-    ctx.fillStyle = PAL.black; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-    ctx.fillStyle = PAL.red; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-    ctx.fillStyle = '#141014'; ctx.fillRect(x, y, w, h);
-    drawText(ctx, `YOUR ${d.slot} IS TAKEN`, x + w / 2, y + 6, PAL.red, 1, 'center');
-    // What you have vs what's on offer, with their art.
-    const occIcon = mutIcon(occ.id), newIcon = mutIcon(c.id);
-    if (occIcon) ctx.drawImage(occIcon, x + w / 2 - 56, y + 15, 32, 32);
-    if (newIcon) ctx.drawImage(newIcon, x + w / 2 + 24, y + 15, 32, 32);
-    drawText(ctx, 'VS', x + w / 2, y + 28, PAL.slate, 1, 'center');
-    drawText(ctx, getMutDef(occ.id).name, x + w / 2 - 40, y + 50, mutColor(p, occ.id), 1, 'center');
-    drawText(ctx, d.name, x + w / 2 + 40, y + 50, d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color, 1, 'center');
-    ctx.fillStyle = PAL.dark; ctx.fillRect(x + 6, y + 59, w - 12, 1);
-    menu.opts.forEach((o, i) => {
-      const oy = y + PROMPT.optY + i * PROMPT.optH;
-      if (i === menu.hover) { ctx.fillStyle = PAL.dark; ctx.fillRect(x + 4, oy - 4, w - 8, PROMPT.optH - 2); }
-      ctx.fillStyle = o.color; ctx.fillRect(x + 8, oy - 1, 7, 7);
-      drawText(ctx, `${i + 1}`, x + 10, oy, PAL.black, 1, 'left', null);
-      drawText(ctx, o.label, x + 20, oy, o.color === PAL.slate ? PAL.silver : o.color);
-      if (o.action === 'combine') {
-        const ci = mutIcon(findRecipe(c.id, occ.id));
-        if (ci) ctx.drawImage(ci, x + w - 22, oy - 5);
-      }
-    });
-  } else if (menu.t > 0.5) {
+  if (menu.t > 0.5) {
     drawText(ctx, 'PRESS 1-3 OR CLICK A CARD', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
@@ -218,11 +171,13 @@ function drawHUD(ctx) {
   // Room status message
   const room = game.room;
   let msg = null, col = PAL.white;
-  if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
+  if (evolveReady(p) && (p.evolveT > 0 || Math.floor(game.time * 2.5) % 2)) { msg = p.evolveT > 0 ? 'KEEP HOLDING...' : 'HOLD [F] TO COCOON AND EVOLVE'; col = VIAL_COLOR; }
+  else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
   else if (room.orbs.length) { msg = 'DNA SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - BURST IT'; col = VIAL_COLOR; }
   else if (room.type === 'vault') { msg = 'MUTAGEN VAULT'; col = VIAL_COLOR; }
+  else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d))) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; }
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');
 
   drawMinimap(ctx);
@@ -252,7 +207,15 @@ function drawDnaTube(ctx, p) {
   }
   ctx.fillStyle = 'rgba(200,230,220,0.25)';
   ctx.fillRect(tx + 2, ty + 1, inner, 1); // glass glint
-  drawText(ctx, `DNA ${p.dna}/${need}`, VIEW_W / 2, 16, '#8a6a74', 1, 'center');
+  // Full: the tube glows and throbs, waiting for you to cocoon.
+  const full = fill >= inner;
+  if (full) {
+    ctx.globalAlpha = 0.35 + 0.3 * Math.sin(game.time * 6);
+    ctx.fillStyle = '#f4c8d8';
+    ctx.fillRect(tx + 2, ty + 1, inner, 7);
+    ctx.globalAlpha = 1;
+  }
+  drawText(ctx, full ? 'DNA READY - HOLD F' : `DNA ${p.dna}/${need}`, VIEW_W / 2, 16, full ? VIAL_COLOR : '#8a6a74', 1, 'center');
 }
 
 function drawMinimap(ctx) {
@@ -292,16 +255,20 @@ function drawMutationList(ctx) {
     }
     const d = getMutDef(m.id), col = mutColor(p, m.id);
     ctx.fillStyle = col; ctx.fillRect(x, top, 2, 26); // rarity stripe
+    const set = !m.starter && setOf(m.id);
+    if (set) { // set gem (glows when it's part of an active bonus)
+      const act = activeSet(p), lit = act && act.set === set;
+      ctx.fillStyle = PAL.black; ctx.fillRect(x + 54, top + 2, 6, 6);
+      ctx.fillStyle = SETS[set].color; ctx.globalAlpha = lit ? 1 : 0.45; ctx.fillRect(x + 55, top + 3, 4, 4); ctx.globalAlpha = 1;
+      if (lit && Math.floor(game.time * 2) % 2) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 55, top + 3, 1, 1); }
+    }
     const icon = mutIcon(m.id);
     if (icon) ctx.drawImage(icon, x + 4, top + 9);
     wrapText(d.name.toUpperCase(), 9).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
-    if (!d.parts && d.max > 1) {
-      for (let l = 0; l < d.max; l++) {
-        ctx.fillStyle = l < m.level ? col : '#2a2222';
-        ctx.fillRect(x + 23 + l * 4, top + 23, 3, 2);
-      }
-    } else if (d.parts) {
-      drawText(ctx, 'FUSED', x + 23, top + 21, '#5a4e4c', 1, 'left', null);
+    // How far the path has grown (root, branch, branch).
+    for (let l = 0; l < 3; l++) {
+      ctx.fillStyle = l < m.path.length ? col : '#2a2222';
+      ctx.fillRect(x + 23 + l * 4, top + 23, 3, 2);
     }
   });
 }
@@ -387,6 +354,7 @@ function drawTitle(ctx) {
     ['MOUSE / ARROWS', 'AIM + SHOOT'],
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
+    ['HOLD F', 'COCOON + EVOLVE'],
     ['M / P', 'MUTE / PAUSE'],
   ];
   lines.forEach(([k, v], i) => {
@@ -409,7 +377,7 @@ function drawGameOver(ctx) {
     drawText(ctx, slot, VIEW_W / 2 - 8, 132 + i * 9, PAL.slate, 1, 'right');
     if (!m) { drawText(ctx, '-', VIEW_W / 2 + 8, 132 + i * 9, PAL.dark); return; }
     const d = getMutDef(m.id);
-    const label = d.name.toUpperCase() + (d.parts ? ' (COMBINED)' : d.max > 1 ? ' ' + m.level : '');
+    const label = d.name.toUpperCase() + (m.path.length >= 3 ? '' : ` (${m.path.length}/3)`);
     drawText(ctx, label, VIEW_W / 2 + 8, 132 + i * 9, mutColor(p, m.id));
   });
 
