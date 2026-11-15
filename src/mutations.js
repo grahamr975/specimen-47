@@ -1261,7 +1261,7 @@ const MUTATIONS = {
   },
   brood: {
     name: 'Brood Chamber', from: 'mitosis', rarity: 'uncommon', overlay: ['brood'], icon: ['mitosis', 'hemophage'],
-    desc: 'Burst corpses sometimes birth a friendly maggot instead of DNA.',
+    desc: 'Burst corpses sometimes birth a friendly maggot instead of biomass.',
     apply(s, l) { s.brood = 0.2 + 0.1 * l; },
   },
   clutch: {
@@ -1329,18 +1329,18 @@ const MUTATIONS = {
   },
   starving: {
     name: 'Starving Cells', slot: 'CORE', rarity: 'uncommon', malignant: true, overlay: ['ribs'],
-    desc: 'Corpses give double DNA.',
+    desc: 'Corpses give double biomass.',
     cost: 'Go 30s without bursting a corpse and you starve, losing health (never fatal).',
     apply(s) { s.dnaMul *= 2; s.starve = 30; },
   },
   apexpredator: {
     name: 'Apex Predator', from: 'starving', rarity: 'legendary', cures: true, icon: ['starving', 'hemophage'],
-    desc: 'CURED. Keep double DNA. You never starve, and bursts can heal you.',
+    desc: 'CURED. Keep double biomass. You never starve, and bursts can heal you.',
     apply(s) { s.starve = 0; s.hemophage += 0.3; },
   },
   bacteria: {
     name: 'Gut Bacteria', from: 'apexpredator', rarity: 'common', icon: ['starving', 'mitosis'],
-    desc: 'Even more DNA per corpse, but corpses take longer to burst.',
+    desc: 'Even more biomass per corpse, but corpses take longer to burst.',
     apply(s) { s.bacteria += 2; },
   },
   feedfrenzy: {
@@ -1712,7 +1712,7 @@ const SPLICES = {
   bonesaw:        { name: 'Bone Saw',        parts: [['spines'], ['mantis']],             apply(s) { s.boneSaw = true; },
     desc: 'Dashing sprays bone shards the whole way.', whisper: 'Lunge, and the shards come loose all along the way.' },
   bloodpump:      { name: 'Blood Pump',      parts: [['proboscis'], ['hemophage']],       apply(s) { s.drainDna = 8; },
-    desc: 'The blood you drink turns into DNA.', whisper: 'What you drink, you keep.' },
+    desc: 'The blood you drink turns into biomass.', whisper: 'What you drink, you keep.' },
   echochamber:    { name: 'Echo Chamber',    parts: [['echo'], ['spines']],               apply(s) { s.screamRing = 10; },
     desc: 'Your scream shakes a ring of shards loose.', whisper: 'The scream rattles the bones in your back loose.' },
   livingarmor:    { name: 'Living Armor',    parts: [['chitin'], ['hide']],               apply(s) { s.shellOnKills = 5; },

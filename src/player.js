@@ -637,7 +637,7 @@ function drainOne(p, target, dmg, fromX, fromY) {
   if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
-  if (s.drainDna && (p.bloodDna += dmg) >= s.drainDna) { p.bloodDna = 0; gainDna(1); floatText(p.x, p.y - 22, '+DNA', VIAL_COLOR); } // Blood Pump
+  if (s.drainDna && (p.bloodDna += dmg) >= s.drainDna) { p.bloodDna = 0; gainDna(1); floatText(p.x, p.y - 22, '+BIOMASS', VIAL_COLOR); } // Blood Pump
   if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
   // Bloat: drained to death, it bursts.
   if (target.dead && s.drainBurst) {

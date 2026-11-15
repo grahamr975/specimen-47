@@ -193,7 +193,7 @@ function drawHUD(ctx) {
   else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
-  else if (room.orbs.length) { msg = 'DNA SPILLED'; col = VIAL_COLOR; }
+  else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - BURST IT'; col = VIAL_COLOR; }
   else if (room.type === 'vault') { msg = 'MUTAGEN VAULT'; col = VIAL_COLOR; }
   else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d))) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; }
@@ -235,7 +235,7 @@ function drawDnaTube(ctx, p) {
     ctx.fillRect(tx + 2, ty + 1, inner, 7);
     ctx.globalAlpha = 1;
   }
-  drawText(ctx, full ? (game.room.locked ? 'DNA READY - CLEAR THE ROOM' : 'DNA READY') : `DNA ${p.dna}/${need}`, VIEW_W / 2, 16, full ? VIAL_COLOR : '#8a6a74', 1, 'center');
+  drawText(ctx, full ? (game.room.locked ? 'BIOMASS FULL - CLEAR ROOM' : 'BIOMASS READY') : `BIOMASS ${p.dna}/${need}`, VIEW_W / 2, 16, full ? VIAL_COLOR : '#8a6a74', 1, 'center');
 }
 
 function drawMinimap(ctx) {

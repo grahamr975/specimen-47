@@ -90,7 +90,7 @@ function gainDna(n) {
   const p = game.player;
   const wasReady = evolveReady(p);
   p.dna += n;
-  if (!wasReady && evolveReady(p)) { floatText(p.x, p.y - 22, 'DNA READY', VIAL_COLOR); Sfx.play('evolve'); }
+  if (!wasReady && evolveReady(p)) { floatText(p.x, p.y - 22, 'BIOMASS READY', VIAL_COLOR); Sfx.play('evolve'); }
 }
 
 // Is there an evolution waiting (a full DNA bar, or a mutagen vial)?

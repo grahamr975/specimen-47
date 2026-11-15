@@ -1,6 +1,6 @@
 # Specimen 47
 
-A pixel-art horror twin-stick roguelike. You're an escaped lab specimen: kill what hunts you, devour the corpses for DNA, and evolve into something worse.
+A pixel-art horror twin-stick roguelike. You're an escaped lab specimen: kill what hunts you, devour the corpses for biomass, and evolve into something worse.
 
 ## Play
 
@@ -18,10 +18,10 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 
 ## How it works
 
-- **Culture Blobs** divide once; the copy can't divide and carries no DNA.
-- **Burst corpses.** Some kills leave a usable corpse (it glints pink). Attack it until it bursts, then collect the DNA globules that spill out. Spawnlings and drones never leave one, and rats often don't.
+- **Culture Blobs** divide once; the copy can't divide and carries no biomass.
+- **Burst corpses.** Some kills leave a usable corpse (it glints pink). Attack it until it bursts, then collect the glowing globules of biomass that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **You're fragile.** You start with 3 HP.
-- **Evolve.** DNA banks while you fight. Once the room is clear, a full bar wraps you in a cocoon by itself; it splits and you choose 1 of 3 mutations. Never mid-fight. (Esc on the cards puts it off; hold F in any cleared room to evolve later.) Cards don't say what a mutation does; you learn by growing it.
+- **Evolve.** Biomass builds up while you fight. Once the room is clear, a full bar wraps you in a cocoon by itself; it splits and you choose 1 of 3 mutations. Never mid-fight. (Esc on the cards puts it off; hold F in any cleared room to evolve later.) Cards don't say what a mutation does; you learn by growing it.
 - **Open slots.** Your body has a few slots (shown along the bottom of the screen). You start with 3, and the slime blob takes one. Every devoured boss core adds a slot, and every splice frees one (two parts fuse into one), but never more than 5: a finished body is five parts, each one earned. Fill them however you like: several mouths for a glass cannon, or backs and cores for a tank. Each part still grows somewhere on the body:
   - **MOUTH: an attack.** You start spitting weak slime blobs; your first MOUTH pick replaces them. Grow more mouths and they all fire.
   - **LIMBS: how you move, plus a right-click ability.** One set at a time. You start limbless, as a slow, inching slug, and until you grow limbs every evolution offers some. Spider Legs skitter and spit webs, Wings fly and beat a gust that blows enemies and their shots away, Tentacles grapple, Burrowing Claws dig and send out a stunning tremor, Pseudopods glide on slime and roll out a slime wave, Root Legs take root and burst roots up to hold enemies.
@@ -55,10 +55,10 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 |---|---|
 | `src/mutations.js` | The mutation tree (roots and branches per body location), open slots, whispers, rarities and card rolling. Start here. |
 | `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing, and the right-click / Q abilities (ACTIVES) |
-| `src/dna.js` | Corpses, bursting, DNA amounts and the level curve |
+| `src/dna.js` | Corpses, bursting, biomass amounts and the level curve (biomass is called `dna` in the code) |
 | `src/floors.js` | Each floor's name, enemy mix, hazard and boss |
 | `src/bosses.js` | Bosses, telegraphed attacks, floor-specific enemy behaviors, elite affixes |
-| `src/enemies.js` | Enemy stats, behaviors and DNA value |
+| `src/enemies.js` | Enemy stats, behaviors and biomass value |
 | `src/player.js` | Movement, shooting, dash/charge, bite, tentacles, shield |
 | `src/music.js` | Procedural music: chords, tempo, combat layer |
 | `src/sprites.js` | All sprites, painted from shaded shapes (blobs, tubes, eyes). Tweak the numbers to reshape a creature. |
