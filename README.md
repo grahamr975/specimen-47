@@ -45,7 +45,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Rarity.** Mutations are Common, Uncommon, Rare or Legendary. Rare ones get likelier on deeper floors.
 - **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most have a branch that cures them, and a sibling branch that doubles down.
 - **Mutagen vials** (dropped by elites and found in vaults) give a free evolution with Uncommon-or-better cards.
-- Clear the farthest room on each floor to open the hatch down.
+- Clear the farthest room on each floor to open the hatch down. Its door is a toothed, red-glowing maw marked BOSS (or WARDEN); the first time, walking into it stops you at the threshold, and you keep walking to go in.
 
 ## Where to tweak things
 

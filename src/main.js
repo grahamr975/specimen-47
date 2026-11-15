@@ -75,14 +75,34 @@ function enterRoom(room, side) {
   game.fade = 0.2;
 }
 
-function checkDoors() {
+// Walk through a doorway to change rooms. The first time, a boss lair's door
+// holds you at the threshold: keep walking for a moment to go in.
+const LAIR_HOLD = 0.5;
+function checkDoors(dt = 1 / 60) {
   const p = game.player, room = game.room;
   if (room.locked) return;
+  // Past the doorway by more than `m` pixels?
+  const past = (d, m) => d === 'up' ? p.y < TILE - m : d === 'down' ? p.y > ROOM_PX_H - TILE + m : d === 'left' ? p.x < TILE - m : p.x > ROOM_PX_W - TILE + m;
+  const lair = Object.keys(room.doors).find(d => isLairDoor(room, d) && !room.doors[d].visited && past(d, 1));
+  if (lair) {
+    const pushing = (p.inX || 0) * DIRS[lair].dx + (p.inY || 0) * DIRS[lair].dy > 0.5;
+    p.lairT = pushing ? (p.lairT || 0) + dt : 0;
+    if (p.lairT < LAIR_HOLD) { // held at the threshold
+      if (lair === 'up') p.y = Math.max(p.y, TILE - 1.5); else if (lair === 'down') p.y = Math.min(p.y, ROOM_PX_H - TILE + 1.5);
+      else if (lair === 'left') p.x = Math.max(p.x, TILE - 1.5); else p.x = Math.min(p.x, ROOM_PX_W - TILE + 1.5);
+      if (!p.lairWarned) { p.lairWarned = true; floatText(p.x, p.y - 12, 'KEEP WALKING TO ENTER', '#e05050'); Sfx.play('heartbeat'); }
+      return;
+    }
+    p.lairT = 0; p.lairWarned = false;
+    enterRoom(room.doors[lair], DIRS[lair].opp);
+    return;
+  }
+  p.lairT = 0; p.lairWarned = false;
   let dir = null;
-  if (p.y < TILE - 2 && room.doors.up) dir = 'up';
-  else if (p.y > ROOM_PX_H - TILE + 2 && room.doors.down) dir = 'down';
-  else if (p.x < TILE - 2 && room.doors.left) dir = 'left';
-  else if (p.x > ROOM_PX_W - TILE + 2 && room.doors.right) dir = 'right';
+  if (past('up', 2) && room.doors.up) dir = 'up';
+  else if (past('down', 2) && room.doors.down) dir = 'down';
+  else if (past('left', 2) && room.doors.left) dir = 'left';
+  else if (past('right', 2) && room.doors.right) dir = 'right';
   if (dir) enterRoom(room.doors[dir], DIRS[dir].opp);
 }
 
@@ -198,7 +218,7 @@ function update(dt) {
     return;
   }
 
-  checkDoors();
+  checkDoors(dt);
 }
 
 // --- Rendering -----------------------------------------------------------------
@@ -216,8 +236,21 @@ function drawDoors(ctx) {
       ctx.drawImage(img, tx * TILE, ty * TILE);
       continue;
     }
-    ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + (room.locked ? 'locked' : 'open')], tx * TILE, ty * TILE);
+    const lair = isLairDoor(room, name);
+    ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + (lair ? (room.locked ? 'bossLocked' : 'bossOpen') : (room.locked ? 'locked' : 'open'))], tx * TILE, ty * TILE);
+    if (lair) { // a pulsing label just inside the door
+      const label = floorDef(game.depth).boss ? 'BOSS' : 'WARDEN';
+      const c = doorCenter(name), lx = clamp(c.x, TILE + 14, ROOM_PX_W - TILE - 14), ly = clamp(c.y, TILE + 5, ROOM_PX_H - TILE - 7);
+      const col = Math.floor(game.time * 2.5) % 2 ? '#e05050' : '#8a1420';
+      drawText(ctx, label, lx, ly - 3, col, 1, 'center');
+    }
   }
+}
+
+// Does this door lead into the floor's boss (or warden) room?
+function isLairDoor(room, name) {
+  const to = room.doors[name];
+  return !!to && to.type === 'exit' && room.type !== 'exit';
 }
 
 function drawHatch(ctx) {

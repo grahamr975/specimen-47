@@ -360,6 +360,24 @@ try {
     grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'titanheart'); const grown = p.stats.power;
     check(`a fresh body hits weaker than a fully grown one (power x${fresh.toFixed(2)} -> x${grown.toFixed(2)})`, fresh < 0.75 && grown > 0.95);
   }
+  { // 0m) Boss lairs: a marked door, and you can't stumble in.
+    newRun(); let p = game.player;
+    const room = game.floor.rooms.find(r => Object.keys(r.doors).some(d => r.doors[d].type === 'exit') && r.type !== 'exit');
+    const dir = Object.keys(room.doors).find(d => room.doors[d].type === 'exit');
+    enterRoom(room, DIRS[dir].opp); game.enemies = []; room.locked = false; render();
+    check(`the door into the boss room is marked (${dir})`, isLairDoor(room, dir) && Object.keys(room.doors).filter(d => isLairDoor(room, d)).length === 1);
+    const key = { up: 'w', down: 's', left: 'a', right: 'd' }[dir], c = doorCenter(dir);
+    const atDoor = () => { p.x = clamp(c.x, TILE + 6, ROOM_PX_W - TILE - 6); p.y = clamp(c.y, TILE + 6, ROOM_PX_H - TILE - 6); };
+    atDoor(); Input.keys.clear(); Input.keys.add(key); for (let i = 0; i < 12; i++) { update(1 / 60); Input.endFrame(); }
+    Input.keys.clear(); for (let i = 0; i < 5; i++) { update(1 / 60); Input.endFrame(); }
+    check('bumping into it does not take you in', game.room === room);
+    Input.keys.add(key); for (let i = 0; i < 80 && game.room === room; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check('keep walking and you go in', game.room.type === 'exit');
+    { const exit = game.room, back = Object.keys(exit.doors)[0]; enterRoom(exit.doors[back], DIRS[back].opp); game.enemies = []; game.room.locked = false;
+      const d2 = Object.keys(game.room.doors).find(d => game.room.doors[d] === exit);
+      if (d2) { const c2 = doorCenter(d2); p.x = clamp(c2.x, TILE + 6, ROOM_PX_W - TILE - 6); p.y = clamp(c2.y, TILE + 6, ROOM_PX_H - TILE - 6); Input.keys.add({ up: 'w', down: 's', left: 'a', right: 'd' }[d2]); for (let i = 0; i < 25 && game.room !== exit; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+        check('once you have been in, it opens like any door', game.room === exit); } }
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} slots, the slime in one`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 1);
@@ -844,7 +862,7 @@ try {
       const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
       game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
-      update(1 / 60); update(1 / 60);
+      { const from = game.room; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); } }
       const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
       if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');
     }

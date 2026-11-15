@@ -180,6 +180,7 @@ function updatePlayer(dt) {
   const il = Math.hypot(ix, iy);
   if (il) { ix /= il; iy /= il; }
   p.moving = il > 0;
+  p.inX = ix; p.inY = iy; // (a boss lair's door checks you're walking into it)
 
   // --- Aim: arrow keys (Isaac-style) or mouse ---
   let ax = 0, ay = 0, firing;

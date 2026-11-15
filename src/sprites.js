@@ -546,6 +546,34 @@ function paintDoor(horiz, locked) {
   return P.outline().toCanvas();
 }
 
+// The door to a boss's lair: a fleshy maw ringed with teeth, glowing red
+// deep inside. Locked, its shutter is overgrown with veins and a bone skull.
+function paintBossDoor(horiz, locked) {
+  const w = horiz ? 32 : 16, h = horiz ? 16 : 32;
+  const P = new Painter(w, h, 73);
+  if (locked) {
+    P.rect(0, 0, w - 1, h - 1, R.rust, 0.4, { noise: 0.25 });
+    if (horiz) for (let y = 2; y < h; y += 3) P.scratch([[1, y], [w - 2, y]], '#160c08');
+    else for (let x = 2; x < w; x += 3) P.scratch([[x, 1], [x, h - 2]], '#160c08');
+    for (const [x, y, d] of [[2, 2, 0.6], [w - 3, 3, 2.4], [3, h - 3, -0.8], [w - 4, h - 3, 3.6]]) P.vein(x, y, 6, '#8a1420', d);
+    P.blob(w / 2, h / 2, 3.2, 2.8, R.bone, { spec: 1 });
+    P.dot(Math.round(w / 2 - 1), Math.round(h / 2 - 0.5), '#ff4040').dot(Math.round(w / 2 + 1), Math.round(h / 2 - 0.5), '#ff4040');
+  } else {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const d = horiz ? Math.abs(x - w / 2 + 0.5) / (w / 2) : Math.abs(y - h / 2 + 0.5) / (h / 2);
+      if (d > 0.8) P.set(x, y, d > 0.92 ? '#5a1014' : '#8a1c22', null); // raw muscle around the opening
+      else {
+        const c = Math.hypot((x - w / 2 + 0.5) / (w / 2), (y - h / 2 + 0.5) / (h / 2));
+        P.set(x, y, c < 0.25 ? '#7a0e12' : c < 0.45 ? '#3a0608' : hash2(x, y, 5) > 0.9 ? '#1a0406' : '#0a0304', null);
+      }
+    }
+    // Teeth along the jaws, pointing in.
+    if (horiz) for (let y = 1; y < h - 1; y += 3) { P.dot(Math.round(w * 0.1) + 1, y, '#e8e0c8'); P.dot(w - Math.round(w * 0.1) - 2, y, '#e8e0c8'); }
+    else for (let x = 1; x < w - 1; x += 3) { P.dot(x, Math.round(h * 0.1) + 1, '#e8e0c8'); P.dot(x, h - Math.round(h * 0.1) - 2, '#e8e0c8'); }
+  }
+  return P.outline().toCanvas();
+}
+
 // The Mutagen Vault's hazmat seal: a heavy plate with yellow-black hazard
 // stripes and a hazard roundel. `dmg` 0-2 dents and cracks it.
 function paintHazmat(horiz, dmg) {
@@ -1170,6 +1198,8 @@ function withFlash(name, img) {
   };
   for (const horiz of [true, false]) {
     const k = horiz ? 'h_' : 'v_';
+    SPR.doors[k + 'bossOpen'] = paintBossDoor(horiz, false);
+    SPR.doors[k + 'bossLocked'] = paintBossDoor(horiz, true);
     for (const d of [0, 1, 2]) SPR.doors[k + 'hazmat' + d] = paintHazmat(horiz, d);
     SPR.doors[k + 'hazmatFlash'] = silhouette(SPR.doors[k + 'hazmat0'], '#fff0c0');
   }
