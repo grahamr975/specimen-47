@@ -1,0 +1,354 @@
+<!doctype html>
+<!--
+  Specimen 47 automated tests.
+  Loads the real game scripts, then plays/forces scenarios and prints
+  OK / FAIL lines into <pre id="out">. Run it with tests/run-tests.ps1
+  (headless Edge), or open this file in a browser and read the page.
+-->
+<html><head><meta charset="utf-8"></head>
+<body>
+<canvas id="game" width="320" height="256"></canvas>
+<pre id="out"></pre>
+<script>
+  window.__errs = [];
+  window.onerror = (m, s, l, c, e) => { window.__errs.push('ERR ' + m + ' @' + s + ':' + l + ' ' + (e && e.stack)); };
+</script>
+<script src="../src/gfx.js"></script>
+<script src="../src/paint.js"></script>
+<script src="../src/sprites.js"></script>
+<script src="../src/audio.js"></script>
+<script src="../src/music.js"></script>
+<script src="../src/input.js"></script>
+<script src="../src/mutations.js"></script>
+<script src="../src/world.js"></script>
+<script src="../src/entities.js"></script>
+<script src="../src/gore.js"></script>
+<script src="../src/lighting.js"></script>
+<script src="../src/enemies.js"></script>
+<script src="../src/player.js"></script>
+<script src="../src/dna.js"></script>
+<script src="../src/abilities.js"></script>
+<script src="../src/floors.js"></script>
+<script src="../src/bosses.js"></script>
+<script src="../src/ui.js"></script>
+<script src="../src/main.js"></script>
+
+<script>
+const log = []; let corpseFails = 0, orbsLeft = 0;
+let menus = 0, prompts = 0, combines = 0, replaces = 0, backs = 0;
+function autoMenu() {
+  let guard = 0;
+  while (game.menu && guard++ < 10) {
+    const m = game.menu;
+    m.t = 1; m.stageT = 1;
+    if (m.stage === 'cards') menus++;
+    else prompts++;
+    render();
+    let k;
+    if (m.stage === 'cards') k = randInt(1, m.choices.length);
+    else {
+      const combineI = m.opts.findIndex(o => o.action === 'combine');
+      k = combineI >= 0 && Math.random() < 0.8 ? combineI + 1 : randInt(1, m.opts.length);
+      const a = m.opts[k - 1].action;
+      if (a === 'combine') combines++; else if (a === 'replace') replaces++; else backs++;
+    }
+    Input.pressed.add(String(k));
+    update(1 / 60); Input.endFrame();
+  }
+}
+function step(n, god) {
+  for (let i = 0; i < n; i++) {
+    if (god && game.player) game.player.hp = game.player.maxHp;
+    Input.keys.clear();
+    if (game.state === 'play' && !game.menu) {
+      const p = game.player;
+      const e = game.enemies.filter(e => e.spawnT <= 0).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      if (e) {
+        Input.mouse.x = e.x; Input.mouse.y = e.y + ROOM_Y;
+        // melee builds walk toward their prey
+        const melee = !p.stats.spike, dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+        if (melee && d > 14) { if (dx > 3) Input.keys.add('d'); if (dx < -3) Input.keys.add('a'); if (dy > 3) Input.keys.add('s'); if (dy < -3) Input.keys.add('w'); }
+        else { const dirs = [['w'], ['a'], ['s'], ['d']]; for (const k of dirs[Math.floor(game.time) % 4]) Input.keys.add(k); }
+      }
+      Input.mouse.down = true;
+      if (Math.random() < 0.02) Input.pressed.add(' ');
+      if (Math.random() < 0.03) Input.mouse.rightClicked = true;
+    }
+    if (game.state === 'dead' || game.state === 'title') Input.mouse.clicked = game.overT > 1.2 || game.state === 'title';
+    update(1 / 60);
+    if (i % 7 === 0) render();
+    Input.endFrame();
+    autoMenu();
+  }
+}
+const combatRoom = () => { enterRoom(game.floor.rooms.find(r => r.type === 'combat') || game.floor.rooms[1], 'up'); };
+function setSlots(p, slots) { p.slots = Object.assign({ MOUTH: null, HEAD: null, BACK: null, LIMBS: null, CORE: null }, slots); recomputeStats(p); }
+
+try {
+  { // 00) Whispers: every mutation and combination has a hint, and gaining one shows it.
+    const check = (name, ok) => log.push((ok ? 'OK   ' : 'FAIL ') + name);
+    const missing = [...Object.keys(MUTATIONS), ...Object.keys(RECIPES)].filter(id => !HINTS[id]);
+    check('every mutation & combination has a whisper' + (missing.length ? ' (missing: ' + missing.join(',') + ')' : ''), !missing.length);
+    const tooLong = Object.keys(HINTS).filter(id => HINTS[id].length > 140);
+    check('whispers fit in two lines' + (tooLong.length ? ' (too long: ' + tooLong.join(',') + ')' : ''), !tooLong.length);
+    newRun(); combatRoom();
+    applyChoice(game.player, { id: 'spines' });
+    check('gaining a mutation whispers its hint', game.whisper && game.whisper.text === HINTS.spines.toUpperCase());
+    game.whisper = null; applyChoice(game.player, { id: 'spines' });
+    check('levelling up stays silent', !game.whisper);
+    for (let i = 0; i < 60; i++) { update(1 / 60); render(); Input.endFrame(); }
+  }
+  { // 000) Attack types: mouth = what you fire, Marrow/Twitch = how you fire it.
+    const check = (name, ok) => log.push((ok ? 'OK   ' : 'FAIL ') + name);
+    const fireFor = (frames, hold = true) => { for (let i = 0; i < frames; i++) { Input.mouse.down = hold; Input.mouse.x = game.player.x + 80; Input.mouse.y = game.player.y + ROOM_Y; game.player.hp = 3; game.player.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } Input.mouse.down = false; };
+    const mine = () => game.bullets.filter(b => b.team === 'player');
+    let p;
+    // Bile flamethrower: many short, fast droplets.
+    newRun(); combatRoom(); p = game.player; for (const e of game.enemies) e.spawnT = 99;
+    setSlots(p, { MOUTH: { id: 'bile', level: 1 } }); game.bullets = [];
+    let made = 0; for (let i = 0; i < 30; i++) { const n0 = mine().length; fireFor(1); made += Math.max(0, mine().length - n0); }
+    check(`bile spit is a flamethrower (${made} droplets in 0.5s, delay ${p.stats.fireDelay.toFixed(2)}s)`, made >= 4 && p.stats.fireDelay < 0.12);
+    // Spore mortar: lobs.
+    newRun(); combatRoom(); p = game.player; for (const e of game.enemies) e.spawnT = 99;
+    setSlots(p, { MOUTH: { id: 'spores', level: 1 } }); game.bullets = [];
+    fireFor(2); check('spore cough lobs a mortar', game.bullets.some(b => b.kind === 'lob'));
+    fireFor(80, false); check('the mortar lands in a spore cloud', game.clouds.length > 0);
+    // Dense Marrow: charge then blast.
+    newRun(); combatRoom(); p = game.player; for (const e of game.enemies) e.spawnT = 99;
+    setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'marrow', level: 1 } }); game.bullets = [];
+    fireFor(30); check('holding fire with Dense Marrow charges instead of shooting', mine().length === 0 && p.chargeT > 0.4);
+    fireFor(40); fireFor(1, false);
+    check(`release fires a bone shotgun (${mine().length} pellets)`, mine().length >= 8);
+    // Twitch Fibers: rapid stream.
+    newRun(); combatRoom(); p = game.player;
+    setSlots(p, { MOUTH: { id: 'spike', level: 1 } }); const slow = p.stats.fireDelay;
+    setSlots(p, { MOUTH: { id: 'spike', level: 1 }, BACK: { id: 'twitch', level: 1 } });
+    check(`twitch fibers turn the spike into a nailgun (${slow.toFixed(2)}s -> ${p.stats.fireDelay.toFixed(2)}s)`, p.stats.fireDelay < slow * 0.4 && p.stats.spread > 0);
+    // Charged melee.
+    newRun(); combatRoom(); p = game.player; game.enemies = [];
+    setSlots(p, { MOUTH: { id: 'mandibles', level: 1 }, CORE: { id: 'marrow', level: 1 } });
+    const rat = spawnEnemy('rat', p.x + 12, p.y); rat.spawnT = 0; rat.hp = rat.maxHp = 99;
+    p.aimX = 1; p.aimY = 0; fireFor(70); const before = rat.hp; fireFor(1, false);
+    check(`charged bite hits harder (${(before - rat.hp).toFixed(1)} dmg vs ${p.stats.biteDmg.toFixed(1)} normal)`, before - rat.hp > p.stats.biteDmg * 2);
+  }
+  { // 0) Floor 1, bosses and affixes.
+    const check = (name, ok) => log.push((ok ? 'OK   ' : 'FAIL ') + name);
+    let p;
+    newRun(); p = game.player;
+    const room = game.floor.rooms.find(r => r.type === 'combat');
+    enterRoom(room, 'up');
+    const types = game.enemies.map(e => e.type);
+    check('floor 1 spawns its own mix: ' + [...new Set(types)].join(','), types.includes('scavenger') || types.some(t => ['culture', 'rat', 'spitter', 'splitter'].includes(t)));
+    check('floor 1 rooms have sticky spills (' + game.floor.rooms.filter(r => r.hazards.length).length + ' rooms)', game.floor.rooms.some(r => r.hazards.length));
+    // Culture divides when left alone.
+    game.enemies = []; const c = spawnEnemy('culture', 100, 96); c.spawnT = 0;
+    for (let i = 0; i < 60 * 16; i++) { p.hp = 3; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    check('culture divides after ~15s (' + game.enemies.filter(e => e.type === 'culture').length + ' cultures)', game.enemies.filter(e => e.type === 'culture').length >= 2);
+    // Scavenger eats a corpse.
+    game.enemies = []; game.room.corpses = [];
+    const spot = randomFloorSpot(game.room, null, 0); // open floor, whatever the room layout
+    game.room.corpses.push({ x: spot.x + 4, y: spot.y, r: 5, sprite: 'rat', dna: 2, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 });
+    const s = spawnEnemy('scavenger', spot.x - 4, spot.y); s.spawnT = 0;
+    for (let i = 0; i < 60 * 4; i++) { p.hp = 3; update(1 / 60); Input.endFrame(); }
+    check('scavenger eats the corpse', game.room.corpses.length === 0);
+    check('scavengers do not keep the room locked', !room.locked);
+    // Sticky spills slow you.
+    game.room.hazards = [{ kind: 'sticky', x: p.x, y: p.y + 3, r: 30 }];
+    const x0 = p.x; for (let i = 0; i < 30; i++) { Input.keys.clear(); Input.keys.add('d'); update(1 / 60); Input.endFrame(); }
+    const slowDist = p.x - x0; game.room.hazards = [];
+    const x1 = p.x; for (let i = 0; i < 30; i++) { Input.keys.clear(); Input.keys.add('d'); update(1 / 60); Input.endFrame(); }
+    check(`sticky spill slows you (${slowDist.toFixed(1)}px vs ${(p.x - x1).toFixed(1)}px)`, slowDist < (p.x - x1) * 0.8);
+    Input.keys.clear();
+
+    // Boss fight.
+    newRun(); p = game.player;
+    const exit = game.floor.rooms.find(r => r.type === 'exit');
+    check('boss arena has no obstacles', !exit.tiles.includes(T_BLOCK));
+    enterRoom(exit, 'up');
+    const mom = game.enemies.find(e => e.type === 'mother');
+    check('the Mother Culture spawns', !!mom && game.bossName === 'THE MOTHER CULTURE');
+    for (let i = 0; i < 300; i++) { p.hp = 3; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    check('she births cultures', game.enemies.some(e => e.type === 'culture'));
+    // A telegraphed slam hits you if you stand in the line.
+    p.inv = 0; p.hp = 3; telegraphLine(p.x - 30, p.y, 0, 60, 10, 0.2, 1);
+    for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); }
+    check('telegraphed slam hits you (hp ' + p.hp + ')', p.hp === 2);
+    p.hp = 3;
+    damageEnemy(mom, mom.maxHp * 0.55, 0, 0, true); update(1 / 60); Input.endFrame();
+    const lings = game.enemies.filter(e => e.type === 'motherling');
+    check('at half health she splits into 3', lings.length === 3 && mom.dead);
+    damageEnemy(lings[0], 999, 0, 0, true);
+    check('survivors start to reabsorb', lings[1].reabsorbT > 0);
+    for (let i = 0; i < 60 * 4.5; i++) { p.hp = 3; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    check('reabsorb heals a sister to full', lings[1].dead || lings[1].hp === lings[1].maxHp);
+    for (const l of lings) damageEnemy(l, 999, 0, 0, true);
+    for (const e of game.enemies.slice()) if (!e.dead) damageEnemy(e, 999, 0, 0, true);
+    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
+    check('boss defeated: bar gone, hatch open', !game.bossName && exit.hatch);
+    check('boss drops a rare+ mutagen', exit.pickups.some(k => k.kind === 'vial' && k.minRarity === 'rare'));
+
+    // Affixes.
+    for (const a of Object.keys(AFFIXES)) {
+      newRun(); combatRoom(); p = game.player; game.enemies = [];
+      const e = spawnEnemy('rat', p.x + 60, p.y, true); e.spawnT = 0; e.affixes = [a];
+      if (a === 'hasted') e.speed *= 1.5;
+      if (a === 'mutated') e.mut = 'spines';
+      let ok = true;
+      if (a === 'shielded') { const h = e.hp; damageEnemy(e, 1, 1, 0); ok = e.hp === h; }
+      if (a === 'splitting') { damageEnemy(e, 999, 0, 0, true); ok = game.enemies.filter(o => !o.dead && o.type === 'rat').length === 2; }
+      if (a === 'volatile') { damageEnemy(e, 999, 0, 0, true); ok = game.bombs.length === 1; }
+      if (a === 'vampiric') { e.hp = 1; game.room.corpses.push({ x: e.x + 5, y: e.y, r: 5, sprite: 'rat', dna: 1, hp: 2, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }); updateAffixes(e, 0.016); ok = e.hp > 1; }
+      if (a === 'mutated') { updateAffixes(e, 4); ok = game.bullets.some(b => b.team === 'enemy'); }
+      if (a === 'hasted') ok = e.speed > ENEMY_TYPES.rat.speed * 1.4;
+      for (let i = 0; i < 60; i++) { p.hp = 3; p.inv = 1; update(1 / 60); Input.endFrame(); }
+      check('affix ' + a, ok);
+    }
+  }
+  // 1) Each mouth weapon alone: does it kill things?
+  for (const w of ['spike', 'bile', 'mandibles', 'tentacles', 'feral']) {
+    newRun(); combatRoom(); const p = game.player;
+    setSlots(p, { MOUTH: { id: w, level: 2 } });
+    const k0 = game.kills; step(900, true);
+    log.push(`${w}: kills=${game.kills - k0} delay=${p.stats.fireDelay.toFixed(2)}`);
+  }
+  // 1b) Each limb: move around, fight, grapple.
+  for (const l of ['spider', 'wings', 'hindlegs', 'grapple']) {
+    newRun(); combatRoom(); const p = game.player;
+    setSlots(p, { MOUTH: { id: 'spike', level: 2 }, LIMBS: { id: l, level: 3 } });
+    const x0 = p.x, k0 = game.kills; let maxSpd = 0, px = p.x, py = p.y;
+    for (let i = 0; i < 600; i++) { step(1, true); maxSpd = Math.max(maxSpd, Math.hypot(p.x - px, p.y - py) * 60); px = p.x; py = p.y; }
+    log.push(`${l}: kills=${game.kills - k0} topSpeed~${maxSpd.toFixed(0)} flying=${p.flying}`);
+  }
+  newRun(); combatRoom(); { const p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 } }); let mx = 0, px = p.x, py = p.y; for (let i = 0; i < 300; i++) { step(1, true); mx = Math.max(mx, Math.hypot(p.x - px, p.y - py) * 60); px = p.x; py = p.y; } log.push(`slug: topSpeed~${mx.toFixed(0)} dashSpeed=${p.stats.dashSpeed}`); }  log.push('mutations=' + Object.keys(MUTATIONS).length + ' recipes=' + Object.keys(RECIPES).length + ' icons missing=' + Object.keys(MUTATIONS).filter(id => !SPR.icons[id]).join(','));
+  { // 1c) Every new limb and mutation in a real fight.
+  const NEW = ['mantis','centipede','burrow','shell','fins','stilts','cilia','hands','proboscis','spores','vomit','leech','antennae','echo','compound','parasite','eggsac','pustules','molt','lure','brood','bacteria','twin','calcified','hollow'];
+  const res = [];
+  for (const id of NEW) {
+    newRun(); combatRoom(); const p = game.player; const d = MUTATIONS[id];
+    const slots = { MOUTH: { id: 'spike', level: 2 } }; slots[d.slot] = { id, level: d.max };
+    setSlots(p, slots); ensureTwin();
+    const k0 = game.kills; step(450, true); render();
+    res.push(`${id}:${game.kills - k0}`);
+  }
+  log.push('new mutations (kills in 450 frames): ' + res.join(' '));
+
+  // 1d) Specific mechanics.
+  const check = (name, ok) => log.push((ok ? 'OK   ' : 'FAIL ') + name);
+  let p;
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, LIMBS: { id: 'shell', level: 1 } });
+  Input.keys.clear(); Input.mouse.down = false; for (let i = 0; i < 30; i++) { p.hp = 3; update(1 / 60); Input.endFrame(); }
+  p.inv = 0; const hp0 = p.hp; hurtPlayer(1); check('shell blocks while withdrawn (withdrawn=' + p.withdrawn + ')', p.withdrawn && p.hp === hp0);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, BACK: { id: 'molt', level: 1 } });
+  p.inv = 0; hurtPlayer(1); check('molt ignores first hit and leaves decoy', p.hp === 3 && !!game.decoy);
+  p.inv = 0; hurtPlayer(1); check('molt only once per room', p.hp === 2);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'hollow', level: 1 } });
+  p.inv = 0; hurtPlayer(1); check('hollow body: hit costs 2', p.hp === 1);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'twin', level: 1 } }); ensureTwin();
+  const tw = game.allies.find(a => a.kind === 'twin'); const mh = p.maxHp;
+  hurtTwin(tw); tw.inv = 0; hurtTwin(tw); check('twin dies -> -1 max HP (' + mh + '->' + p.maxHp + ')', p.twinDead && p.maxHp === mh - 1);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, LIMBS: { id: 'hands', level: 1 } });
+  for (const e of game.enemies.slice()) { e.spawnT = 0; } game.enemies = [];
+  game.room.corpses.push({ x: p.x + 8, y: p.y, r: 5, sprite: 'rat', dna: 2, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 });
+  p.aimX = 1; p.aimY = 0; handAction(p); check('hands grab corpse', !!p.held);
+  handAction(p); for (let i = 0; i < 60; i++) { update(1 / 60); Input.endFrame(); }
+  check('thrown corpse bursts into DNA (orbs=' + game.room.orbs.length + ', dna=' + p.dna + ')', game.room.orbs.length > 0 || p.dna > 0);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, LIMBS: { id: 'burrow', level: 1 } });
+  for (let i = 0; i < 50; i++) { update(1 / 60); Input.endFrame(); } p.dashCd = 0;
+  Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('burrow starts on dash', p.burrowT > 0);
+  for (let i = 0; i < 60; i++) { update(1 / 60); Input.endFrame(); } check('burrow erupts', p.burrowT <= 0);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, HEAD: { id: 'echo', level: 2 } });
+  for (const e of game.enemies) { e.spawnT = 0; e.x = p.x + 20; e.y = p.y; } p.dashCd = 0;
+  Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('echo scream stuns', game.enemies.every(e => e.stunT > 0));
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spores', level: 1 } });
+  for (let i = 0; i < 120 && !game.clouds.length; i++) { Input.mouse.down = true; Input.mouse.x = p.x + 60; Input.mouse.y = p.y + ROOM_Y; update(1 / 60); Input.endFrame(); }
+  check('spore cough makes clouds', game.clouds.length > 0);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, LIMBS: { id: 'spider', level: 2 } });
+  p.inv = 0; hurtPlayer(1); check('limb wear after a hit', p.limbWear > 0 && movement(p).slug);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 }, LIMBS: { id: 'wings', level: 1 }, CORE: { id: 'secondheart', level: 1 } }); p.evolutions = 8; recomputeStats(p);
+  p.hp = 1; p.inv = 0; hurtPlayer(1); check('second heart: reborn limbless & pure (stage ' + p.stage + ')', game.state === 'play' && !p.slots.LIMBS && p.stage <= 1);
+  newRun(); combatRoom(); p = game.player; setSlots(p, { MOUTH: { id: 'spike', level: 1 } });
+  for (let i = 0; i < 60; i++) { Input.keys.clear(); Input.keys.add('d'); update(1 / 60); Input.endFrame(); }
+  check('slug leaves slime terrain (' + game.room.slime.length + ')', game.room.slime.length > 5);
+  }
+  // 2) Every combine recipe, in its slot, with a random loadout elsewhere.
+  for (const rid in RECIPES) {
+    newRun(); combatRoom(); const p = game.player;
+    const r = RECIPES[rid], slot = slotOf(rid);
+    const parts = {}; r.parts.forEach(pt => parts[pt] = MUTATIONS[pt].max);
+    const slots = { MOUTH: { id: 'spike', level: 1 } };
+    for (const s of SLOTS) { const opts = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].slot === s); slots[s] = { id: pick(opts), level: 1 }; }
+    slots[slot] = { id: rid, level: 1, parts };
+    p.cancerRooms = 5;
+    setSlots(p, slots); p.shieldUp = true;
+    step(240, true);
+  }
+  log.push('all ' + Object.keys(RECIPES).length + ' recipes ran ok');
+  // Cures check
+  newRun(); let p = game.player;
+  setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'overgrown', level: 1 } }); const hpBad = p.maxHp;
+  setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'titanheart', level: 1, parts: { overgrown: 1, hide: 1 } } });
+  log.push(`overgrown maxHp=${hpBad} -> titanheart maxHp=${p.maxHp}, dmgMul=${p.stats.damageMul}`);
+  setSlots(p, { MOUTH: { id: 'spike', level: 1 }, HEAD: { id: 'owleyes', level: 1, parts: { nighteyes: 2, eyes: 1 } } });
+  log.push(`owleyes lightMul=${p.stats.lightMul} nightEyes=${p.stats.nightEyes}`);
+
+  // 3) Evolution flow stress: 150 level-ups with random choices.
+  newRun(); combatRoom();
+  for (let i = 0; i < 150; i++) { game.pendingEvolutions.push({}); step(2, true); }
+  p = game.player;
+  log.push(`after 150 evolutions: ${SLOTS.map(s => s + '=' + (p.slots[s] ? p.slots[s].id + (p.slots[s].parts ? '*' : p.slots[s].level) : '-')).join(' ')}`);
+  log.push(`menus=${menus} prompts=${prompts} combines=${combines} replaces=${replaces} backs=${backs}`);
+
+  // 4) Full god-mode runs.
+  for (let run = 0; run < 3; run++) {
+    newRun();
+    let frames = 0, lockedFor = 0;
+    while (frames < 40000 && game.depth < 5) {
+      step(30, true); frames += 30;
+      const room = game.room;
+      if (room.locked) { lockedFor += 30; if (lockedFor > 1800) for (const e of game.enemies.slice()) damageEnemy(e, 999, 0, 0, true); continue; }
+      lockedFor = 0;
+      for (const c of room.corpses.slice()) {
+        const p = game.player; p.x = clamp(c.x - (p.stats.spike ? 22 : 9), TILE + 6, ROOM_PX_W - TILE - 6); p.y = c.y;
+        for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = true; p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        if (!c.dead) corpseFails++;
+      }
+      for (const o of room.orbs.slice()) { game.player.x = o.x; game.player.y = o.y; step(20, true); }
+      orbsLeft += room.orbs.length;
+      for (const pk of room.pickups.slice()) { game.player.x = pk.x; game.player.y = pk.y; step(3, true); }
+      if (room.hatch) { game.player.x = ROOM_PX_W / 2; game.player.y = ROOM_PX_H / 2; step(2, true); continue; }
+      const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);
+      const dir = unv.length ? pick(unv) : pick(names);
+      const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
+      game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
+      Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
+      update(1 / 60); update(1 / 60);
+      const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
+      if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');
+    }
+    p = game.player;
+    log.push(`run ${run}: depth ${game.depth}, kills ${game.kills}, level ${p.level}, ${SLOTS.map(s => s + '=' + (p.slots[s] ? p.slots[s].id : '-')).join(' ')}`);
+  }
+
+  log.push('corpse burst failures=' + corpseFails + ' orbs left uncollected=' + orbsLeft);
+  // 5) Second heart + death + restart.
+  newRun(); combatRoom(); p = game.player;
+  setSlots(p, { MOUTH: { id: 'spike', level: 1 }, CORE: { id: 'secondheart', level: 1 } });
+  p.hp = 1; p.inv = 0; hurtPlayer(1);
+  log.push('second heart: state=' + game.state + ' hp=' + p.hp);
+  p.inv = 0; p.hp = 1; hurtPlayer(1);
+  log.push('then: state=' + game.state);
+  step(200, false);
+  log.push('after restart: state=' + game.state + ' mouth=' + game.player.slots.MOUTH.id);
+} catch (e) { log.push('EXCEPTION ' + e.message + '\n' + e.stack); }
+document.getElementById('out').textContent = log.concat(window.__errs).join('\n');
+</script>
+</body></html>
+
+
+
+
+
+
+
+
+
