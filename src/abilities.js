@@ -1064,7 +1064,7 @@ function tryActive(p, key) {
   if (key === 'limb' && p.limbWear > 0) { floatText(p.x, p.y - 18, 'LIMBS TORN', COST_COLOR); return; }
   const cdKey = key === 'limb' ? 'limbCd' : 'headCd';
   if (p[cdKey] > 0) return;
-  if (useActive(p, a)) { p[cdKey] = ACTIVES[a.kind].cd(a.l); p[cdKey + 'Max'] = p[cdKey]; }
+  if (useActive(p, a)) { p[cdKey] = ACTIVES[a.kind].cd(a.l) * (key === 'limb' ? s.limbCdMul : s.headCdMul); p[cdKey + 'Max'] = p[cdKey]; }
 }
 
 function useActive(p, a) {

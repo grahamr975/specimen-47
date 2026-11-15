@@ -8,8 +8,9 @@
 
 const ORB_MAGNET = 38; // globules within this range drift to you
 
+// Level-ups are small now (a part levels, see rollLevelUps), so they come often.
 function dnaNeeded(level) {
-  return Math.round(7 + level * 5 + level * level * 0.5);
+  return Math.round((7 + level * 5 + level * level * 0.5) * 0.65);
 }
 
 // Called when an enemy dies: maybe leave meat worth bursting.
@@ -105,7 +106,7 @@ function nextEvolution() {
   if (p.dna >= dnaNeeded(p.level)) {
     p.dna -= dnaNeeded(p.level);
     p.level++;
-    return { minRarity: null, title: 'EVOLUTION', fromDna: true };
+    return { minRarity: null, title: 'LEVEL UP', fromDna: true, levelUp: true };
   }
   return null;
 }

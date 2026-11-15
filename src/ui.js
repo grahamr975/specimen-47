@@ -10,12 +10,13 @@
 function openEvolution(opts) {
   const p = game.player;
   game.menu = {
-    choices: rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc),
+    choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
+      : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc),
     color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -123,6 +124,11 @@ function drawCard(ctx, info, i, x, y, menu) {
   // Growth pips: how far along its path this card takes the slot.
   if (info.tier) {
     for (let l = 0; l < 3; l++) { ctx.fillStyle = l <= info.tier ? rc : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty + 8, 4, 2); }
+    ty += 4;
+  }
+  // Level dots: how close this level-up takes the part to its next evolution.
+  if (info.level) {
+    for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < info.level ? VIAL_COLOR : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty + 8, 4, 2); }
     ty += 4;
   }
   ty += 10;
@@ -298,11 +304,12 @@ function drawMutationList(ctx) {
     if (w >= 56) wrapText(d.name.toUpperCase(), Math.floor((w - 24) / 4)).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
     // How far the path has grown (root, branch, branch). The next pip glows
     // if it can grow again this floor.
-    const ready = childrenOf(m.id).length && !m.starter && canGrowYet(m);
     for (let l = 0; l < 3; l++) {
-      ctx.fillStyle = l < m.path.length ? col : l === m.path.length && ready ? '#5a4e4c' : '#2a2222';
+      ctx.fillStyle = l < m.path.length ? col : '#2a2222';
       ctx.fillRect(x + 23 + l * 4, top + 23, 3, 2);
     }
+    // Its level: pink dots that fill toward its next evolution.
+    if (!m.starter) for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < (m.lvl || 0) ? VIAL_COLOR : '#2a1c22'; ctx.fillRect(x + 38 + l * 3, top + 23, 2, 2); }
   }
   for (; cell < cap; cell++) {
     const x = 3 + cell * pitch, w = pitch - 2;

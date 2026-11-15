@@ -119,9 +119,8 @@ try {
     check('...and other BACK roots can still grow in a free slot', kindsAt(p, 'BACK', 'root').includes('chitin') && !offersAt(p, 'BACK').includes('spines'));
     applyChoice(p, { id: 'urchinhide' });
     check('a branch whispers too', game.whisper.text === HINTS.urchinhide.toUpperCase());
-    check('a part grows at most twice per floor (planting counts)', !kindsAt(p, 'BACK', 'branch').length);
     game.depth = 2;
-    check('...it grows again on the next floor; its sibling stays locked out', kindsAt(p, 'BACK', 'branch').includes('venomquills') && !offersAt(p, 'BACK').includes('quillpulse'));
+    check('its sibling stays locked out', kindsAt(p, 'BACK', 'branch').includes('venomquills') && !offersAt(p, 'BACK').includes('quillpulse'));
     applyChoice(p, { id: 'venomquills' });
     const spinesPart = partFor(p, 'venomquills');
     const metaBack = bodyOffers(p, 'BACK').filter(c => c.shed === spinesPart);
@@ -482,9 +481,26 @@ try {
     { const picks = bossPicks(p), mouthPick = picks.find(c => locOf(c.id) === 'MOUTH');
       check(`a full body still gets boss picks: they shed your least-grown part of that kind (${mouthPick && choiceInfo(p, mouthPick).note})`, mouthPick && mouthPick.kind === 'swap' && locOf(mouthPick.shed.id) === 'MOUTH' && /SHEDS/.test(choiceInfo(p, mouthPick).note));
       applyChoice(p, mouthPick); check('...and the body stays at 5 parts', slotsUsed(p) === 5 && hasMutation(p, mouthPick.id)); }
-    newRun(); p = game.player; applyChoice(p, { id: 'spike' }); applyChoice(p, { id: childrenOf('spike')[0] });
-    check('the MOUTH can\'t race to full growth on floor 1', !kindsAt(p, 'MOUTH', 'branch').length && partAt(p, 'MOUTH').path.length === 2);
-    game.depth = 2; check('...it finishes growing on floor 2', kindsAt(p, 'MOUTH', 'branch').length === 2); game.depth = 1;
+    // Part levels: biomass levels a part; at level 3 it evolves and starts over.
+    newRun(); combatRoom(); p = game.player; game.enemies = []; applyChoice(p, { id: 'spike' });
+    { const m = partAt(p, 'MOUTH'), d0 = p.stats.guns[0].dmg, r0 = p.stats.guns[0].delay, ev0 = p.evolutions;
+      applyChoice(p, { id: m.id, kind: 'level', part: m });
+      check(`a level makes that mouth hit harder and faster (dmg ${d0.toFixed(2)} -> ${p.stats.guns[0].dmg.toFixed(2)}, delay ${r0.toFixed(2)} -> ${p.stats.guns[0].delay.toFixed(2)})`, p.stats.guns[0].dmg > d0 && p.stats.guns[0].delay < r0 && m.path.length === 1);
+      applyChoice(p, { id: m.id, kind: 'level', part: m });
+      check('...level 2: still the same part', m.path.length === 1 && !game.pendingEvolutions.length && p.evolutions === ev0);
+      applyChoice(p, { id: m.id, kind: 'level', part: m });
+      check(`level 3: it evolves (its fork is waiting) and its level resets (lvl ${m.lvl})`, m.lvl === 0 && game.pendingEvolutions[0] && game.pendingEvolutions[0].evolve === m);
+      openEvolution(game.pendingEvolutions.shift());
+      check(`...the fork shows both of its branches (${game.menu.choices.map(c => c.id).join(',')})`, game.menu.choices.length === 2 && game.menu.choices.every(c => c.kind === 'branch' && MUTATIONS[c.id].from === 'spike'));
+      game.menu.t = 2; render(); game.menu = null; }
+    { let ok = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'spike', 'spider'); q.capacity = 5; const cs = rollLevelUps(q, 3); if (cs.some(c => c.kind === 'level') && !cs.some(c => c.kind === 'branch')) ok++; }
+      check(`biomass level-ups offer levels (and new parts), never a branch (${ok}/100)`, ok === 100); }
+    { newRun(); const q = game.player; grow(q, 'spike', 'spider'); q.capacity = 4; const cs = rollLevelUps(q, 3);
+      check(`with a free slot, a level-up offers a new part too (${cs.map(c => c.kind + ':' + c.id).join(',')})`, cs.some(c => c.kind === 'root')); }
+    { newRun(); const q = game.player; grow(q, 'spider', 'spines', 'eyes'); for (const m of q.parts) m.lvl = 1; recomputeStats(q); const sp = q.stats.speed; grow(q, 'spider', 'spines', 'eyes'); recomputeStats(q);
+      check(`levels help every kind of part (limbs speed ${q.stats.speed.toFixed(0)} -> ${sp.toFixed(0)})`, sp > q.stats.speed); }
+    { newRun(); const q = game.player; openEvolution({ title: 'LEVEL UP', levelUp: true, fromDna: true }); game.menu.t = 2; render();
+      check(`a fresh body's level-up offers a mouth (${game.menu.choices.map(c => c.id).join(',')})`, game.menu.choices.some(c => locOf(c.id) === 'MOUTH')); game.menu = null; }
     check(`the card says NEW PART for a fresh root ("${choiceInfo(p, { id: 'spines' }).status}")`, choiceInfo(p, { id: 'spines' }).status === 'NEW PART');
     // A crowded body still draws.
     combatRoom(); grow(p, 'spike', 'bile', 'mandibles', 'spines', 'chitin', 'spider', 'eyes', 'heartwood'); p.capacity = 10; render();
@@ -617,7 +633,7 @@ try {
     const x0 = p.x; Input.keys.add('d'); wait(20, ['d']); const moved = Math.abs(p.x - x0);
     check(`you can't move inside it (${moved.toFixed(1)}px)`, moved < 0.5);
     wait(60);
-    check('it splits and the cards appear', !!game.menu && game.menu.title === 'EVOLUTION');
+    check('it splits and the cards appear', !!game.menu && game.menu.title === 'LEVEL UP');
     // Esc puts it off: the DNA goes back in the bar, and it won't nag you in this room.
     game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame();
     check(`esc puts it off and keeps the DNA (level ${p.level}, dna ${p.dna}/${dnaNeeded(p.level)})`, !game.menu && p.level === lvl && p.dna === need + 1 && evolveReady(p));

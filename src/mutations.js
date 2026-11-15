@@ -19,8 +19,9 @@
 //   plant a ROOT in a free slot (or replace your starter slime);
 //   then it BRANCHES. Two ways to go; taking one locks out the other.
 //   root -> branch -> branch, then it's fully grown (4 end forms per root).
-// A part grows at most twice per floor (planting counts), so going deep takes
-// time and going wide is always tempting.
+// Biomass level-ups don't evolve parts: they LEVEL them (a small stat bump).
+// At level 3 a part evolves (you choose its branch) and its level resets.
+// Vials and boss cores still evolve directly.
 //
 // Each node tweaks the stat sheet (see baseStats); branches mostly set flags
 // that the game code reacts to (Bone Jaws: every bite drives a spike out the
@@ -35,7 +36,7 @@ const LOCS = ['MOUTH', 'HEAD', 'BACK', 'LIMBS', 'CORE'];
 const LOC_MAX = { HEAD: 1, LIMBS: 1 }; // one head, one way of moving
 const START_SLOTS = 3;                  // you start with all of them empty
 const MAX_SLOTS = 5;                    // the hard cap: a finished body is 5 parts, not a hodgepodge
-const GROWTH_PER_FLOOR = 2;             // how often one part can grow per floor
+const LEVEL_MAX = 3;                    // levels before a part evolves
 // POWER IS EARNED. A fresh body hits at 70%; every fully grown part and every
 // splice adds +6%. A finished body ends up far stronger than it started.
 const BASE_POWER = 0.7, POWER_PER_GROWN = 0.06, POWER_PER_SPLICE = 0.06;
@@ -67,6 +68,7 @@ function baseStats() {
     centipede: 0, burrow: 0, burrowDmg: 0, shell: false, fins: 0, stilts: false, hands: false, handDmg: 0,
     pupa: false, moleworm: false, puppeteer: false,
     limbActive: null, headActive: null, // right-click / Q abilities (see ACTIVES in abilities.js)
+    limbCdMul: 1, headCdMul: 1,         // their cooldowns (part levels shorten them)
     limbCount: 0,
     // --- Attacks (MOUTH). Every weapon fires on its own timer, so they stack. ---
     damageMul: 1, rateMul: 1, damage: 1,
@@ -1847,16 +1849,45 @@ function mutOverlays(id) {
 }
 
 // Add one part's whole path to a stat sheet. Each node uses the part's growth level.
+// Each level makes the part itself stronger: whatever it adds to the stat
+// sheet is scaled up (damage, counts, ranges), and whatever it times is
+// sped up (delays, cooldowns). Per kind: [stronger per level, faster per level].
+const LEVEL_GAIN = { MOUTH: [0.10, 0.08], LIMBS: [0.06, 0.08], HEAD: [0.10, 0.10], BACK: [0.12, 0.08], CORE: [0.08, 0.08] };
+const LEVEL_TEXT = { MOUTH: '+10% DAMAGE, +8% FIRE RATE', LIMBS: '+6% SPEED, QUICKER DASH AND ABILITY', HEAD: 'STRONGER, AND A QUICKER Q', BACK: 'A STRONGER EFFECT', CORE: 'STRONGER, AND TOUGHER' };
+const LOWER_IS_BETTER = new Set(['biteDelay', 'lashDelay', 'lungeDelay', 'vomitDelay', 'dashCd', 'grapple', 'shieldCd', 'regen', 'delay', 'every', 'rate', 'glare']);
+const NO_LEVEL_SCALE = new Set(['maxHp', 'hitCost', 'starve', 'invulnCap', 'invuln', 'hop', 'dashTime', 'accel', 'drag', 'limbCount', 'hpMul', 'lightMul', 'speedMul', 'dnaMul', 'rateMul', 'damageMul', 'speed', 'dashSpeed', 'fins', 'compound', 'power']);
+const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit']);
+
+// Add one part's whole path to a stat sheet. Each node uses the part's growth level.
 function applyMutation(s, m, p) {
-  const l = m.path.length;
+  const l = m.path.length, L = m.lvl || 0;
+  if (!L) { for (const id of m.path) MUTATIONS[id].apply(s, l, p); return; }
+  const before = {}, objs = {}, g0 = s.guns.length;
+  for (const k in s) { if (typeof s[k] === 'number') before[k] = s[k]; else if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) objs[k] = s[k]; }
   for (const id of m.path) MUTATIONS[id].apply(s, l, p);
+  const [up, fast] = LEVEL_GAIN[m.loc] || [0.1, 0.08], better = 1 + up * L, quicker = 1 / (1 + fast * L);
+  for (const k in s) {
+    const b = s[k];
+    if (typeof b === 'number') {
+      const a = before[k] === undefined ? 0 : before[k];
+      if (b === a || NO_LEVEL_SCALE.has(k)) continue;
+      if (LOWER_IS_BETTER.has(k)) s[k] = b * quicker;
+      else if (b > a) { const v = a + (b - a) * better; s[k] = Number.isInteger(a) && Number.isInteger(b) ? Math.round(v) : v; }
+    } else if (b && typeof b === 'object' && !Array.isArray(b) && objs[k] !== b) { // an attack this part created
+      for (const f in b) if (typeof b[f] === 'number') { if (LOWER_IS_BETTER.has(f)) b[f] *= quicker; else if (DAMAGE_FIELDS.has(f)) b[f] *= better; }
+    }
+  }
+  for (let i = g0; i < s.guns.length; i++) { s.guns[i].dmg *= better; s.guns[i].delay *= quicker; }
+  if (m.loc === 'LIMBS') { s.speed *= 1 + up * L; s.dashCd *= quicker; s.limbCdMul *= quicker; }
+  if (m.loc === 'HEAD') s.headCdMul *= quicker;
+  if (m.loc === 'CORE') s.maxHp += Math.floor(L / 2);
 }
 
 // --- Your parts -----------------------------------------------------------------------
-// p.parts: [{ id, path, loc, starter?, grownOn, grownN }]
+// p.parts: [{ id, path, loc, starter?, lvl }]
 function partsAt(p, loc) { return p.parts.filter(m => m.loc === loc); }
 function partAt(p, loc) { return p.parts.find(m => m.loc === loc) || null; }
-function newPart(id) { return { id, path: [id], loc: locOf(id), grownOn: game.depth, grownN: 1 }; }
+function newPart(id) { return { id, path: [id], loc: locOf(id), lvl: 0 }; }
 
 // The part that holds a node, or the part a branch would grow from.
 function partFor(p, id) {
@@ -1870,9 +1901,6 @@ function slotsUsed(p) { return p.parts.reduce((n, m) => n + partSize(m), 0); }
 function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity); } // (splices add to p.capacity when they form)
 function freeSlots(p) { return slotCapacity(p) - slotsUsed(p); }
 
-// A part can only grow GROWTH_PER_FLOOR times per floor (planting counts),
-// so no single part outgrows the rest of you on floor 1.
-function canGrowYet(m) { return m.grownOn !== game.depth || (m.grownN || 0) < GROWTH_PER_FLOOR; }
 
 // Does the player have this node anywhere?
 function hasMutation(p, id) {
@@ -1916,7 +1944,7 @@ function bodyOffers(p, onlyLoc, boss = false) {
   for (const m of p.parts) {
     if (m.starter || (onlyLoc && m.loc !== onlyLoc)) continue;
     const kids = childrenOf(m.id);
-    if (kids.length) { if (canGrowYet(m)) for (const id of kids) out.push({ id, kind: 'branch', part: m }); continue; }
+    if (kids.length) { for (const id of kids) out.push({ id, kind: 'branch', part: m }); continue; }
     if (!okLoc(m.loc)) continue;
     // Fully grown: it can shed into a rarer root.
     const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
@@ -2071,6 +2099,11 @@ function resolveCard(p, c) {
 
 // Everything a card needs to show (never what it does: you learn by growing it).
 function choiceInfo(p, c) {
+  if (c.kind === 'level') {
+    const m = c.part, d = MUTATIONS[m.id], L = (m.lvl || 0) + 1, evolves = L >= LEVEL_MAX && childrenOf(m.id).length > 0;
+    return { id: m.id, name: d.name, rarity: d.rarity, desc: d.desc, malignant: !!d.malignant && slotMalignant(m), set: null, slot: m.loc, kind: 'level',
+      status: evolves ? 'EVOLVES!' : 'LEVEL ' + L, note: LEVEL_TEXT[m.loc], noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: L, size: 1 };
+  }
   if (c.id === '_gorge') {
     const free = freeSlots(p);
     return { name: 'Gorge', rarity: 'common', desc: 'Grow nothing. Heal 2 HP.', status: 'HEAL 2', note: free > 0 ? 'KEEPS THE SLOT FREE' : null, noteColor: VIAL_COLOR, overlays: [], slot: '' };
@@ -2109,9 +2142,44 @@ function choiceInfo(p, c) {
   };
 }
 
+// --- Level-ups --------------------------------------------------------------------
+// A biomass level-up: mostly "+1 level" for your parts, plus a new part when
+// you have room (always a mouth / limbs while you have none), and a
+// metamorphosis now and then for a fully grown part at max level.
+function rollLevelUps(p, n) {
+  const weight = c => RARITY[MUTATIONS[c.id].rarity].weight * (MUTATIONS[c.id].malignant ? 0.7 : 1);
+  const pickW = cs => { let t = 0; for (const c of cs) t += weight(c); let r = Math.random() * t; for (const c of cs) if ((r -= weight(c)) <= 0) return c; return cs[cs.length - 1]; };
+  const all = bodyOffers(p), roots = all.filter(c => c.kind === 'root'), out = [];
+  const takeRoot = loc => { const rs = roots.filter(c => (!loc || locOf(c.id) === loc) && !out.some(o => o.id === c.id)); if (rs.length) out.push({ id: pickW(rs).id, kind: 'root' }); };
+  if (!partAt(p, 'MOUTH')) takeRoot('MOUTH');
+  if (!partAt(p, 'LIMBS') && out.length < n) takeRoot('LIMBS');
+  const levels = p.parts.filter(m => !m.starter && (m.lvl || 0) < LEVEL_MAX).sort(() => Math.random() - 0.5).map(m => ({ id: m.id, kind: 'level', part: m }));
+  if (!out.length && roots.length) takeRoot(); // room for one more part: one card offers it
+  for (const c of levels) { if (out.length >= n) break; out.push(c); }
+  while (out.length < n && roots.length > out.filter(c => c.kind === 'root').length) { const k = out.length; takeRoot(); if (out.length === k) break; }
+  const metas = all.filter(c => c.kind === 'meta');
+  if (out.length < n && metas.length) { const c = metas[Math.floor(Math.random() * metas.length)]; out.push({ id: c.id, kind: 'meta', shed: c.shed }); }
+  if (!out.length) out.push({ id: '_gorge' });
+  return out.sort(() => Math.random() - 0.5);
+}
+
 // --- Applying a choice ------------------------------------------------------------
 function applyChoice(p, c) {
   if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + 2); return; }
+  if (c.kind === 'level') { // a part grows a level; at the max, it evolves
+    const m = c.part, d = MUTATIONS[m.id];
+    m.lvl = (m.lvl || 0) + 1;
+    floatText(p.x, p.y - 14, d.name.toUpperCase() + ' LV ' + m.lvl, VIAL_COLOR);
+    if (m.lvl >= LEVEL_MAX && childrenOf(m.id).length) {
+      m.lvl = 0;
+      game.pendingEvolutions.unshift({ evolve: m, title: 'EVOLUTION', color: d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color });
+      floatText(p.x, p.y - 22, 'IT IS READY TO CHANGE', PAL.red);
+    }
+    burst(p.x, p.y, VIAL_COLOR, 10, 60, 0.4);
+    Sfx.play('absorb');
+    recomputeStats(p);
+    return;
+  }
   c = resolveCard(p, c);
   p.evolutions++;
   const d = MUTATIONS[c.id];
@@ -2119,7 +2187,7 @@ function applyChoice(p, c) {
     const m = c.part || partFor(p, c.id);
     m.path.push(c.id);
     m.id = c.id;
-    if (m.grownOn === game.depth) m.grownN = (m.grownN || 0) + 1; else { m.grownOn = game.depth; m.grownN = 1; }
+    m.lvl = 0; // evolving starts its levels over
   } else {
     const old = c.shed, part = newPart(c.id), at = old ? p.parts.indexOf(old) : -1;
     if (old) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the old part tears out
