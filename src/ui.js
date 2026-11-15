@@ -108,8 +108,13 @@ function drawCard(ctx, info, i, x, y, menu) {
   ctx.fillStyle = info.malignant ? '#1e0e22' : '#120d0f';
   ctx.fillRect(Math.round(cx - 26), y + 14, 52, 50);
   const bob = Math.round(Math.sin(menu.t * 3 + i) * 1);
-  const icon = mutIcon(info.id);
-  if (icon) ctx.drawImage(icon, Math.round(cx - 24), y + 15 + bob, 48, 48);
+  const icon = mutIcon(info.id), old = info.from && mutIcon(info.from);
+  if (old && icon) { // evolving: the part as it is now, an arrow, and what it becomes
+    ctx.drawImage(old, Math.round(cx - 26), y + 31, 16, 16);
+    ctx.fillStyle = PAL.white;
+    for (let k = 0; k < 3; k++) ctx.fillRect(Math.round(cx - 10 + k), y + 39 - (2 - k), 1, 1 + (2 - k) * 2);
+    ctx.drawImage(icon, Math.round(cx - 6), y + 23 + bob, 32, 32);
+  } else if (icon) ctx.drawImage(icon, Math.round(cx - 24), y + 15 + bob, 48, 48);
 
   let ty = y + 70;
   for (const line of wrapText(info.name.toUpperCase(), 20)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
@@ -134,7 +139,7 @@ function drawCard(ctx, info, i, x, y, menu) {
   ty += 10;
   if (info.status) { drawText(ctx, info.status, cx, ty, PAL.white, 1, 'center'); ty += 10; }
   if (info.note) {
-    for (const line of wrapText(info.note.toUpperCase(), 21)) { drawText(ctx, line, cx, ty, info.noteColor, 1, 'center', null); ty += 7; }
+    for (const line of (info.noteLines || [info.note]).flatMap(n => wrapText(n.toUpperCase(), 21))) { drawText(ctx, line, cx, ty, info.noteColor, 1, 'center', null); ty += 7; }
   }
 
   // It would complete a splice: don't say which, just let it pulse.

@@ -492,6 +492,7 @@ try {
       check(`level 3: it evolves (its fork is waiting) and its level resets (lvl ${m.lvl})`, m.lvl === 0 && game.pendingEvolutions[0] && game.pendingEvolutions[0].evolve === m);
       openEvolution(game.pendingEvolutions.shift());
       check(`...the fork shows both of its branches (${game.menu.choices.map(c => c.id).join(',')})`, game.menu.choices.length === 2 && game.menu.choices.every(c => c.kind === 'branch' && MUTATIONS[c.id].from === 'spike'));
+      { const info = choiceInfo(p, game.menu.choices[0]); check(`an evolve card shows what it was and what it becomes ("${info.note}")`, info.note === 'Bone Spike -> ' + info.name && info.from === 'spike' && !/LOCKS/.test(info.note)); }
       game.menu.t = 2; render(); game.menu = null; }
     { newRun(); const q = game.player; grow(q, 'spike', 'spider', 'eyes', 'spines', 'hide'); const notes = q.parts.map(m => choiceInfo(q, { kind: 'level', part: m }).note);
       check(`level cards say +/++ instead of percents (${notes.join(' | ')})`, notes.every(n => /^\+/.test(n) && !/%/.test(n))); }

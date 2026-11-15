@@ -2121,10 +2121,9 @@ function choiceInfo(p, c) {
   const d = MUTATIONS[c.id], loc = locOf(c.id);
   const m = c.kind === 'branch' ? (c.part || partFor(p, c.id)) : c.shed;
   let status, note = null, noteColor = PAL.slate;
-  if (c.kind === 'branch') {
-    status = (m ? MUTATIONS[m.id].name : '') + ' >';
-    const sib = siblingOf(c.id);
-    if (sib) { note = 'LOCKS OUT ' + MUTATIONS[sib].name; noteColor = COST_COLOR; }
+  if (c.kind === 'branch') { // what it is now -> what it becomes (the card art shows both)
+    status = null;
+    note = (m ? MUTATIONS[m.id].name + ' -> ' : '') + d.name; noteColor = PAL.white;
   } else if (c.kind === 'replace') {
     status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {
@@ -2147,7 +2146,8 @@ function choiceInfo(p, c) {
   return {
     id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, cost: d.cost, malignant: !!d.malignant, cures: !!d.cures, set,
     slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id),
-    tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c),
+    tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
+    noteLines: c.kind === 'branch' && m ? [MUTATIONS[m.id].name + ' ->', d.name] : null,
   };
 }
 
