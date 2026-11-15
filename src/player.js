@@ -22,6 +22,7 @@ function makePlayer() {
     regenT: 0, adrenalT: 0, dripT: 0, chompT: 0,
     lungeT: 0, lungeX: 1, lungeY: 0, hungerT: 0, cancerRooms: 0,
     chargeT: 0, dmgBoost: 1, evolveT: 0, form: null, lastSet: null, gullet: 0, polypKills: 0, venting: false, gasR: 0,
+    stillT: 0, rooted: false, guardHits: 0,
     mvx: 0, mvy: 0, hopT: 0, hopAir: 0, hopX: 0, hopY: 0, slimeT: 0, flying: false,
     grappleCd: 0, pullT: 0, pull: null,
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
@@ -391,6 +392,7 @@ function attackRate(p) {
   if (s.adrenalRage && p.adrenalT > 0) rate *= 0.5;
   if (s.parasiteFrenzy && p.controlT > 0) rate *= 0.5;
   if (s.slimeRate && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) rate *= s.slimeRate;
+  if (p.rooted) rate *= s.rootLegs.rate; // Root Legs
   return rate;
 }
 
@@ -902,6 +904,20 @@ function hurtPlayer(dmg) {
     return true;
   }
 
+  // Amber: once a room, a near-fatal blow seals you in amber instead.
+  if (s.amber && !game.room.amberUsed && p.hp - dmg * s.hitCost <= 1) {
+    game.room.amberUsed = true;
+    p.inv = 2; p.hp = Math.min(p.maxHp, p.hp + 1);
+    burst(p.x, p.y, '#e8a020', 20, 80, 0.7);
+    floatText(p.x, p.y - 14, 'AMBER', '#e8a020');
+    Sfx.play('shield');
+    return true;
+  }
+  // Ironwood: rooted, every other hit glances off.
+  if (s.rootGuard && p.rooted && ++p.guardHits % 2 === 0) {
+    p.inv = 0.6; burst(p.x, p.y, '#5a4024', 10, 70); floatText(p.x, p.y - 14, 'GLANCED', '#a8844a'); Sfx.play('clank');
+    return true;
+  }
   // Bone Cage: every third hit glances off.
   if (s.hitIgnore && ++p.hitsTaken % s.hitIgnore === 0) {
     p.inv = 0.6;
@@ -931,6 +947,7 @@ function hurtPlayer(dmg) {
   bloodSpray(p.x, p.y, 0, 0, 16, FLUID.blood, 100);
   stain(p.x, p.y + 3, 2.5, FLUID.blood);
   if (s.ring > 0) fireRing(p, s.ring);
+  if (s.hurtRing) fireRing(p, s.hurtRing); // Bramble Burst
   if (s.hurtFrags) for (const a of [0, Math.PI]) spawnFragments(p.x, p.y, a, s.hurtFrags / 2, 1.2 * s.damage, 4, 6, null); // Septic Blood
   if (s.toxicBlood > 0) {
     spawnPuddle(p.x, p.y, 20, 2.5, 'player');
@@ -1078,6 +1095,7 @@ function drawPlayer(ctx) {
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
   if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
+  if (limbsOk && p.slots.LIMBS && p.slots.LIMBS.path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
   for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
   const body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];

@@ -133,6 +133,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.dead) return;
   // Predator set: wounded prey takes more.
   const ps = game.player && game.player.stats;
+  if (ps && ps.pollen && e.pollenUntil > game.time) dmg *= 1 + (ps.pollenMul || 0.25); // Bloom
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
   if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
   if (e.corrodeUntil > game.time) dmg *= 1.5;                // Corrode
@@ -368,6 +369,23 @@ function updateEnemies(dt) {
         Sfx.play('splat');
       }
       if (p.stats.contactMark) e.acidMarked = true; // Acid Skin
+      // Venus Maw: the flower on your head bites.
+      if (p.stats.flowerBite && !(e.flowerT > game.time)) {
+        e.flowerT = game.time + 0.6;
+        damageEnemy(e, p.stats.flowerBite * p.stats.damage, e.x - p.x, e.y - p.y, true);
+        game.fx.push({ kind: 'bite', x: (e.x + p.x) / 2, y: (e.y + p.y) / 2 - 4, t: 0.12 });
+        Sfx.play('bite');
+        if (e.dead) { if (p.stats.flowerHeal && p.hp < p.maxHp && Math.random() < p.stats.flowerHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } continue; }
+        if (p.stats.flowerStun) e.stunT = Math.max(e.stunT || 0, p.stats.flowerStun);
+      }
+      // Briar: hooked thorns fling it back, bleeding (Strangling Briar: and hold it).
+      if (p.stats.briar && !(e.briarT > game.time)) {
+        e.briarT = game.time + 0.5;
+        knock(e, e.x - p.x, e.y - p.y, 260);
+        e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 1.5);
+        if (p.stats.briarHold) e.stunT = Math.max(e.stunT || 0, p.stats.briarHold);
+      }
+      if (p.stats.sapSlow) e.slowT = Math.max(e.slowT || 0, p.stats.sapSlow); // Sap
       // Urchin Hide: touching you sets off your shard ring.
       if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
       // Thorned Plate: your shell shreds whatever touches it.
@@ -456,6 +474,10 @@ function drawEnemyGlow(ctx) {
     }
     if (e.stunT > 0 && Math.floor(game.time * 8) % 2) drawText(ctx, '*', e.x, e.y - 12, PAL.yellow, 1, 'center');
     if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
+    if (e.pollenUntil > game.time && !e.dead) { // dusted with pollen
+      ctx.fillStyle = '#e8d040';
+      for (let k = 0; k < 3; k++) if ((Math.floor(game.time * 5) + k) % 2) ctx.fillRect(Math.round(e.x - e.r + hash2(k, 1, 3) * e.r * 2), Math.round(e.y - e.r - 1 + hash2(k, 2, 3) * e.r), 1, 1);
+    }
     if (e.infest && !e.dead) { // something writhing under its skin
       const wx = e.x + Math.sin(game.time * 14 + e.infest.wriggle) * 2, wy = e.y - 1 + Math.cos(game.time * 11) * 1.5;
       pxCircle(ctx, wx, wy, 1.6, '#3a2a20'); pxCircle(ctx, wx, wy, 1, '#e8dcc0');

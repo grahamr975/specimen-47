@@ -121,6 +121,7 @@ const FORM_RAMP = {
   HIVE:        ['#0c0806', '#2a1a0c', '#5a3a14', '#9a6a24', '#e0b050'], // glossy chitin
   PREDATOR:    ['#160606', '#481414', '#7e2a22', '#ac4e3a', '#dc8a6a'], // skinned muscle
   ABOMINATION: ['#140814', '#3a1434', '#682a5c', '#9c5288', '#d08cb8'], // bruised, raw
+  PLANT:       ['#120c06', '#2e2212', '#54401e', '#7e6234', '#ae905a'], // bark
 };
 const CAP = ['#1e1008', '#4a2a14', '#8a5428', '#c08848', '#ecc888'];
 
@@ -218,6 +219,27 @@ const FORM_PAINT = {
     P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.1, '#f0c020', {});
     P.tube([[16.6, 11.6], [15.6, 9.4]], 0.9, 0.3, ramp);                                     // ear
     if (st >= 4) P.tube([[21.6, 18], [21.8, 20.6]], 0.5, 0.3, R.blood, { spec: 1 });         // drool
+  },
+
+  // A walking plant: bark-skinned body, a leafy crown on its back, hanging
+  // vines, roots for a tail, and a carnivorous flower for a head.
+  PLANT(P, ramp, st, br) {
+    const LEAF = ['#0c1606', '#1e3a10', '#386a1e', '#5e9a30', '#9ad050'];
+    const PET = ['#2a0c14', '#6a1a2a', '#a8304a', '#d86a7a', '#f4b0b8'];
+    for (const [x, l] of [[2, 3], [4.5, 2.4], [7, 3.2]]) P.tube([[x + 1, 20], [x, 20 + l * 0.6], [x + 0.6, 20 + l]], 0.6, 0.3, ramp); // root tail
+    P.blob(10.5, 20.6, 8, 1.3, ramp, { shift: -0.3 });
+    P.blob(10, 17.6 + br * 0.2, 7.6, 3.8 + br * 0.3, ramp, { spec: 1, noise: 0.25 });
+    for (let k = 0; k < 5; k++) P.scratch([[4.5 + k * 2.6, 15], [4 + k * 2.6, 20]], ramp[0]);          // bark grain
+    // Leafy crown along the back (fuller each stage).
+    const leaves = [[6, 13.2, 3, 1.8, -0.4], [10, 12.4, 3.4, 2, 0], [13.6, 13, 2.6, 1.6, 0.4], [3.4, 14.6, 2.2, 1.4, -0.7], [8, 11, 2.2, 1.4, 0.2]].slice(0, st + 1);
+    for (const [x, y, rx, ry] of leaves) { P.blob(x, y, rx, ry, LEAF, { spec: 1 }); P.scratch([[x - rx * 0.7, y], [x + rx * 0.7, y]], LEAF[1]); }
+    for (const [x, l] of [[5, 4], [12.5, 3]].slice(0, st >= 2 ? 2 : 1)) P.tube([[x, 18], [x + 0.6, 18 + l * 0.6], [x - 0.4, 18 + l]], 0.5, 0.3, LEAF); // hanging vines
+    // The flower head: petals around a toothed, eyed center.
+    P.tube([[15, 17], [17.4, 15]], 1.6, 1.3, LEAF, { spec: 1 });                                    // stem/neck
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + 0.3; P.blob(SPECIMEN.eye[0] + Math.cos(a) * 3.2, SPECIMEN.eye[1] + Math.sin(a) * 3, 1.9, 1.6, PET, { spec: 1 }); }
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 2.2, 2.1, ['#1a1004', '#4a3010', '#8a6a20', '#c8a830', '#f0e060'], { spec: 1 });
+    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.2, '#2a6a20', { bloodshot: st >= 3 });
+    if (st >= 3) paintTeeth(P, SPECIMEN.eye[0] - 1.5, SPECIMEN.eye[0] + 1.5, SPECIMEN.eye[1] + 1.4, 41);
   },
 
   // A lopsided mass: a second head on its back, eyes and mouths where they shouldn't be.
@@ -597,6 +619,30 @@ const ICON_PAINT = {
     P.blob(8, 9.5, 4.8, 2.7, R.socket, { noise: 0 });
     for (const x of [5, 7, 9, 11]) P.tube([[x, 7], [x + 0.2, 9.8]], 0.8, 0.3, R.bone);
     for (const x of [6, 10]) P.tube([[x, 12.5], [x, 10]], 0.7, 0.3, R.bone);
+  },
+  bloom: P => {
+    const PET = ['#2a0c14', '#6a1a2a', '#a8304a', '#d86a7a', '#f4b0b8'];
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; P.blob(8 + Math.cos(a) * 4.2, 8 + Math.sin(a) * 4.2, 2.6, 2.2, PET, { spec: 1 }); }
+    P.blob(8, 8, 3, 3, ['#1a1004', '#4a3010', '#8a6a20', '#c8a830', '#f0e060'], { spec: 1 });
+    P.blob(8, 8.4, 1.6, 1.3, R.socket, { noise: 0 });
+    for (const x of [7, 8, 9]) P.dot(x, 7.4, '#e0d4b8');
+  },
+  thornbark: P => {
+    const BARK = ['#140c06', '#2e2010', '#4e3a20', '#7a5a32', '#a8844a'];
+    P.blob(8, 10, 6.6, 4.6, BARK, { spec: 1, noise: 0.3 });
+    for (let k = 0; k < 4; k++) P.scratch([[3 + k * 3, 7], [3.6 + k * 3, 13]], '#140c06');
+    for (const [x, y, dx, dy] of [[3, 7, -1.6, -3], [7, 5.6, 0, -3.6], [11, 5.8, 1, -3.4], [14, 8, 2.4, -2]]) P.tube([[x, y], [x + dx, y + dy]], 0.9, 0.2, R.bone, { spec: 1 });
+  },
+  rootlegs: P => {
+    const BARK = ['#140c06', '#2e2010', '#4e3a20', '#7a5a32', '#a8844a'];
+    P.blob(8, 4.6, 4.6, 3, BARK, { spec: 1, noise: 0.2 });
+    for (const [a, b, c] of [[[5, 6], [3, 10], [1, 14.5]], [[7, 7], [6.4, 11], [5, 15]], [[9, 7], [10, 11], [11.5, 15]], [[11, 6], [13, 10], [15, 13.5]]]) P.tube([a, b, c], 1.1, 0.35, BARK, { spec: 1 });
+  },
+  heartwood: P => {
+    const WOOD = ['#1a0e06', '#3e2412', '#6a4022', '#9a6a3a', '#c89a60'];
+    P.blob(6, 7, 3.8, 3.6, WOOD, { spec: 1 }).blob(10, 7, 3.8, 3.6, WOOD, { spec: 1 }).blob(8, 10.4, 4.4, 3.8, WOOD, { spec: 1 });
+    for (const r of [1.2, 2.6]) for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5; P.dot(8 + Math.cos(a) * r, 9 + Math.sin(a) * r * 0.8, '#3e2412'); }
+    P.tube([[8, 3.6], [8.6, 1]], 0.6, 0.4, ['#0e1a08', '#24401a', '#3e6a2a', '#6a9a3a', '#a8d060']);
   },
   ovipositor: P => {
     P.tube([[2.5, 14], [6, 10], [10, 6.5], [12.5, 4.5]], 2.4, 1.2, R.flesh, { spec: 1 });

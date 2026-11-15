@@ -706,6 +706,42 @@ const MUTATIONS = {
     apply(s) { s.damageMul *= 1.4; s.maxHp -= 1; },
   },
 
+  bloom: {
+    name: 'Bloom', slot: 'HEAD', rarity: 'uncommon',
+    desc: 'A carnivorous flower opens on your head. It puffs pollen; pollinated enemies take more damage.',
+    apply(s, l) { s.pollen = { r: 42, every: 3.2 - 0.4 * (l - 1) }; },
+  },
+  venusmaw: {
+    name: 'Venus Maw', from: 'bloom', rarity: 'uncommon', icon: ['bloom', 'mandibles'],
+    desc: 'The flower bites anything that touches you.',
+    apply(s, l) { s.flowerBite = 2 + l; },
+  },
+  digest: {
+    name: 'Digest', from: 'venusmaw', rarity: 'rare', icon: ['bloom', 'hemophage'],
+    desc: 'What the flower kills, it digests: it can heal you.',
+    apply(s) { s.flowerHeal = 0.3; },
+  },
+  snaptrap: {
+    name: 'Snap Trap', from: 'venusmaw', rarity: 'rare', icon: ['bloom', 'echo'],
+    desc: 'The flower snaps shut on what it bites, holding it fast.',
+    apply(s) { s.flowerStun = 1.2; },
+  },
+  sporebloom: {
+    name: 'Spore Bloom', from: 'bloom', rarity: 'uncommon', icon: ['bloom', 'mitosis'],
+    desc: 'Pollen blinds whatever breathes it.',
+    apply(s) { s.pollenBlind = 1.5; },
+  },
+  hayfever: {
+    name: 'Hay Fever', from: 'sporebloom', rarity: 'rare', icon: ['bloom', 'twitch'],
+    desc: 'Pollinated enemies choke and stagger, slowed to a crawl.',
+    apply(s) { s.pollenSlow = 2; },
+  },
+  nightbloom: {
+    name: 'Night Bloom', from: 'sporebloom', rarity: 'rare', icon: ['bloom', 'nighteyes'],
+    desc: 'Pollen glows. Pollinated enemies take twice the extra damage.',
+    apply(s) { s.pollenMul = 0.5; },
+  },
+
   // ================= BACK =================
   spines: {
     name: 'Bone Spurs', slot: 'BACK', rarity: 'common', overlay: ['spines'],
@@ -850,6 +886,43 @@ const MUTATIONS = {
     name: 'Needle Stream', from: 'streamfibers', rarity: 'rare', icon: ['twitch', 'spike'],
     desc: 'The stream punches through an enemy.',
     apply(s) { s.pierce += 1; },
+  },
+
+  thornbark: {
+    name: 'Thornbark', slot: 'BACK', rarity: 'common',
+    desc: 'Thorny bark covers your back: +1 max health, and anything that touches you is shredded.',
+    apply(s, l) { s.thorns += 1 + l; s.maxHp += 1; },
+    onGain(p) { p.hp += 1; },
+  },
+  briar: {
+    name: 'Briar', from: 'thornbark', rarity: 'uncommon', icon: ['thornbark', 'horns'],
+    desc: 'Your thorns hook in: whatever touches you is flung back, bleeding.',
+    apply(s) { s.briar = true; },
+  },
+  bramble: {
+    name: 'Bramble Burst', from: 'briar', rarity: 'rare', icon: ['thornbark', 'spines'],
+    desc: 'When you are hurt, your thorns burst out in a ring.',
+    apply(s) { s.hurtRing = 12; },
+  },
+  strangling: {
+    name: 'Strangling Briar', from: 'briar', rarity: 'rare', icon: ['thornbark', 'tentacles'],
+    desc: 'The thorns wrap whatever touches you and hold it.',
+    apply(s) { s.briarHold = 1; },
+  },
+  sap: {
+    name: 'Sap', from: 'thornbark', rarity: 'uncommon', icon: ['thornbark', 'regrow'],
+    desc: 'Sticky sap: you slowly mend, and anything that touches you is gummed up.',
+    apply(s) { s.regen = Math.min(s.regen || 99, 26); s.sapSlow = 2; },
+  },
+  amber: {
+    name: 'Amber', from: 'sap', rarity: 'rare', icon: ['thornbark', 'chitin'],
+    desc: 'Once a room, a blow that would nearly kill you seals you in amber instead.',
+    apply(s) { s.amber = true; },
+  },
+  resin: {
+    name: 'Resin Armor', from: 'sap', rarity: 'rare', icon: ['thornbark', 'hide'],
+    desc: 'Every fourth hit sticks in the resin and never reaches you.',
+    apply(s) { s.hitIgnore = s.hitIgnore ? Math.min(s.hitIgnore, 4) : 4; },
   },
 
   // ================= LIMBS: how you move =================
@@ -1046,6 +1119,42 @@ const MUTATIONS = {
     },
   },
 
+  rootlegs: {
+    name: 'Root Legs', slot: 'LIMBS', rarity: 'uncommon',
+    desc: 'Slow, rooty legs. Stand still and you take root: you attack faster and slowly heal.',
+    apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 56 + 4 * l); s.rootLegs = { delay: 0.6, rate: 0.75 - 0.05 * l, heal: 14 - 2 * l }; },
+  },
+  taproot: {
+    name: 'Taproot', from: 'rootlegs', rarity: 'uncommon', icon: ['rootlegs', 'starving'],
+    desc: 'Rooted, you drink from the dead: corpses near you dissolve into you.',
+    apply(s) { s.taproot = 50; },
+  },
+  grove: {
+    name: 'Grove', from: 'taproot', rarity: 'rare', icon: ['rootlegs', 'polyp'],
+    desc: 'Rooted, polyps sprout around you and fight for you.',
+    apply(s) { s.grove = 3.5; s.grovePolyp = s.grovePolyp || { dmg: 0.9, rate: 1, life: 12 }; },
+  },
+  leechroots: {
+    name: 'Leech Roots', from: 'taproot', rarity: 'rare', icon: ['rootlegs', 'proboscis'],
+    desc: 'Rooted, your roots drink from everything near you. Enough blood heals you.',
+    apply(s) { s.rootDrain = 1.5; },
+  },
+  tumbleroot: {
+    name: 'Tumbleroot', from: 'rootlegs', rarity: 'uncommon', icon: ['rootlegs', 'twitch'],
+    desc: 'Faster legs, and you take root the instant you stop.',
+    apply(s) { s.rootLegs.delay = 0.15; s.speed += 18; },
+  },
+  seedfall: {
+    name: 'Seedfall', from: 'tumbleroot', rarity: 'rare', icon: ['rootlegs', 'eggsac'],
+    desc: 'As you walk you drop seeds, and polyps sprout from them.',
+    apply(s) { s.seedfall = 3; s.grovePolyp = s.grovePolyp || { dmg: 0.9, rate: 1, life: 12 }; },
+  },
+  ironwood: {
+    name: 'Ironwood', from: 'tumbleroot', rarity: 'rare', icon: ['rootlegs', 'chitin'],
+    desc: 'Rooted, every other hit glances off your wood.',
+    apply(s) { s.rootGuard = true; },
+  },
+
   // ================= CORE =================
   hide: {
     name: 'Thick Hide', slot: 'CORE', rarity: 'common',
@@ -1161,6 +1270,42 @@ const MUTATIONS = {
     apply(s) { s.twinMul = 1.6; },
   },
 
+  heartwood: {
+    name: 'Heartwood', slot: 'CORE', rarity: 'common',
+    desc: 'A heart of hard wood: +1 max health per growth, and you slowly regrow.',
+    apply(s, l) { s.maxHp += l; s.regen = Math.min(s.regen || 99, 32); },
+    onGain(p) { p.hp += 1; },
+  },
+  agerings: {
+    name: 'Rings of Age', from: 'heartwood', rarity: 'uncommon', icon: ['heartwood', 'hide'],
+    desc: '+1 max health for every floor you have survived.',
+    apply(s) { s.maxHp += Math.max(0, game.depth - 1); },
+  },
+  ancient: {
+    name: 'Ancient', from: 'agerings', rarity: 'rare', icon: ['heartwood', 'marrow'],
+    desc: '+2 max health and +20% damage. It has seen everything.',
+    apply(s) { s.maxHp += 2; s.damageMul *= 1.2; },
+  },
+  livingwood: {
+    name: 'Living Wood', from: 'agerings', rarity: 'rare', icon: ['heartwood', 'regrow'],
+    desc: 'You regrow twice as fast.',
+    apply(s) { s.regen *= 0.5; },
+  },
+  bloodsap: {
+    name: 'Bloodsap', from: 'heartwood', rarity: 'uncommon', icon: ['heartwood', 'hemophage'],
+    desc: 'Your sap is blood: bursting corpses can heal you.',
+    apply(s) { s.hemophage += 0.25; },
+  },
+  fruit: {
+    name: 'Fruiting Heart', from: 'bloodsap', rarity: 'rare', icon: ['heartwood', 'overgrown'],
+    desc: 'Every room you clear, you grow a fruit that heals.',
+    apply(s) { s.roomFruit = true; },
+  },
+  stranglerfig: {
+    name: 'Strangler Fig', from: 'bloodsap', rarity: 'rare', icon: ['heartwood', 'tentacles'],
+    desc: '+40% damage, and everything that fights for you lives half again as long.',
+    apply(s) { s.damageMul *= 1.4; s.allyLife = (s.allyLife || 1) * 1.5; },
+  },
   starving: {
     name: 'Starving Cells', slot: 'CORE', rarity: 'uncommon', malignant: true, overlay: ['ribs'],
     desc: 'Corpses give double DNA.',
@@ -1410,6 +1555,34 @@ const HINTS = {
   razorsilk: 'The silk is sharp as glass.',
   acidsilk: 'Your silk is wet with bile.',
   lair: 'This is your nest. You know every thread.',
+  bloom: 'Something flowers on your head. It breathes out, and they breathe in.',
+  venusmaw: 'The flower has teeth.',
+  digest: 'What it eats, you keep.',
+  snaptrap: 'It closes, and it does not open again for a while.',
+  sporebloom: 'The pollen stings their eyes.',
+  hayfever: 'They cannot stop choking on it.',
+  nightbloom: 'The pollen glows in the dark. So does everything it touches.',
+  thornbark: 'Bark grows over your back, studded with thorns.',
+  briar: 'The thorns are hooked. They throw what they catch.',
+  bramble: 'Hurt you, and the thorns come out.',
+  strangling: 'The briar wraps around whatever touches it.',
+  sap: 'Sap seeps from your bark. It mends you, and it sticks to them.',
+  amber: 'At the very edge, the sap closes over you.',
+  resin: 'Some blows simply stick in the resin.',
+  rootlegs: 'Roots for legs. Stop moving, and you take root.',
+  taproot: 'Your roots find the dead and drink.',
+  grove: 'Stand still long enough, and a garden grows around you.',
+  leechroots: 'Your roots find the living too.',
+  tumbleroot: 'You put down roots the moment you stop.',
+  seedfall: 'Seeds fall from you as you walk.',
+  ironwood: 'Rooted, you are hard as iron.',
+  heartwood: 'Your heart is wood. It grows back.',
+  agerings: 'Every floor adds a ring.',
+  ancient: 'Old wood. Hard. Patient.',
+  livingwood: 'You grow back faster than they can cut.',
+  bloodsap: 'Your sap runs red, and the dead refill it.',
+  fruit: 'Every victory, your heart fruits.',
+  stranglerfig: 'You strangle what you grow around.',
   // Parts other nodes grow
   spores: 'Something grows in your lungs. Cough it high, over their heads.',
   hindlegs: 'Coiled legs. Leap, and the ground will feel it.',
@@ -1458,9 +1631,18 @@ const SETS = {
     ],
     whisper: ['You can smell where they are hurt.', 'Nothing hunts you now. You hunt.'],
   },
+  PLANT: {
+    name: 'PLANT', color: '#7ab84a',
+    tags: ['polyp', 'bloom', 'thornbark', 'rootlegs', 'heartwood', 'mycelialweb', 'feedingpolyps', 'graspingbed', 'grove'],
+    bonus: [
+      { name: 'Photosynthesis', desc: 'Stand still, and you slowly heal.', apply(s) { s.setStillRegen = 10; } },
+      { name: 'Overgrowth', desc: 'Stand still to heal fast and grow polyps around you. +1 max health.', apply(s) { s.setStillRegen = 6; s.grove = Math.min(s.grove || 99, 4); s.grovePolyp = s.grovePolyp || { dmg: 0.9, rate: 1, life: 12 }; s.groveAnywhere = true; s.maxHp += 1; } },
+    ],
+    whisper: ['You are putting down roots.', 'You are a garden now. Stand still, and everything grows.'],
+  },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8',
-    tags: ['tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'polyp', 'bloodworm'],
+    tags: ['tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
     bonus: [
       { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
       { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },
@@ -1530,6 +1712,10 @@ const SPLICES = {
     desc: 'Flying, you leave a trail of your toxic gas behind you.', whisper: 'Your wings stir the poison into the air.' },
   resonance:      { name: 'Resonance',       parts: [['howl'], ['echo']],                 apply(s) { s.dashHowl = true; },
     desc: 'Your dash scream howls too, hurling everything near you away.', whisper: 'Your skull and your throat sing together.' },
+  greenhouse:     { name: 'Greenhouse',      parts: [['bloom'], ['polyp']],               apply(s) { s.polypPollen = true; if (!s.pollen) s.pollen = { r: 0, every: 99 }; },
+    desc: 'Your polyps spit pollen: whatever they hit is pollinated.', whisper: 'Your garden pollinates for you.' },
+  strangler:      { name: 'Strangler',       parts: [['thornbark'], ['rootlegs']],        apply(s) { s.rootLash = 0.8; },
+    desc: 'While you are rooted, your thorns lash everything around you.', whisper: 'Rooted, the thorns reach out on their own.' },
   wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
     desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
 };

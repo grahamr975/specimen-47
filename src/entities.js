@@ -156,6 +156,7 @@ function onPlayerBulletHit(b, enemy) {
   if (b.acid) spawnPuddle(b.x, b.y, b.acid, 2.2, 'player');
   if (b.larva && !enemy.dead) infest(enemy);                 // Ovipositor
   if (b.polyp && enemy.dead && s.polypFeed) polypFed(p);     // Feeding Polyps
+  if (b.pollen && !enemy.dead) pollinate(enemy, s);          // Greenhouse
   // Clutch: whatever your fragments kill hatches a maggot.
   if (b.kind === 'frag' && enemy.dead && s.clutch) { spawnAlly('maggot', enemy.x, enemy.y); Sfx.play('hatch'); }
   if (!enemy.dead) {

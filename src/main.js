@@ -33,6 +33,7 @@ function newRun() {
 }
 
 function startFloor() {
+  if (game.player.slots) recomputeStats(game.player); // Rings of Age count floors
   game.player.twinDead = false; // a new twin grows each floor
   game.floor = generateFloor(game.depth);
   game.player.x = ROOM_PX_W / 2;
@@ -170,6 +171,7 @@ function update(dt) {
     room.locked = false;
     room.cleared = true;
     Sfx.play('door');
+    if (p.stats.roomFruit) { spawnPickup('heart', ROOM_PX_W / 2 - 24, ROOM_PX_H / 2); floatText(p.x, p.y - 14, 'YOUR HEART FRUITS', '#7ab84a'); } // Fruiting Heart
     if (p.stats.setRoomHeal && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', SETS.ABOMINATION.color); }
     // Cancerous Growth feeds on every victory.
     if (hasMutation(p, 'cancer')) {

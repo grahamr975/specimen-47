@@ -49,7 +49,7 @@ function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
   a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
-  if (kind === 'polyp') { a.r = 4; a.life = game.player.stats.polyp ? game.player.stats.polyp.life : 10; }
+  if (kind === 'polyp') { const pp = game.player.stats.polyp || game.player.stats.grovePolyp; a.r = 4; a.life = pp ? pp.life : 10; }
   game.allies.push(a);
   return a;
 }
@@ -598,7 +598,8 @@ function polypPop(a) {
 
 function updatePolyp(a, dt) {
   const p = game.player, s = p.stats;
-  if (!s.polyp) { a.dead = true; return; }
+  const pp = s.polyp || s.grovePolyp; // Polyp Seeder, or a grove growing around you
+  if (!pp) { a.dead = true; return; }
   a.shootT -= dt;
   if (s.polypBurst) for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1) { polypPop(a); return; }
   let e = nearestEnemy(a.x, a.y, s.polypLash ? 34 : 95);
@@ -606,22 +607,22 @@ function updatePolyp(a, dt) {
   if (!e) { // nothing alive in reach: spit at meat instead (that's your DNA)
     const c = corpsesNear(a.x, a.y, s.polypLash ? 34 : 95)[0];
     if (!c) return;
-    a.shootT = s.polyp.rate;
-    if (s.polypLash) { game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: c.x, y2: c.y, t: 0.12 }); damageCorpse(c, s.polyp.dmg * 1.8); }
-    else { const d = Math.hypot(c.x - a.x, c.y - a.y) || 1; spawnBullet({ x: a.x, y: a.y - 3, vx: (c.x - a.x) / d * 140, vy: (c.y - a.y) / d * 140, r: 1.5, dmg: s.polyp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', polyp: true }); }
+    a.shootT = pp.rate;
+    if (s.polypLash) { game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: c.x, y2: c.y, t: 0.12 }); damageCorpse(c, pp.dmg * 1.8); }
+    else { const d = Math.hypot(c.x - a.x, c.y - a.y) || 1; spawnBullet({ x: a.x, y: a.y - 3, vx: (c.x - a.x) / d * 140, vy: (c.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', polyp: true }); }
     return;
   }
   if (s.polypLash) { // Tendril Polyp
     a.shootT = 0.6;
     game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: e.x, y2: e.y, t: 0.12 });
-    damageEnemy(e, s.polyp.dmg * 1.8, e.x - a.x, e.y - a.y, true);
+    damageEnemy(e, pp.dmg * 1.8, e.x - a.x, e.y - a.y, true);
     if (s.polypGrab && !e.dead) { e.slowT = Math.max(e.slowT || 0, 1); knock(e, a.x - e.x, a.y - e.y, 120); }
     if (e.dead && s.polypFeed) polypFed(p);
     Sfx.play('whip');
   } else {
-    a.shootT = s.polyp.rate;
+    a.shootT = pp.rate;
     const d = Math.hypot(e.x - a.x, e.y - a.y) || 1;
-    spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: s.polyp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true });
+    spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true, pollen: s.polypPollen });
   }
 }
 
@@ -746,6 +747,95 @@ function drawWebs(ctx) {
   }
 }
 
+// --- The Plant path ------------------------------------------------------------------------
+function pollinate(e, s) {
+  e.pollenUntil = game.time + 4;
+  if (s.pollenBlind) e.blindT = Math.max(e.blindT || 0, s.pollenBlind); // Spore Bloom
+  if (s.pollenSlow) e.slowT = Math.max(e.slowT || 0, s.pollenSlow);    // Hay Fever
+}
+
+// A polyp sprouting from the ground around you (Grove, Seedfall, Overgrowth).
+function sproutPolyp(p, x, y) {
+  if (pointSolid(game.room, x, y)) return;
+  const grown = game.allies.filter(a => a.kind === 'polyp' && a.grove && !a.dead);
+  if (grown.length >= 3) witherPolyp(grown[0]);
+  const a = spawnAlly('polyp', x, y);
+  a.grove = true; a.shootT = 0.5;
+  burst(x, y + 3, '#4e3a20', 6, 40);
+}
+
+function updatePlant(p, dt) {
+  const s = p.stats;
+  // Bloom: puffs of pollen.
+  if (s.pollen && s.pollen.r && game.room.locked && (p.pollenT = (p.pollenT ?? 1) - dt) <= 0) {
+    p.pollenT = s.pollen.every;
+    game.fx.push({ kind: 'ring', x: p.x, y: p.y - 6, r: 4, max: s.pollen.r, t: 0.3 });
+    burst(p.x, p.y - 8, '#e8d040', 14, 70, 0.7);
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < s.pollen.r + e.r) pollinate(e, s);
+  }
+  // Standing still: Root Legs take root; the Plant set photosynthesizes.
+  if (!p.moving && p.dashT <= 0 && p.pullT <= 0) p.stillT = (p.stillT || 0) + dt; else p.stillT = 0;
+  const was = p.rooted;
+  p.rooted = !!(s.rootLegs && !(p.limbWear > 0) && p.stillT >= s.rootLegs.delay);
+  if (p.rooted && !was) { burst(p.x, p.y + 5, '#3a2a18', 8, 40); Sfx.play('chomp'); }
+  if (!p.rooted && was) burst(p.x, p.y + 5, '#3a2a18', 6, 60);
+  let rate = p.rooted ? s.rootLegs.heal : 0;
+  if (s.setStillRegen && p.stillT > 1) rate = rate ? Math.min(rate, s.setStillRegen) : s.setStillRegen;
+  if (rate && p.hp < p.maxHp) {
+    if ((p.stillHealT = (p.stillHealT || 0) + dt) >= rate) { p.stillHealT = 0; p.hp++; floatText(p.x, p.y - 14, '+1 HP', '#7ab84a'); }
+  } else p.stillHealT = 0;
+  if (p.rooted) {
+    if (s.taproot) for (const c of game.room.corpses) { // Taproot: the dead dissolve into you
+      if (c.dead || Math.hypot(c.x - p.x, c.y - p.y) > s.taproot + c.r) continue;
+      c.hp -= 1.5 * dt; c.shake = 0.1;
+      if (Math.random() < dt * 6) game.particles.push({ x: c.x + rand(-3, 3), y: c.y, vx: (p.x - c.x) * 2, vy: (p.y - c.y) * 2, life: 0.4, color: '#5e2229', size: 1 });
+      if (c.hp <= 0) burstCorpse(c);
+    }
+    if (s.rootDrain) for (const e of game.enemies) { // Leech Roots
+      if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 40 + e.r) continue;
+      damageEnemy(e, s.rootDrain * s.damage * dt, 0, 0, true);
+      p.drained = (p.drained || 0) + s.rootDrain * dt;
+      if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+    }
+    if (s.rootLash && (p.rootLashT = (p.rootLashT || 0) - dt) <= 0) { // Strangler
+      p.rootLashT = s.rootLash;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 36 + e.r) continue;
+        game.fx.push({ kind: 'whip', x1: p.x, y1: p.y + 2, x2: e.x, y2: e.y, t: 0.12 });
+        damageEnemy(e, Math.max(2, s.thorns) * 0.8, e.x - p.x, e.y - p.y, true);
+      }
+    }
+  }
+  // Grove / Overgrowth: polyps sprout around you while you stand still.
+  if (s.grove && (p.rooted || (s.groveAnywhere && p.stillT > 1)) && game.room.locked && (p.groveT = (p.groveT ?? 1) - dt) <= 0) {
+    p.groveT = s.grove;
+    const a = rand(0, Math.PI * 2);
+    sproutPolyp(p, p.x + Math.cos(a) * 16, p.y + Math.sin(a) * 12);
+  }
+  // Seedfall: seeds drop as you walk.
+  if (s.seedfall && p.moving && game.room.locked && (p.seedT = (p.seedT ?? s.seedfall) - dt) <= 0) {
+    p.seedT = s.seedfall;
+    sproutPolyp(p, p.x, p.y + 2);
+  }
+}
+
+// Root Legs: knotted roots for legs; when you stand still they dig into the floor.
+function drawRootLegs(ctx, p, x, y) {
+  const dark = '#140c06', bark = '#5a4024', moving = p.moving && !p.rooted;
+  for (let k = 0; k < 5; k++) {
+    const hx = x - 4 + k * 2, hy = y + 4;
+    let fx, fy;
+    if (p.rooted) { fx = x - 10 + k * 5; fy = p.y + 7 + (k % 2); }
+    else { fx = x - 5 + k * 2.5 + (moving ? Math.sin(p.t * 12 + k * 1.7) * 2 : 0); fy = p.y + 5; }
+    pxLine(ctx, hx, hy + 1, fx, fy + 1, dark, 1, 0.5);
+    pxLine(ctx, hx, hy, fx, fy, bark, 1, 0.5);
+    if (p.rooted) { // tendrils into the floor
+      ctx.fillStyle = dark;
+      ctx.fillRect(Math.round(fx + (k % 2 ? 1 : -1)), Math.round(fy + 1), 1, 2);
+    }
+  }
+}
+
 // --- Branch upkeep: things that tick along while you play --------------------------------
 function updateBranchUpkeep(p, dt) {
   const s = p.stats;
@@ -804,6 +894,7 @@ function updateBranchUpkeep(p, dt) {
     for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !(e.blindT > 0)) { e.blindT = 1.5; floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
   }
   updateMiasma(p, dt);
+  updatePlant(p, dt);
   // Mycelial Web: threads between polyps eat what crosses them.
   if (s.polypLink) {
     const ps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);

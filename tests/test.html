@@ -239,6 +239,32 @@ try {
     run(30);
     check(`silk: webs stick and cut (${game.webs.length} webs, ${(30 - a.hp).toFixed(1)} dmg, stuck ${a.webT > 0})`, game.webs.length > 0 && a.hp < 30);
   }
+  { // 0h) The Plant path.
+    const setup = (...ids) => { newRun(); combatRoom(); const p = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 100; p.y = 96; p.aimX = 1; p.aimY = 0; grow(p, ...ids); return p; };
+    const idle = n => { for (let i = 0; i < n; i++) { Input.keys.clear(); Input.mouse.down = false; game.player.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } };
+    let p = setup('bloom'); let a = dummy(20, 50); a.speed = 0; idle(80);
+    check('bloom: pollen dusts what is near you', a.pollenUntil > game.time);
+    { const h = a.hp; damageEnemy(a, 4, 0, 0, true); check(`bloom: pollinated enemies take more (${(h - a.hp).toFixed(1)} from a 4-damage hit)`, h - a.hp > 4.5); }
+    p = setup('rootlegs'); p.hp = 1; idle(50);
+    check('root legs: stand still and you take root', p.rooted);
+    { const r = attackRate(p); check(`root legs: rooted, you attack faster (x${r.toFixed(2)})`, r < 1); }
+    idle(60 * 12);
+    check(`root legs: rooted, you slowly heal (hp ${p.hp})`, p.hp > 1);
+    Input.keys.add('d'); update(1 / 60); Input.endFrame(); Input.keys.clear();
+    check('root legs: moving uproots you', !p.rooted);
+    p = setup('grove'); { const far = dummy(150, 999); far.speed = 0; } idle(60 * 6); // (a fight going on: groves grow in combat)
+    check(`grove: polyps sprout around you while rooted (${game.allies.filter(x => x.kind === 'polyp').length})`, game.allies.some(x => x.kind === 'polyp' && x.grove));
+    p = setup('briar'); a = dummy(0, 50); a.speed = 0; idle(2);
+    check(`thornbark + briar: touching you shreds, flings and bleeds (${(50 - a.hp).toFixed(1)} dmg)`, a.hp < 50 && a.bleedT > 0);
+    p = setup('amber'); p.hp = 2; p.inv = 0; hurtPlayer(1);
+    check(`amber: a near-fatal hit seals you in amber instead (hp ${p.hp})`, p.hp >= 2 && game.room.amberUsed);
+    p = setup('agerings'); const h1 = p.maxHp; game.depth = 3; recomputeStats(p);
+    check(`rings of age: more health every floor (${h1} -> ${p.maxHp})`, p.maxHp === h1 + 2);
+    p = setup('polyp', 'bloom', 'thornbark', 'rootlegs', 'heartwood');
+    check('all five plant parts: the plant set and body form', activeSet(p).set === 'PLANT' && activeSet(p).tier === 1 && (p.evolutions = 6, recomputeStats(p), p.form === 'PLANT'));
+    p = setup('thornbark', 'rootlegs'); a = dummy(25, 50); a.speed = 0; idle(90);
+    check(`strangler splice: rooted, thorns lash out around you (${(50 - a.hp).toFixed(1)} dmg)`, p.splices.includes('strangler') && a.hp < 50);
+  }
   { // 0e) Splices: fused parts across slots.
     const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || new Set(pt.map(ids => slotOf(ids[0]))).size !== 2 || pt.some(ids => ids.some(id => slotOf(id) !== slotOf(ids[0]))); });
     check('every splice joins parts from two different slots' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
@@ -253,7 +279,7 @@ try {
     log.push('all ' + Object.keys(SPLICES).length + ' splices ran in a fight');
     // Each splice actually does its thing.
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = []; grow(p, 'bonejaws', 'mantis', 'spines');
-    { const pid = p.slots.BACK; grow(p, 'spines', 'mantis'); p.dashCd = 0; Input.pressed.add(' '); update(1 / 60); Input.endFrame(); for (let i = 0; i < 6; i++) { update(1 / 60); Input.endFrame(); }
+    { game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96; grow(p, 'spines', 'mantis'); p.dashCd = 0; Input.pressed.add(' '); update(1 / 60); Input.endFrame(); for (let i = 0; i < 6; i++) { update(1 / 60); Input.endFrame(); }
       check('bone saw: dashing sprays shards', game.bullets.filter(b => b.kind === 'spine').length >= 4); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'hide', 'chitin'); p.shieldUp = false;
     for (let i = 0; i < 5; i++) { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); }
