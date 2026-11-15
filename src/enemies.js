@@ -167,6 +167,7 @@ function killEnemy(e) {
     burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
   }
   onSetKill(e, p, s);
+  if (e.eggs) { for (let i = 0; i < e.eggs; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); Sfx.play('hatch'); } // Brood Howl
   if (e.infest) hostBurst(e); // the brood inside bursts out
   if (s.gasDeathCloud && Math.hypot(e.x - p.x, e.y - p.y) < (p.gasR || 0) + e.r) game.clouds.push({ x: e.x, y: e.y, r: 16, life: 3.5, toxic: true }); // Rot Halo
   if (s.webBrood && e.webT > 0) { for (let i = 0; i < s.webBrood; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); floatText(e.x, e.y - 10, 'WRAPPED', '#e0d8d0'); } // Cocoon Wrap

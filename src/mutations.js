@@ -2,14 +2,17 @@
 // ---------------------------------------------------------------------------
 // MUTATIONS: the heart of the game.
 //
-// Your body has a few open SLOTS (3 at first; every devoured boss core adds
-// one, and every splice frees one). Each slot holds a PART, and every part
-// grows somewhere on the body:
+// Your body has a few open SLOTS: 3 at first, never more than 5. Every
+// devoured boss core adds one, and every splice frees one (two parts fuse
+// into one), up to the cap. Each slot holds a PART, and every part grows
+// somewhere on the body:
 //   MOUTH: an attack (fire button). Grow several and they all fire.
 //   LIMBS: how you move, plus a right-click ability. One set at a time.
 //   HEAD:  senses, plus a Q ability. One head.
 //   BACK:  what happens when you dash or get hurt. As many as you like.
-//   CORE:  your engine. Only grows from devoured boss cores.
+//   CORE:  your engine. Only planted from devoured boss cores.
+// BOSS PICKS (`boss: true`): the strangest roots (the playstyle mouths,
+// Tentacles, Parasite Brain) are only offered by a devoured boss core.
 // Fill your slots with mouths for a glass cannon, or backs and cores for a tank.
 //
 // Each part grows ONE path:
@@ -31,7 +34,15 @@
 const LOCS = ['MOUTH', 'HEAD', 'BACK', 'LIMBS', 'CORE'];
 const LOC_MAX = { HEAD: 1, LIMBS: 1 }; // one head, one way of moving
 const START_SLOTS = 3;                  // the slime blob takes one of them
+const MAX_SLOTS = 5;                    // the hard cap: a finished body is 5 parts, not a hodgepodge
 const GROWTH_PER_FLOOR = 2;             // how often one part can grow per floor
+// POWER IS EARNED. A fresh body hits at 70%; every fully grown part and every
+// splice adds +6%. A finished body ends up far stronger than it started.
+const BASE_POWER = 0.7, POWER_PER_GROWN = 0.06, POWER_PER_SPLICE = 0.06;
+function bodyPower(p) {
+  const grown = p.parts.filter(m => !m.starter && !childrenOf(m.id).length).length;
+  return BASE_POWER + POWER_PER_GROWN * grown + POWER_PER_SPLICE * activeSplices(p).length;
+}
 
 const RARITY = {
   common:    { label: 'COMMON',    color: '#9a9284', weight: 60 },
@@ -342,7 +353,7 @@ const MUTATIONS = {
   // ---- Playstyle roots: they replace shooting with something else entirely ----
   ovipositor: {
     requires: { any: ['eggsac', 'brood'], label: 'EGG SAC OR BROOD' },
-    name: 'Ovipositor', slot: 'MOUTH', rarity: 'rare', overlay: ['proboscis'],
+    name: 'Ovipositor', slot: 'MOUTH', boss: true, rarity: 'rare', overlay: ['proboscis'],
     desc: 'Slowly launch a larva. It burrows into a host, eats it from inside, then bursts out to find new hosts.',
     apply(s, l) { s.ovi = { delay: 1.5 - 0.15 * (l - 1), dps: 0.5 + 0.25 * l, brood: l >= 3 ? 3 : 2, burstDmg: 2 + l, time: 4 }; },
   },
@@ -379,7 +390,7 @@ const MUTATIONS = {
 
   miasma: {
     requires: { any: ['toxic', 'bacteria', 'fins'], label: 'TOXIC BLOOD, BACTERIA OR PSEUDOPODS' },
-    name: 'Miasma', slot: 'MOUTH', rarity: 'rare',
+    name: 'Miasma', slot: 'MOUTH', boss: true, rarity: 'rare',
     desc: 'No attack. You leak a toxic cloud that eats everything near you. Hold fire to vent it wider, but you slow down.',
     apply(s, l) { s.miasma = { r: 30 + 4 * (l - 1), dps: 1.6 + 0.6 * (l - 1) }; },
   },
@@ -415,7 +426,7 @@ const MUTATIONS = {
   },
 
   howl: {
-    name: 'Howl', slot: 'MOUTH', rarity: 'uncommon',
+    name: 'Howl', slot: 'MOUTH', boss: true, rarity: 'uncommon',
     desc: 'A sonic cone that barely hurts but hurls enemies into walls and each other.',
     apply(s, l) { s.howl = { delay: 0.8 - 0.05 * (l - 1), dmg: 0.3 * l, force: 300 + 40 * l, range: 62, cone: 0.55, slam: 2 + 1.2 * l }; },
   },
@@ -451,7 +462,7 @@ const MUTATIONS = {
   },
 
   polyp: {
-    name: 'Polyp Seeder', slot: 'MOUTH', rarity: 'uncommon',
+    name: 'Polyp Seeder', slot: 'MOUTH', boss: true, rarity: 'uncommon',
     desc: 'Fire plants a fleshy polyp that spits at anything nearby. Only a few can grow at once.',
     apply(s, l) { s.polyp = { delay: 1.1, max: 1 + l, dmg: 0.7 + 0.25 * l, rate: 0.9, life: 14 }; },
   },
@@ -487,7 +498,7 @@ const MUTATIONS = {
   },
 
   tongue: {
-    name: 'Frog Tongue', slot: 'MOUTH', rarity: 'uncommon',
+    name: 'Frog Tongue', slot: 'MOUTH', boss: true, rarity: 'uncommon',
     desc: 'Lash out a long tongue. Small prey is swallowed whole; fire again to spit it back out.',
     apply(s, l) { s.tongue = { delay: 0.55, range: 70 + 10 * l, dmg: 1.5 + 0.8 * l, spit: 3 + 1.5 * l, max: 3, size: 6 }; },
   },
@@ -523,7 +534,7 @@ const MUTATIONS = {
   },
 
   silk: {
-    name: 'Silk Spinner', slot: 'MOUTH', rarity: 'uncommon',
+    name: 'Silk Spinner', slot: 'MOUTH', boss: true, rarity: 'uncommon',
     desc: 'Fire spins a line of sticky web across the floor. Anything caught in it is stuck, and the silk cuts.',
     apply(s, l) { s.silk = { delay: 0.8, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.2 + 0.6 * l }; },
   },
@@ -678,7 +689,7 @@ const MUTATIONS = {
 
   parasite: {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
-    name: 'Parasite Brain', slot: 'HEAD', rarity: 'rare', malignant: true, size: 2, overlay: ['parasite'],
+    name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, size: 2, overlay: ['parasite'],
     desc: '+60% damage with everything. Q: a mind spike that stuns and wounds one enemy.',
     cost: 'Sometimes it takes control of your body.',
     apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
@@ -1011,7 +1022,7 @@ const MUTATIONS = {
 
   grapple: {
     requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
-    name: 'Tentacles', slot: 'LIMBS', rarity: 'rare', size: 2, overlay: ['tentlimbs'],
+    name: 'Tentacles', slot: 'LIMBS', boss: true, rarity: 'rare', size: 2, overlay: ['tentlimbs'],
     desc: 'Right-click (or E) to lash a tentacle at a wall or enemy and yank yourself to it.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 60); s.grapple = 1.0 - 0.15 * (l - 1); s.grappleRange = 110 + 15 * l; s.pullDmg += 2 + l; },
   },
@@ -1728,23 +1739,54 @@ const SPLICES = {
     desc: 'While you are rooted, your thorns lash everything around you.', whisper: 'Rooted, the thorns reach out on their own.' },
   wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
     desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
+
+  // --- BIG SPLICES: new ways to fight. Both halves must be FULLY GROWN. ---
+  divebomb:       { name: 'Dive Bomb',       parts: [['mandibles'], ['wings']], grown: 3,      apply(s) { s.diveBomb = true; },
+    desc: 'Your dash ends in a swooping bite that savages and stuns everything where you land.', whisper: 'Fall on them, jaws first.' },
+    bilegarden:     { name: 'Bile Garden',     parts: [['bile'], ['polyp']], grown: 3,          apply(s) { s.bilePolyps = true; },
+    desc: 'Your polyps spray burning bile, twice as fast.', whisper: 'Your garden weeps acid.' },
+  broodhowl:      { name: 'Brood Howl',      parts: [['howl'], ['eggsac']], grown: 3,         apply(s) { s.broodHowl = 2; },
+    desc: 'Your howl lays eggs in everything it hits. When they die, spiderlings burst out.', whisper: 'Your scream is full of eggs.' },
+  bonecannon:     { name: 'Bone Cannon',     parts: [['spike'], ['skull']], grown: 3,         apply(s) { s.boneCannon = true; },
+    desc: 'Your headbutt (Q) fires a huge bone lance that punches through everything in a line.', whisper: 'Your skull is a barrel now.' },
+  silknursery:    { name: 'Silk Nursery',    parts: [['silk'], ['spider']], grown: 3,         apply(s) { s.silkNursery = 1.1; },
+    desc: 'Whatever is stuck in your webs is swarmed: spiderlings keep hatching on it.', whisper: 'Your webs are a nursery, and the stuck are food.' },
+  toxicbloom:     { name: 'Toxic Bloom',     parts: [['miasma'], ['bloom']], grown: 3,        apply(s) { s.toxicBloom = true; },
+    desc: 'Your gas carries pollen, and your pollen burst (Q) leaves a poison cloud on everything it touches.', whisper: 'Your flower breathes your poison.' },
+  seismichowl:    { name: 'Seismic Howl',    parts: [['howl'], ['burrow']], grown: 3,         apply(s) { s.seismicHowl = true; },
+    desc: 'You erupt from the ground howling in every direction, hurling everything away.', whisper: 'The ground screams with you.' },
+  bloodgulp:      { name: 'Blood Gulp',      parts: [['tongue'], ['proboscis']], grown: 3,    apply(s) { s.bloodGulp = true; },
+    desc: 'Everything you swallow heals you, and what you spit back bursts like a blood bomb.', whisper: 'You drink them whole.' },
+  batteringram:   { name: 'Battering Ram',   parts: [['chitin'], ['skull']], grown: 3,        apply(s) { s.batteringRam = true; },
+    desc: 'With your shell up, your charge hits three times as hard and stuns everything it hits.', whisper: 'Shell first, skull first, through them.' },
+  venombarrage:   { name: 'Venom Barrage',   parts: [['spike'], ['bile']], grown: 3,          apply(s) { s.venomBarrage = true; },
+    desc: 'Your bone spikes fly through your flame: every one that hits bursts into burning bile.', whisper: 'Two mouths, one fire.' },
 };
 
-// Every splice whose two halves you've grown.
-function activeSplices(p) {
-  const has = ids => ids.some(id => hasMutation(p, id));
-  return Object.keys(SPLICES).filter(k => SPLICES[k].parts.every(has));
+// Every splice whose two halves you've grown (big ones: both fully grown),
+// each half in its own part.
+function splicesOf(parts) {
+  return Object.keys(SPLICES).filter(k => {
+    const S = SPLICES[k], need = S.grown || 1;
+    const a = parts.find(m => m.path.length >= need && S.parts[0].some(id => m.path.includes(id)));
+    return a && parts.some(m => m !== a && m.path.length >= need && S.parts[1].some(id => m.path.includes(id)));
+  });
+}
+function activeSplices(p) { return splicesOf(p.parts); }
+
+// The body you'd have after taking a card.
+function partsAfter(p, c) {
+  c = resolveCard(p, c);
+  if (c.id === '_gorge') return p.parts;
+  if (c.kind === 'branch') { const m = c.part || partFor(p, c.id); return p.parts.map(x => x === m ? Object.assign({}, x, { id: c.id, path: x.path.concat([c.id]) }) : x); }
+  return p.parts.filter(m => m !== c.shed).concat([{ id: c.id, path: [c.id], loc: locOf(c.id) }]);
 }
 
-// Would picking `id` complete a splice you don't have yet?
-function wouldSplice(p, id) {
+// Would taking this card complete a splice you don't have yet?
+function wouldSplice(p, c) {
+  if (typeof c === 'string') c = { id: c };
   const now = activeSplices(p);
-  return Object.keys(SPLICES).some(k => {
-    if (now.includes(k)) return false;
-    const parts = SPLICES[k].parts;
-    const i = parts.findIndex(ids => ids.includes(id));
-    return i >= 0 && parts.every((ids, j) => j === i || ids.some(x => hasMutation(p, x)));
-  });
+  return splicesOf(partsAfter(p, c)).some(k => !now.includes(k));
 }
 
 // ===========================================================================
@@ -1826,7 +1868,7 @@ function partSize(m) { return m.starter ? 1 : (MUTATIONS[m.path[0]].size || 1); 
 function rootSize(id) { return MUTATIONS[id].size || 1; }
 function slotsUsed(p) { return p.parts.reduce((n, m) => n + partSize(m), 0); }
 // Every splice fuses two parts into one: it frees a slot.
-function slotCapacity(p) { return p.capacity + activeSplices(p).length; }
+function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity + activeSplices(p).length); }
 function freeSlots(p) { return slotCapacity(p) - slotsUsed(p); }
 
 // A part can only grow GROWTH_PER_FLOOR times per floor (planting counts),
@@ -1867,7 +1909,7 @@ function meetsRequirement(p, id, except) {
 //   a METAMORPHOSIS: a fully grown part sheds into a rarer root of its kind.
 // A CORE root is only PLANTED from a devoured boss core (onlyLoc = 'CORE');
 // once planted it branches like any other part.
-function bodyOffers(p, onlyLoc) {
+function bodyOffers(p, onlyLoc, boss = false) {
   const out = [];
   const okLoc = loc => onlyLoc ? loc === onlyLoc : loc !== 'CORE'; // new roots and metamorphoses
   const free = freeSlots(p);
@@ -1880,7 +1922,7 @@ function bodyOffers(p, onlyLoc) {
     // Fully grown: it can shed into a rarer root.
     const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
     for (const r of rootsOf(m.loc)) {
-      if (RARITY_ORDER.indexOf(MUTATIONS[r].rarity) <= rank || hasMutation(p, r) || !meetsRequirement(p, r, m)) continue;
+      if (RARITY_ORDER.indexOf(MUTATIONS[r].rarity) <= rank || hasMutation(p, r) || MUTATIONS[r].boss || !meetsRequirement(p, r, m)) continue;
       if (rootSize(r) - partSize(m) > free) continue;
       out.push({ id: r, kind: 'meta', shed: m });
     }
@@ -1890,10 +1932,26 @@ function bodyOffers(p, onlyLoc) {
     const here = partsAt(p, loc).filter(m => !m.starter).length;
     if (here >= (LOC_MAX[loc] || 99)) continue;
     for (const r of rootsOf(loc)) {
-      if (hasMutation(p, r)) continue;
+      if (hasMutation(p, r) || !!MUTATIONS[r].boss !== boss) continue;
       if (starter && starter.loc === loc) out.push({ id: r, kind: 'replace', shed: starter });
       else if (rootSize(r) <= free) out.push({ id: r, kind: 'root' });
     }
+  }
+  return out;
+}
+
+// Boss picks you could plant right now.
+// With no room, a boss pick takes the place of your least-grown part of
+// the same kind (the card says which it sheds).
+function bossPicks(p) {
+  const out = bodyOffers(p, null, true).filter(c => MUTATIONS[c.id].boss && !MUTATIONS[c.id].from);
+  const free = freeSlots(p);
+  for (const r of Object.keys(MUTATIONS)) {
+    const d = MUTATIONS[r];
+    if (!d.boss || d.from || hasMutation(p, r) || out.some(c => c.id === r)) continue;
+    const here = partsAt(p, d.slot).sort((a, b) => a.path.length - b.path.length);
+    const shed = here.find(m => rootSize(r) - partSize(m) <= free);
+    if (shed) out.push({ id: r, kind: 'swap', shed });
   }
   return out;
 }
@@ -1932,12 +1990,16 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   const all = bodyOffers(p, onlyLoc);
 
   if (onlyLoc) {
-    // The core's new slot is yours: the last card always lets you keep it free.
-    const cs = all.slice(), out = [];
+    // A devoured core: one CORE card (Thick Hide while you can still plant it)
+    // and the rest BOSS PICKS, the strangest parts there are.
+    const cs = all.slice(), picks = bossPicks(p), out = [];
     const hide = cs.find(c => c.id === 'hide');
     if (hide) out.push(card(cs.splice(cs.indexOf(hide), 1)[0])); // health is always on the table
-    while (out.length < n - 1 && cs.length) out.push(card(cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0]));
-    return out.sort(() => Math.random() - 0.5).concat([gorge]);
+    else if (cs.length) out.push(card(cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0]));
+    while (out.length < n && picks.length) out.push(card(picks.splice(picks.indexOf(pickWeighted(picks)), 1)[0]));
+    while (out.length < n && cs.length) out.push(card(cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0]));
+    if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge); // you can always decline
+    return out.sort(() => Math.random() - 0.5);
   }
 
   const out = [];
@@ -1945,6 +2007,9 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   // Still spitting the starter slime? Always offer a way out of it.
   const replace = all.filter(c => c.kind === 'replace');
   if (replace.length) take(pickWeighted(replace));
+  // Still a limbless slug? Always offer a way to move.
+  const legs = !partAt(p, 'LIMBS') && all.filter(c => c.kind === 'root' && locOf(c.id) === 'LIMBS');
+  if (legs && legs.length) take(pickWeighted(legs));
   // Groups: each part's branches, one per body location for new roots, and metamorphoses.
   const groups = [];
   const byPart = new Map();
@@ -1997,14 +2062,16 @@ function choiceInfo(p, c) {
     const sib = siblingOf(c.id);
     if (sib) { note = 'LOCKS OUT ' + MUTATIONS[sib].name; noteColor = COST_COLOR; }
   } else if (c.kind === 'replace') {
-    status = 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+  } else if (c.kind === 'swap') {
+    status = 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'meta') {
     status = 'METAMORPHOSIS';
     if (d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
     const size = rootSize(c.id);
-    status = 'NEW PART';
+    status = d.boss ? 'BOSS PICK' : 'NEW PART';
     note = size > 1 ? `TAKES ${size} SLOTS` : 'TAKES A SLOT';
     noteColor = size > 1 ? '#e8c020' : PAL.slate;
   }
@@ -2016,7 +2083,7 @@ function choiceInfo(p, c) {
   return {
     id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, cost: d.cost, malignant: !!d.malignant, cures: !!d.cures, set,
     slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id),
-    tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c.id),
+    tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c),
   };
 }
 
@@ -2035,7 +2102,7 @@ function applyChoice(p, c) {
     const old = c.shed, part = newPart(c.id), at = old ? p.parts.indexOf(old) : -1;
     if (old) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the old part tears out
     if (old && !old.starter) { // Metamorphosis: the grown path sloughs off; something rarer takes root
-      game.banner = { text: 'METAMORPHOSIS', sub: MUTATIONS[old.id].name + ' > ' + d.name, color: RARITY[d.rarity].color, t: 2.6 };
+      game.banner = { text: c.kind === 'swap' ? 'BOSS PICK' : 'METAMORPHOSIS', sub: MUTATIONS[old.id].name + ' > ' + d.name, color: RARITY[d.rarity].color, t: 2.6 };
       gibs(p.x, p.y, 6, ['#a8534f', '#5e2229', '#d9cfa0'], FLUID.blood);
       game.shake = Math.max(game.shake, 4);
     }
@@ -2048,7 +2115,7 @@ function applyChoice(p, c) {
   floatText(p.x, p.y - 14, d.name.toUpperCase(), col);
   if (d.from && !childrenOf(c.id).length) {
     // A path reaches its end form.
-    game.banner = { text: 'FULLY GROWN', sub: d.name, color: col, t: 2.2 };
+    game.banner = { text: 'FULLY GROWN', sub: d.name + ' - YOU GROW STRONGER', color: col, t: 2.2 };
     burst(p.x, p.y, col, 24, 110, 0.7);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('splice');

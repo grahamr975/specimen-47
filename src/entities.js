@@ -154,6 +154,11 @@ function endPlayerBullet(b) {
 function onPlayerBulletHit(b, enemy) {
   const p = game.player, s = p.stats;
   if (b.acid) spawnPuddle(b.x, b.y, b.acid, 2.2, 'player');
+  if (b.venomBurst) { spawnPuddle(b.x, b.y, 14, 3, 'player'); burst(b.x, b.y, '#b0c040', 6, 70, 0.3); } // Venom Barrage
+  if (b.bloodBomb) { // Blood Gulp: the spat-back prey bursts
+    for (const o of game.enemies) if (o !== enemy && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - b.x, o.y - b.y) < 26 + o.r) damageEnemy(o, b.bloodBomb, o.x - b.x, o.y - b.y, true);
+    bloodSpray(b.x, b.y, 0, 0, 24, FLUID.blood, 140); game.fx.push({ kind: 'ring', x: b.x, y: b.y, r: 3, max: 26, t: 0.2 }); b.bloodBomb = 0;
+  }
   if (b.larva && !enemy.dead) infest(enemy);                 // Ovipositor
   if (b.polyp && enemy.dead && s.polypFeed) polypFed(p);     // Feeding Polyps
   if (b.pollen && !enemy.dead) pollinate(enemy, s);          // Greenhouse
@@ -360,9 +365,8 @@ function updatePickups(dt) {
       game.shake = Math.max(game.shake, 4);
       Sfx.play('gulp');
       pl.hp = Math.min(pl.maxHp, pl.hp + 1);
-      pl.capacity++;
-      floatText(pl.x, pl.y - 24, 'YOUR BODY MAKES ROOM', VIAL_COLOR);
-      if (bodyOffers(pl, 'CORE').length) {
+      if (pl.capacity < MAX_SLOTS) { pl.capacity++; floatText(pl.x, pl.y - 24, 'YOUR BODY MAKES ROOM', VIAL_COLOR); }
+      if (bodyOffers(pl, 'CORE').length || bossPicks(pl).length) {
         game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
 

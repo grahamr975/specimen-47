@@ -14,7 +14,7 @@ function openEvolution(opts) {
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.slot ? 'ITS CORE BECOMES YOURS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };

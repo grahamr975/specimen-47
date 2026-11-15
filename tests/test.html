@@ -94,7 +94,7 @@ const leaves = () => Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && 
 const fireFor = (frames, hold = true) => { for (let i = 0; i < frames; i++) { Input.mouse.down = hold; Input.mouse.x = game.player.x + 80; Input.mouse.y = game.player.y + ROOM_Y; game.player.hp = game.player.maxHp; game.player.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } Input.mouse.down = false; };
 const mine = () => game.bullets.filter(b => b.team === 'player');
 const calm = () => { for (const e of game.enemies) e.spawnT = 99; game.bullets = []; };
-const dummy = (dx, hp = 99) => { const e = spawnEnemy('rat', game.player.x + dx, game.player.y); e.spawnT = 0; e.hp = e.maxHp = hp; e.speed = 0; return e; };
+const dummy = (dx, hp = 99) => { const e = spawnEnemy('rat', game.player.x + dx, game.player.y); e.spawnT = 0; e.hp = e.maxHp = hp; e.speed = 0; e.affixes = []; e.elite = false; return e; };
 
 try {
   { // 00) The tree.
@@ -136,7 +136,7 @@ try {
         check(`rarer roots can require a part elsewhere (burrow without a skull: ${before}, with: ${offersAt(q, 'LIMBS').includes('burrow')}; card says "${choiceInfo(q, { id: 'burrow' }).note}")`, !before && offersAt(q, 'LIMBS').includes('burrow') && /FED BY/.test(choiceInfo(q, { id: 'burrow' }).note)); }
       check(`metamorphosis is never forced (${two} rolls with 2+, ${forced} with no way to decline)`, !two && !forced); }
     newRun(); p = game.player;
-    check('the starter slime blob can be replaced by any MOUTH root', kindsAt(p, 'MOUTH', 'replace').join() === rootsOf('MOUTH').join());
+    check('the starter slime blob can be replaced by any (non-boss) MOUTH root', kindsAt(p, 'MOUTH', 'replace').join() === rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).join());
     applyChoice(p, { id: 'tentacles' });
     check('...and then a second MOUTH can grow in a free slot (glass cannon)', partsAt(p, 'MOUTH').length === 1 && !p.parts.some(m => m.starter) && kindsAt(p, 'MOUTH', 'root').includes('spike') && !offersAt(p, 'MOUTH').includes('tentacles'));
     // Rolls never offer something illegal, never overfill the body, and usually show a fork side by side.
@@ -158,6 +158,8 @@ try {
     let mouthOffered = 0;
     for (let i = 0; i < 200; i++) { newRun(); if (rollChoices(game.player, 3).some(c => slotOf(c.id) === 'MOUTH')) mouthOffered++; }
     check(`while you still spit slime, every roll offers a new MOUTH (${mouthOffered}/200)`, mouthOffered === 200);
+    { let legs = 0, tries = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; for (let k = 0; k < randInt(0, 2); k++) { const c = rollChoices(q, 3).find(c => locOf(c.id) !== 'LIMBS'); if (c && c.id !== '_gorge') applyChoice(q, c); } if (partAt(q, 'LIMBS') || freeSlots(q) < 1) continue; tries++; if (rollChoices(q, 3).some(c => locOf(c.id) === 'LIMBS')) legs++; }
+      check(`while you're a limbless slug, every roll offers limbs (${legs}/${tries})`, legs === tries && tries > 50); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p);
     { const r = dummy(30); r.speed = 40; spawnBullet({ x: r.x - 5, y: r.y, vx: 135, vy: 0, r: 2.5, dmg: 1, slow: p.stats.guns[0].slow, life: 0.3, kind: 'shot' }); update(1 / 60); Input.endFrame();
       check(`slime blobs slow what they hit (${(r.slowT || 0).toFixed(1)}s)`, r.slowT > 0.8); }
@@ -312,16 +314,20 @@ try {
     check(`coloration: five colors don't mix to brown (main ${p.tint.color}, accent ${p.tint.accent}; saturation ${sat(mix).toFixed(2)})`, p.tint.color === TINTS.tongue[0] && sat(mix) > 0.25);
   }
   { // 0e) Splices: fused parts across slots.
-    const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || new Set(pt.map(ids => slotOf(ids[0]))).size !== 2 || pt.some(ids => ids.some(id => slotOf(id) !== slotOf(ids[0]))); });
-    check('every splice joins parts from two different slots' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
+    const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || pt[0].some(a => pt[1].some(b => rootOf(a) === rootOf(b))); });
+    check('every splice joins two different parts' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
+    const big = Object.keys(SPLICES).filter(k => SPLICES[k].grown === 3);
+    log.push(`${Object.keys(SPLICES).length} splices, ${big.length} big (both halves fully grown)`);
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
-    grow(p, 'sporefire');
+    grow(p, 'sporefire', 'carrionfly');
     check('a card that would complete a splice stirs', wouldSplice(p, 'cropduster') && choiceInfo(p, { id: 'cropduster' }).stirs && !choiceInfo(p, { id: 'plague' }).stirs);
     grow(p, 'sporefire', 'cropduster');
     check('growing both halves splices them', p.splices.includes('firestorm') && p.stats.fireTrail && game.banner && game.banner.text === 'SPLICED');
     check('a part keeps counting after its path branches on', (grow(p, 'bloodbattery', 'hemophage'), p.splices.includes('bloodpump')));
     // Run every splice in a fight.
-    for (const k in SPLICES) { newRun(); combatRoom(); p = game.player; grow(p, ...SPLICES[k].parts.map(ids => ids[ids.length - 1])); step(120, true); }
+    const leafUnder = id => leaves().find(l => pathTo(l).includes(id));
+    { const notOn = Object.keys(SPLICES).filter(k => { grow(p, ...SPLICES[k].parts.map(ids => leafUnder(ids[ids.length - 1]))); return !p.splices.includes(k); }); check('every splice wakes with both halves fully grown' + (notOn.length ? ' (' + notOn.join(',') + ')' : ''), !notOn.length); }
+    for (const k in SPLICES) { newRun(); combatRoom(); p = game.player; grow(p, ...SPLICES[k].parts.map(ids => leafUnder(ids[ids.length - 1]))); step(120, true); }
     log.push('all ' + Object.keys(SPLICES).length + ' splices ran in a fight');
     // Each splice actually does its thing.
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = []; grow(p, 'bonejaws', 'mantis', 'spines');
@@ -330,6 +336,29 @@ try {
     newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'hide', 'chitin'); p.shieldUp = false;
     for (let i = 0; i < 5; i++) { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); }
     check('living armor: 5 kills regrow your shell', p.shieldUp);
+    // Big splices: only with both halves fully grown, and they're worth it.
+    newRun(); combatRoom(); p = game.player; game.enemies = [];
+    grow(p, 'mandibles', 'wings');
+    check('a big splice stays asleep while its halves are young', !p.splices.includes('divebomb'));
+    grow(p, leafUnder('mandibles'), 'carrionfly');
+    check(`...and stirs on the card that finishes the second half ("${choiceInfo(p, { id: 'cropduster' }).name}")`, choiceInfo(p, { id: 'cropduster' }).stirs);
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.allies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.inv = 99; return q; };
+    p = arena(); grow(p, leafUnder('mandibles'), 'cropduster'); { const r = dummy(36); r.speed = 0; p.aimX = 1; p.aimY = 0; p.dashCd = 0; Input.keys.clear(); Input.keys.add('d'); Input.pressed.add(' '); for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`dive bomb: the dash lands in a bite (${(99 - r.hp).toFixed(1)} dmg)`, p.splices.includes('divebomb') && 99 - r.hp > 3); }
+    p = arena(); grow(p, leafUnder('howl'), leafUnder('eggsac')); { const r = dummy(20, 0.1); r.speed = 0; p.aimX = 1; p.aimY = 0; howl(p); const kids = game.allies.filter(a => a.kind === 'spiderling').length;
+      check(`brood howl: what it kills bursts into spiderlings (${kids})`, kids >= 2); }
+    p = arena(); grow(p, leafUnder('spike'), 'juggernaut'); { const r = dummy(60); r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.pressed.add('q'); update(1 / 60); Input.endFrame(); for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); }
+      check(`bone cannon: the headbutt fires a lance (${(99 - r.hp).toFixed(1)} dmg at 60px)`, 99 - r.hp > 4); }
+    p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; r.webT = 5; for (let i = 0; i < 90; i++) { r.webT = 5; update(1 / 60); Input.endFrame(); }
+      check(`silk nursery: spiderlings hatch on what's stuck (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling')); }
+    p = arena(); grow(p, 'venomspike', leafUnder('bile')); game.puddles = []; { const r = dummy(40); r.speed = 0; fireFor(30, true);
+      check('venom barrage: spikes burst into bile', p.splices.includes('venombarrage') && game.puddles.some(pd => pd.team === 'player' && pd.r >= 14)); }
+    p = arena(); grow(p, leafUnder('tongue'), leafUnder('proboscis')); p.hp = 1; { const r = dummy(30); r.r = 3; r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; p.aimX = 1; p.aimY = 0; tongueAttack(p); for (let i = 0; i < 40; i++) { update(1 / 60); Input.endFrame(); }
+      check(`blood gulp: swallowing heals (${p.hp} hp, gullet ${p.gullet})`, p.splices.includes('bloodgulp') && (p.hp > 1 || !r.dead)); }
+    // Power is earned.
+    newRun(); p = game.player; recomputeStats(p); const fresh = p.stats.power;
+    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'titanheart'); const grown = p.stats.power;
+    check(`a fresh body hits weaker than a fully grown one (power x${fresh.toFixed(2)} -> x${grown.toFixed(2)})`, fresh < 0.75 && grown > 0.95);
   }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
@@ -344,14 +373,21 @@ try {
     grow(p, 'eyes'); p.capacity = 4;
     check('one head: no second HEAD root offered', !kindsAt(p, 'HEAD', 'root').length);
     grow(p, 'spike'); p.capacity = 2;
-    check(`big parts need room: Tentacles (2 slots) not offered with 1 free`, !offersAt(p, 'LIMBS').includes('grapple'));
+    check(`big parts need room: Heartwood (2 slots) not offered with 1 free`, !offersAt(p, 'CORE').includes('heartwood'));
     p.capacity = 3;
-    check(`...offered with 2 free, and the card says so ("${choiceInfo(p, { id: 'grapple' }).note}")`, offersAt(p, 'LIMBS').includes('grapple') && /2 SLOTS/.test(choiceInfo(p, { id: 'grapple' }).note));
-    applyChoice(p, { id: 'grapple' });
+    check(`...offered with 2 free, and the card says so ("${choiceInfo(p, { id: 'heartwood' }).note}")`, offersAt(p, 'CORE').includes('heartwood') && /2 SLOTS/.test(choiceInfo(p, { id: 'heartwood' }).note));
+    applyChoice(p, { id: 'heartwood' });
     check('a big part fills two slots', slotsUsed(p) === 3 && freeSlots(p) === 0);
     check('a full body offers no new parts', !bodyOffers(p).some(c => c.kind === 'root'));
     grow(p, 'sporefire', 'cropduster'); p.capacity = 3;
     check(`a splice fuses two parts into one: it frees a slot (${slotsUsed(p)}/${slotCapacity(p)})`, p.splices.includes('firestorm') && slotCapacity(p) === 4);
+    p.capacity = 5; check(`...but never past the cap of ${MAX_SLOTS}`, slotCapacity(p) === MAX_SLOTS);
+    newRun(); p = game.player; game.room.pickups = []; for (let i = 0; i < 4; i++) { spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame(); }
+    check(`four cores later: still only ${slotCapacity(p)} slots`, slotCapacity(p) === MAX_SLOTS); game.pendingEvolutions = [];
+    grow(p, 'spike', 'bile', 'spines', 'spider', 'eyes'); p.capacity = 5;
+    { const picks = bossPicks(p), mouthPick = picks.find(c => locOf(c.id) === 'MOUTH');
+      check(`a full body still gets boss picks: they shed your least-grown part of that kind (${mouthPick && choiceInfo(p, mouthPick).note})`, mouthPick && mouthPick.kind === 'swap' && locOf(mouthPick.shed.id) === 'MOUTH' && /SHEDS/.test(choiceInfo(p, mouthPick).note));
+      applyChoice(p, mouthPick); check('...and the body stays at 5 parts', slotsUsed(p) === 5 && hasMutation(p, mouthPick.id)); }
     newRun(); p = game.player; applyChoice(p, { id: 'spike' }); applyChoice(p, { id: childrenOf('spike')[0] });
     check('the MOUTH can\'t race to full growth on floor 1', !kindsAt(p, 'MOUTH', 'branch').length && partAt(p, 'MOUTH').path.length === 2);
     game.depth = 2; check('...it finishes growing on floor 2', kindsAt(p, 'MOUTH', 'branch').length === 2); game.depth = 1;
@@ -416,13 +452,15 @@ try {
     spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check(`eating a core makes room (+1 slot: ${slotCapacity(p)}) and queues a CORE evolution`, p.capacity === START_SLOTS + 1 && game.pendingEvolutions.some(o => o.slot === 'CORE') && evolveReady(p));
     for (let i = 0; i < 130 && !game.menu; i++) { Input.keys.clear(); Input.keys.add('f'); update(1 / 60); Input.endFrame(); } Input.keys.clear();
-    check(`its cards are CORE (plus Gorge), and include Thick Hide (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.every(c => c.id === '_gorge' || slotOf(c.id) === 'CORE') && game.menu.choices.some(c => c.id === 'hide') && game.menu.choices.some(c => c.id === '_gorge'));
-    check(`...and you can keep the new slot free (Gorge: "${choiceInfo(p, { id: '_gorge' }).note}")`, /SLOT FREE/.test(choiceInfo(p, { id: '_gorge' }).note || ''));
+    check(`its cards: Thick Hide plus BOSS PICKS (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.some(c => c.id === 'hide') && game.menu.choices.filter(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss).length === 2 && choiceInfo(p, game.menu.choices.find(c => MUTATIONS[c.id].boss)).status === 'BOSS PICK');
+    { const bossRoots = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].boss); let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 6; for (let k = 0; k < 8; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); if (k % 3 === 2) game.depth++; } if (rollChoices(q, 3).some(c => bossRoots.includes(c.id)) || q.parts.some(m => bossRoots.includes(m.path[0]))) seen++; }
+      check(`normal evolutions never offer a boss pick (${seen}/200)`, seen === 0); }
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
     game.menu = null; game.evolving = false;
     grow(p, 'mirrortwin'); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check('with a CORE already grown, a core can plant a second one in the new slot', kindsAt(p, 'CORE', 'root').length > 0 && game.pendingEvolutions.length === 1);
-    { const all = rootsOf('CORE'); grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r))); game.pendingEvolutions = []; const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
-      check(`every CORE grown: the core makes you tougher instead (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && !game.pendingEvolutions.length); }
+    { const all = rootsOf('CORE'); p.coreBonus = 0; grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r)), ...Object.keys(MUTATIONS).filter(id => MUTATIONS[id].boss)); game.pendingEvolutions = []; const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+      check(`every CORE grown and every boss pick taken: the core makes you tougher instead (+${p.coreBonus} core bonus)`, p.coreBonus === 1 && !game.pendingEvolutions.length); }
     newRun(); game.depth = 2; startFloor(); p = game.player;
     enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
     const w = game.enemies.find(e => e.warden);

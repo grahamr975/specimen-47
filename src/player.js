@@ -44,6 +44,8 @@ function recomputeStats(p) {
   // Splices: parts that have fused (each one frees a slot).
   const splices = activeSplices(p);
   for (const k of splices) SPLICES[k].apply(s, p);
+  s.power = bodyPower(p);
+  s.damageMul *= s.power; // weak when fresh, strong when fully evolved
   finalizeStats(s);
   for (const k of splices) {
     if (p.splices.includes(k) || !game.room) continue;
@@ -274,6 +276,7 @@ function updatePlayer(dt) {
     if (p.dashT <= 0) {
       if (s.ring > 0) fireRing(p, s.ring);
       if (s.slamDmg > 0) slam(p);
+      if (s.diveBomb) diveBomb(p);
     }
   } else if (p.lungeT > 0) {
     // Feral lunge: a short, savage leap that bites at the end.
@@ -566,6 +569,7 @@ function fireGun(p, g, mul = 1) {
       homing: s.homing, split: s.split, bleed: g.bleed, slow: g.slow,
       acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
       venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
+      venomBurst: g.id === 'spike' && s.venomBarrage, // Venom Barrage: bursts into bile
       flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
       kind: 'shot', round: g.round, fade: g.fade, color: shotColor(s, g),
     });
@@ -929,8 +933,10 @@ function chargeHits(p) {
       for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 28 + o.r) damageEnemy(o, s.dashDmg * 0.7, o.x - e.x, o.y - e.y, true);
       floatText(e.x, e.y - 10, 'BURST', PAL.red);
     }
-    damageEnemy(e, s.dashDmg, p.dashX * 3, p.dashY * 3, true);
-    knock(e, p.dashX, p.dashY, 200);
+    const ram = s.batteringRam && p.shieldUp; // Battering Ram
+    damageEnemy(e, s.dashDmg * (ram ? 3 : 1), p.dashX * 3, p.dashY * 3, true);
+    knock(e, p.dashX, p.dashY, ram ? 320 : 200);
+    if (ram && !e.dead) { e.stunT = Math.max(e.stunT || 0, ENEMY_TYPES[e.type].boss ? 0.3 : 1.2); burst(e.x, e.y, '#8a7a5a', 8, 90); }
     hitstop(0.045);
     if (s.bleed > 0) { e.bleedT = 3; e.bleedDps = s.bleed; }
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);

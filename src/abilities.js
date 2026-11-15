@@ -401,6 +401,7 @@ function updateBurrow(p, dt, ix, iy) {
       for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) e.stunT = Math.max(e.stunT || 0, s.eruptStun);
     }
     if (s.eruptRing) fireRing(p, s.eruptRing);
+    if (s.seismicHowl && s.howl) howl(p, 1.5, true); // Seismic Howl
     for (let i = 0; i < (s.eruptBrood || 0); i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3));
     if (s.ambush) p.ambushT = 1.5;
     for (const c of corpsesNear(p.x, p.y, 24)) damageCorpse(c, s.burrowDmg);
@@ -519,6 +520,7 @@ function updateMiasma(p, dt) {
     if (s.gasHide) e.blindT = Math.max(e.blindT || 0, 0.4);
     if (s.gasCorrode) e.corrodeUntil = game.time + 0.3;
     if (s.gasChoke) e.slowT = Math.max(e.slowT || 0, 0.3);
+    if (s.toxicBloom) pollinate(e, s); // Toxic Bloom: the gas carries pollen
   }
   strikeSeal(p.x, p.y, r); // the gas eats through hazmat seals (one hit at a time)
   for (const c of game.room.corpses) { // corpses dissolve in it too (that's your DNA)
@@ -552,6 +554,7 @@ function howl(p, mul = 1, around = false) {
     if (e.dead || e.spawnT > 0) continue;
     const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
     if (d > range + e.r || (d > 10 && (dx * p.aimX + dy * p.aimY) / d < cone)) continue;
+    if (s.broodHowl) e.eggs = s.broodHowl; // Brood Howl: laid with eggs
     damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
     if (e.dead) continue;
     if (s.howlStun) e.stunT = Math.max(e.stunT || 0, s.howlStun);
@@ -622,7 +625,10 @@ function updatePolyp(a, dt) {
   } else {
     a.shootT = pp.rate;
     const d = Math.hypot(e.x - a.x, e.y - a.y) || 1;
-    spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true, pollen: s.polypPollen });
+    if (s.bilePolyps) { // Bile Garden: a spray of burning bile, twice as often
+      a.shootT = pp.rate * 0.5;
+      for (let k = 0; k < 3; k++) { const ang = Math.atan2(e.y - a.y, e.x - a.x) + rand(-0.2, 0.2); spawnBullet({ x: a.x, y: a.y - 3, vx: Math.cos(ang) * 165, vy: Math.sin(ang) * 165, r: 1.5, dmg: pp.dmg * 0.6, life: 0.5, kind: 'shot', round: true, fade: true, color: '#b0c040', acid: 8, polyp: true, pollen: s.polypPollen }); }
+    } else spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true, pollen: s.polypPollen });
   }
 }
 
@@ -639,7 +645,7 @@ function tongueAttack(p, mul = 1) {
   if (p.tongue) return; // it's already out there
   if (p.gullet > 0) { // spit something back out
     p.gullet--;
-    spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0 });
+    spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0, bloodBomb: s.bloodGulp ? 5 * s.damage : 0 });
     bloodSpray(p.x, p.y, p.aimX, p.aimY, 6, FLUID.blood, 90);
     Sfx.play('splat');
     return;
@@ -717,7 +723,7 @@ function swallow(p, e) {
   p.eatT = 0.4;
   bloodSpray(p.x + p.aimX * 5, p.y - 2, 0, 0, 6, ENEMY_TYPES[e.type].fluid, 50);
   floatText(p.x, p.y - 16, 'GULP', PAL.red);
-  if (p.hp < p.maxHp && Math.random() < 0.15) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); }
+  if (p.hp < p.maxHp && (p.stats.bloodGulp || Math.random() < 0.15)) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); } // Blood Gulp: always
   Sfx.play('gulp');
 }
 
@@ -1104,6 +1110,10 @@ function useActive(p, a) {
         hit = true;
       }
       if (hit) { hitstop(0.05); game.shake = Math.max(game.shake, 3); }
+      if (s.boneCannon) { // Bone Cannon: a huge lance out of your skull
+        spawnBullet({ x: p.x + p.aimX * 8, y: p.y - 2 + p.aimY * 8, vx: p.aimX * 260, vy: p.aimY * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
+        game.shake = Math.max(game.shake, 4); Sfx.play('blast');
+      }
       Sfx.play('ram');
       return true;
     }
@@ -1131,6 +1141,7 @@ function useActive(p, a) {
         const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
         if (d > R + e.r) continue;
         pollinate(e, s);
+        if (s.toxicBloom) game.clouds.push({ x: e.x, y: e.y, r: 14, life: 3, toxic: true }); // Toxic Bloom
         if (!isBoss(e)) knock(e, dx / d, dy / d, 120);
       }
       game.fx.push({ kind: 'act', what: 'pollen', x: p.x, y: p.y - 6, r: 4, max: R, t: 0.45, life: 0.45 });
@@ -1144,6 +1155,7 @@ function useActive(p, a) {
 
 function updateActives(p, dt) {
   p.limbCd -= dt; p.headCd -= dt;
+  updateNursery(p, dt);
   if (p.blackoutT > 0) p.blackoutT -= dt;
   for (const b of game.actShots) {
     b.life -= dt;
@@ -1205,5 +1217,34 @@ function drawActFx(ctx, f) {
     const rr = f.max * (1 - k);
     ctx.fillStyle = '#e8c860';
     for (let i = 0; i < 24; i++) { const a = i * Math.PI / 12 + rr * 0.05; ctx.fillRect(Math.round(f.x + Math.cos(a) * rr), Math.round(f.y + Math.sin(a) * rr), 1, 1); }
+  }
+}
+
+// --- Big splices -------------------------------------------------------------------------
+// Dive Bomb: the dash lands in a swooping bite.
+function diveBomb(p) {
+  const s = p.stats;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 22 + e.r) continue;
+    damageEnemy(e, s.biteDmg * 1.5 + 3 * s.damage, e.x - p.x, e.y - p.y, false, 200);
+    if (!e.dead) e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : 0.7);
+    game.fx.push({ kind: 'bite', x: e.x, y: e.y, t: 0.12 });
+  }
+  for (const c of corpsesNear(p.x, p.y, 22)) damageCorpse(c, s.biteDmg * 1.5);
+  game.fx.push({ kind: 'ring', x: p.x, y: p.y + 3, r: 4, max: 24, t: 0.2 });
+  game.shake = Math.max(game.shake, 3);
+  Sfx.play('bite');
+}
+
+// Silk Nursery: spiderlings keep hatching on whatever is stuck in your webs.
+function updateNursery(p, dt) {
+  const every = p.stats.silkNursery;
+  if (!every) return;
+  const kids = game.allies.filter(a => a.kind === 'spiderling' && !a.dead).length;
+  for (const e of game.enemies) {
+    if (e.dead || !(e.webT > 0)) continue;
+    if ((e.nurseryT = (e.nurseryT ?? every * 0.5) - dt) > 0) continue;
+    e.nurseryT = every;
+    if (kids < 10) { spawnAlly('spiderling', e.x + rand(-4, 4), e.y + rand(-3, 3)); Sfx.play('hatch'); }
   }
 }
