@@ -759,10 +759,11 @@ function updateWebs(dt) {
     if (!s.silk) { w.t = 0; continue; }
     for (const e of game.enemies) {
       if (w.t <= 0) break;
-      if (e.dead || e.spawnT > 0 || ENEMY_TYPES[e.type].boss) continue;
+      if (e.dead || e.spawnT > 0) continue;
       if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
-      e.webT = 0.25;
       damageEnemy(e, s.silk.dmg * dt, 0, 0, true);
+      if (ENEMY_TYPES[e.type].boss) continue; // the silk cuts a boss, but can't hold one
+      e.webT = 0.25;
       if (w.touched.has(e)) continue;
       w.touched.add(e);
       if (s.webHold) { e.stunT = Math.max(e.stunT || 0, s.webHold); floatText(e.x, e.y - 10, 'STUCK', '#e0d8d0'); } // Sticky Web

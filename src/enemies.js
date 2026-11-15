@@ -183,7 +183,7 @@ function killEnemy(e) {
     leaveCorpse(e, enemySpriteName(e), T.fluid); // scrap: nothing to harvest
     burst(e.x, e.y, '#ffd070', 10, 110, 0.35);
     Sfx.play('clank');
-  } else if (T.dna && (e.elite || Math.random() < T.corpse)) {
+  } else if (T.dna && !e.noDna && (e.elite || Math.random() < T.corpse)) {
     spawnCorpse(e, enemySpriteName(e)); // usable: burst it open for DNA
   } else {
     // Torn apart: just a smear, nothing worth harvesting.
@@ -429,7 +429,7 @@ function enemySpriteName(e) {
   if (e.type === 'rat' && Math.floor(e.t * 10) % 2) n = 'rat2';
   if (e.type === 'drone' && Math.floor(e.t * 16) % 2) n = 'drone2';
   if (e.type === 'scavenger' && e.engorged) n = e.fleeT < 4 && Math.floor(e.t * 8) % 2 ? 'scavengerfat2' : 'scavengerfat'; // pulses when about to escape
-  if (e.type === 'culture' && (e.growT || 0) > floorDef(game.depth).cultureSplit * 0.6) n = 'culture2'; // swelling, about to divide
+  if (e.type === 'culture' && !e.offspring && !e.divided && (e.growT || 0) > floorDef(game.depth).cultureSplit * 0.6) n = 'culture2'; // swelling, about to divide
   if ((e.type === 'mother' || e.type === 'motherling') && Math.floor(e.t * 2.5) % 2) n = e.type + '2'; // pulsing
   if (e.face < 0) n += '_L';
   return n;

@@ -382,13 +382,22 @@ function hitstop(t) {
 }
 
 // --- Cocoon: how you evolve ---------------------------------------------------------
-// With a full DNA bar (or a mutagen vial), hold F to wrap yourself in a cocoon.
-// You can't move or attack while it grows. Let go, or get hit, and it tears.
-// Returns true while you're inside it.
-const COCOON_TIME = 2.0;
+// DNA banks during a fight. Once the room is clear (doors open), a full bar
+// (or a mutagen vial, or a boss core) wraps you in a cocoon by itself; it
+// splits and the cards appear. Never during combat. If you put an evolution
+// off (Esc on the cards), hold F in any cleared room to cocoon when you like.
+// Getting hit tears the cocoon. Returns true while you're inside it.
+const COCOON_TIME = 1.0;
+const COCOON_WAIT = 0.6; // a beat after the room clears before it starts
 function updateCocoon(p, dt) {
-  const can = evolveReady(p) && p.dashT <= 0 && p.pullT <= 0 && p.lungeT <= 0 && !p.withdrawn;
-  if (!(can && Input.down('f'))) {
+  const can = evolveReady(p) && !game.room.locked && p.dashT <= 0 && p.pullT <= 0 && p.lungeT <= 0 && !p.withdrawn && !p.tongue;
+  const auto = can && p.snoozeRoom !== game.room;
+  if (auto && p.evolveT === 0) { // let the room settle a moment first
+    p.cocoonWait = (p.cocoonWait || 0) + dt;
+    if (p.cocoonWait < COCOON_WAIT && !Input.down('f')) return false;
+  }
+  if (!can) p.cocoonWait = 0;
+  if (!(can && (auto || Input.down('f')))) {
     if (p.evolveT > 0) {
       if (p.evolveT > 0.3) { burst(p.x, p.y - 3, '#c8b4a0', 8, 50); floatText(p.x, p.y - 18, 'TORN', PAL.slate); }
       p.evolveT = 0;
@@ -406,7 +415,7 @@ function updateCocoon(p, dt) {
   if (Math.random() < dt * 10) stainPx(p.x + rand(-5, 5), p.y + rand(3, 6), ['#c8b4a0', '#8a6a5a', '#5e2229'], 1);
   if (p.evolveT >= COCOON_TIME) {
     // It splits open. Evolve!
-    p.evolveT = 0;
+    p.evolveT = 0; p.cocoonWait = 0;
     game.evolving = true;
     bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 120);
     gibs(p.x, p.y, 6, ['#c8b4a0', '#a8907e', '#5e2229'], FLUID.blood);

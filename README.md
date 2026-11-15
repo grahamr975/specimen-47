@@ -12,14 +12,15 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | Mouse or arrow keys | Aim and shoot |
 | Space / Shift | Dash (brief invulnerability; becomes a charge with some mutations) |
 | Right click / E | Limb ability (Tentacles: grapple; Grasping Hands: grab, then throw) |
-| Hold F | Cocoon and evolve (when the DNA bar is full, or you've picked up a mutagen vial) |
+| Esc on the cards / hold F | Put an evolution off, then evolve later in any cleared room |
 | M / P | Mute / pause |
 
 ## How it works
 
+- **Culture Blobs** divide once; the copy can't divide and carries no DNA.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Attack it until it bursts, then collect the DNA globules that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **You're fragile.** You start with 3 HP.
-- **Evolve.** When the DNA bar is full, hold F to wrap yourself in a cocoon. It takes 2 seconds and you can't move or attack inside it; letting go or getting hit tears it. When it splits you choose 1 of 3 mutations. Cards don't say what a mutation does; you learn by growing it.
+- **Evolve.** DNA banks while you fight. Once the room is clear, a full bar wraps you in a cocoon by itself; it splits and you choose 1 of 3 mutations. Never mid-fight. (Esc on the cards puts it off; hold F in any cleared room to evolve later.) Cards don't say what a mutation does; you learn by growing it.
 - **Body slots.** Every mutation grows in one of five slots: MOUTH, HEAD, BACK, LIMBS or CORE.
   - **LIMBS is how you move.** You start limbless, as a slow, inching slug. Spider Legs skitter, Wings fly (floaty, and over obstacles), Tentacles grapple, Burrowing Claws dig and Pseudopods glide on slime.
   - **MOUTH is your attack.** You start spitting weak little slime blobs; your first MOUTH pick (Bone Spike, Bile Spit, Mandibles, Tendrils, Proboscis) replaces it.

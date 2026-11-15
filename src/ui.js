@@ -11,6 +11,7 @@ function openEvolution(opts) {
   const p = game.player;
   game.menu = {
     choices: rollChoices(p, 3, opts.minRarity, opts.slot),
+    src: opts,
     title: opts.title || 'EVOLUTION',
     sub: opts.slot ? 'ITS CORE BECOMES YOURS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
@@ -24,6 +25,16 @@ const CARD = { w: 94, h: 146, gap: 7, y: 50 };
 function cardX(i, n) {
   const total = n * CARD.w + (n - 1) * CARD.gap;
   return Math.round((VIEW_W - total) / 2) + i * (CARD.w + CARD.gap);
+}
+
+function putOffEvolution(p, src) {
+  if (src && src.fromDna) { p.level--; p.dna += dnaNeeded(p.level); } // the DNA goes back in the bar
+  else if (src) game.pendingEvolutions.unshift(src);                   // the vial / core waits
+  game.evolving = false;
+  p.snoozeRoom = game.room;
+  closeMenu();
+  emergeFromCocoon(p);
+  floatText(p.x, p.y - 14, 'NOT YET', PAL.slate);
 }
 
 function closeMenu() {
@@ -43,6 +54,9 @@ function updateMenu(dt) {
     if (mx >= x && mx < x + CARD.w && my >= CARD.y && my < CARD.y + CARD.h) menu.hover = i;
   }
   if (menu.t < 0.5 || menu.stageT < 0.2) return; // ignore input briefly so a held fire button doesn't pick by accident
+
+  // Esc: not now. Everything waiting stays banked; hold F in a cleared room later.
+  if (Input.hit('escape')) { putOffEvolution(p, menu.src); return; }
 
   let choice = -1;
   for (let i = 0; i < n; i++) if (Input.hit(String(i + 1))) choice = i;
@@ -141,7 +155,7 @@ function drawMenu(ctx) {
   });
 
   if (menu.t > 0.5) {
-    drawText(ctx, 'PRESS 1-3 OR CLICK A CARD', VIEW_W / 2, 206, PAL.slate, 1, 'center');
+    drawText(ctx, 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
 
@@ -173,7 +187,8 @@ function drawHUD(ctx) {
   // Room status message
   const room = game.room;
   let msg = null, col = PAL.white;
-  if (evolveReady(p) && (p.evolveT > 0 || Math.floor(game.time * 2.5) % 2)) { msg = p.evolveT > 0 ? 'KEEP HOLDING...' : 'HOLD [F] TO COCOON AND EVOLVE'; col = VIAL_COLOR; }
+  if (p.evolveT > 0) { msg = 'YOU ARE CHANGING...'; col = VIAL_COLOR; }
+  else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
   else if (room.orbs.length) { msg = 'DNA SPILLED'; col = VIAL_COLOR; }
@@ -217,7 +232,7 @@ function drawDnaTube(ctx, p) {
     ctx.fillRect(tx + 2, ty + 1, inner, 7);
     ctx.globalAlpha = 1;
   }
-  drawText(ctx, full ? 'DNA READY - HOLD F' : `DNA ${p.dna}/${need}`, VIEW_W / 2, 16, full ? VIAL_COLOR : '#8a6a74', 1, 'center');
+  drawText(ctx, full ? (game.room.locked ? 'DNA READY - CLEAR THE ROOM' : 'DNA READY') : `DNA ${p.dna}/${need}`, VIEW_W / 2, 16, full ? VIAL_COLOR : '#8a6a74', 1, 'center');
 }
 
 function drawMinimap(ctx) {
@@ -356,7 +371,7 @@ function drawTitle(ctx) {
     ['MOUSE / ARROWS', 'AIM + SHOOT'],
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
-    ['HOLD F', 'COCOON + EVOLVE'],
+    ['ESC ON CARDS', 'EVOLVE LATER (HOLD F)'],
     ['M / P', 'MUTE / PAUSE'],
   ];
   lines.forEach(([k, v], i) => {

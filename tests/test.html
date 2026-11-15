@@ -150,7 +150,7 @@ try {
   { // 000) Attack types: MOUTH = what you fire; paths change how.
     let p;
     newRun(); combatRoom(); p = game.player; calm();
-    grow(p, 'bile');
+    grow(p, 'bile'); game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 100; p.y = 96; // open floor
     let made = 0; for (let i = 0; i < 30; i++) { const n0 = mine().length; fireFor(1); made += Math.max(0, mine().length - n0); }
     check(`bile spit is a flamethrower (${made} droplets in 0.5s, delay ${p.stats.guns[0].delay.toFixed(2)}s)`, made >= 4 && p.stats.guns[0].delay < 0.12);
     newRun(); combatRoom(); p = game.player; calm();
@@ -371,30 +371,53 @@ try {
     check('every set has a body form at every stage', Object.keys(SETS).every(k => forms.includes(k) && SPR.forms[k].length === 5 && SPR.forms[k].every(f => f.body && f.body2_L && f.hurt)));
     for (const k of forms) { grow(p, ...SLOTS.map(sl => formOf(k, sl))); render(); }
   }
-  { // 0b) Evolving takes a cocoon: hold F with a full DNA bar.
-    newRun(); combatRoom(); let p = game.player; calm(); game.enemies = [];
-    const hold = (frames, f = true) => { for (let i = 0; i < frames && !game.menu; i++) { Input.keys.clear(); if (f) Input.keys.add('f'); Input.mouse.down = false; update(1 / 60); Input.endFrame(); } Input.keys.clear(); };
+  { // 0b) Evolving happens when the room is clear: never mid-fight.
+    newRun(); combatRoom(); let p = game.player; game.enemies = [];
+    const far = dummy(150, 999); far.speed = 0; // a fight still going on
+    const wait = (frames, keys = []) => { for (let i = 0; i < frames && !game.menu; i++) { Input.keys.clear(); for (const k of keys) Input.keys.add(k); Input.mouse.down = false; p.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear(); };
     const lvl = p.level, need = dnaNeeded(p.level);
-    gainDna(need + 1); hold(30, false);
-    check('a full DNA bar no longer opens the cards by itself', !game.menu && evolveReady(p) && p.level === lvl);
-    hold(60); const x0 = p.x;
-    check('holding F grows a cocoon', p.evolveT > 0.9);
-    hold(1, false);
-    check('letting go tears it', p.evolveT === 0 && !game.menu);
-    hold(60); p.inv = 0; hurtPlayer(1);
-    check('getting hit tears it', p.evolveT === 0 && !game.menu);
-    p.hp = p.maxHp; p.inv = 0;
-    Input.keys.add('d'); hold(30); const moved = Math.abs(p.x - x0);
-    hold(150);
+    gainDna(need + 1); wait(120, ['f']);
+    check('a full DNA bar does nothing while the room is locked (not even F)', !game.menu && p.evolveT === 0 && evolveReady(p));
+    game.enemies = []; wait(50); // (a short beat after the room clears)
+    check('once the room clears, the cocoon wraps you by itself', p.evolveT > 0 && !game.room.locked);
+    const x0 = p.x; Input.keys.add('d'); wait(20, ['d']); const moved = Math.abs(p.x - x0);
     check(`you can't move inside it (${moved.toFixed(1)}px)`, moved < 0.5);
-    check('after 2 seconds it splits and the cards appear', !!game.menu && game.menu.title === 'EVOLUTION');
+    wait(60);
+    check('it splits and the cards appear', !!game.menu && game.menu.title === 'EVOLUTION');
+    // Esc puts it off: the DNA goes back in the bar, and it won't nag you in this room.
+    game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame();
+    check(`esc puts it off and keeps the DNA (level ${p.level}, dna ${p.dna}/${dnaNeeded(p.level)})`, !game.menu && p.level === lvl && p.dna === need + 1 && evolveReady(p));
+    wait(90);
+    check('...and it does not start again by itself in this room', !game.menu && p.evolveT === 0);
+    wait(90, ['f']);
+    check('hold F in a cleared room to evolve when you like', !!game.menu);
     autoMenu(); for (let i = 0; i < 5; i++) { update(1 / 60); Input.endFrame(); }
     check(`evolving spends the DNA (level ${lvl} -> ${p.level}, dna ${p.dna} left)`, p.level === lvl + 1 && p.dna === 1 && !evolveReady(p) && !game.evolving);
-    // A vial and a full bar: one cocoon, two card screens.
+    // A vial and a full bar, in a fresh cleared room: one cocoon, two card screens.
+    combatRoom(); game.enemies = []; p.x = 100; p.y = 96; p.snoozeRoom = null;
     game.pendingEvolutions.push({ minRarity: 'uncommon', title: 'MUTAGEN' }); gainDna(dnaNeeded(p.level));
-    let screens = 0; hold(130);
+    let screens = 0; wait(150);
     for (let i = 0; i < 10 && game.menu; i++) { screens++; autoMenu(); update(1 / 60); Input.endFrame(); }
     check(`one cocoon covers everything waiting (${screens} card screens)`, screens >= 1 && !evolveReady(p));
+    // A hit tears it.
+    combatRoom(); game.enemies = []; p.x = 100; p.y = 96; gainDna(dnaNeeded(p.level)); wait(50);
+    p.inv = 0; hurtPlayer(1);
+    check('getting hit tears the cocoon', p.evolveT === 0 && !game.menu);
+  }
+  { // 0j) Bug reports: cultures, and silk vs bosses.
+    newRun(); combatRoom(); let p = game.player; game.enemies = [];
+    const c = spawnEnemy('culture', 160, 96); c.spawnT = 0; c.speed = 0;
+    for (let i = 0; i < 60 * 70; i++) { p.hp = p.maxHp; p.inv = 1; Input.keys.clear(); update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    const cultures = game.enemies.filter(e => e.type === 'culture' && !e.dead);
+    check(`a culture divides only once, and its copy never divides (${cultures.length} after 70s)`, cultures.length === 2);
+    const copy = cultures.find(e => e.offspring);
+    let corpses = 0; for (let i = 0; i < 40; i++) { const k = spawnEnemy('culture', 100, 96); k.offspring = true; k.noDna = true; k.spawnT = 0; game.room.corpses = []; damageEnemy(k, 999, 0, 0, true); corpses += game.room.corpses.length; }
+    check(`divided copies leave no DNA (${corpses} corpses from 40)`, !!copy && corpses === 0);
+    newRun(); p = game.player; enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
+    grow(p, 'silk'); const mom = game.enemies.find(e => e.type === 'mother'); mom.spawnT = 0;
+    game.webs.push({ x1: mom.x - 20, y1: mom.y, x2: mom.x + 20, y2: mom.y, t: 5, touched: new Set() });
+    const h0 = mom.hp; for (let i = 0; i < 60; i++) { p.hp = p.maxHp; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    check(`silk cuts bosses (${(h0 - mom.hp).toFixed(1)} dmg)`, mom.hp < h0 && !(mom.webT > 0));
   }
   { // 0a) The Mutagen Vault: next to the start, behind a hazmat seal.
     let adj = 0, deadEnd = 0, exitOk = 0;
@@ -646,8 +669,14 @@ try {
   for (let run = 0; run < 3; run++) {
     newRun();
     let frames = 0, lockedFor = 0;
+    let lastKills = -1, still = 0, reported = false;
     while (frames < 40000 && game.depth < 5) {
       step(30, true); frames += 30;
+      if (game.kills === lastKills) still += 30; else { still = 0; lastKills = game.kills; }
+      if (still > 5000 && !reported) { // no progress for a long time: say what's going on
+        reported = true; const q = game.player, r = game.room;
+        log.push(`STALL run ${run}: room ${r.type} locked=${r.locked} cleared=${r.cleared} enemies=[${game.enemies.map(e => e.type + (e.held ? '(held)' : '') + '@' + e.x.toFixed(0) + ',' + e.y.toFixed(0)).join(' ')}] p@${q.x.toFixed(0)},${q.y.toFixed(0)} evolveT=${q.evolveT.toFixed(2)} ready=${evolveReady(q)} menu=${!!game.menu} evolving=${game.evolving} pullT=${q.pullT} dashT=${q.dashT.toFixed(2)} withdrawn=${q.withdrawn} tongue=${!!q.tongue} hitstop=${game.hitstop} slots=${SLOTS.map(s => q.slots[s] ? q.slots[s].id : '-').join(',')} doors=${Object.keys(r.doors).join(',')} seals=${JSON.stringify(r.seals || {})}`);
+      }
       const room = game.room;
       if (room.locked) { lockedFor += 30; if (lockedFor > 1800) for (const e of game.enemies.slice()) damageEnemy(e, 999, 0, 0, true); continue; }
       lockedFor = 0;

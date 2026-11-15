@@ -362,7 +362,7 @@ function updatePickups(dt) {
       if (slotOffers(pl, 'CORE').length) {
         game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
-        floatText(pl.x, pl.y - 22, 'HOLD F TO COCOON', VIAL_COLOR);
+
       } else {
         pl.coreBonus = (pl.coreBonus || 0) + 1; pl.hp++;
         recomputeStats(pl);
@@ -373,7 +373,7 @@ function updatePickups(dt) {
       Sfx.play('gulp');
       floatText(p.x, p.y - 8, 'MUTAGEN', VIAL_COLOR);
       game.pendingEvolutions.push({ minRarity: p.minRarity || 'uncommon', title: 'MUTAGEN' });
-      floatText(game.player.x, game.player.y - 22, 'HOLD F TO COCOON', VIAL_COLOR);
+
     }
   }
   game.room.pickups = game.room.pickups.filter(p => !p.dead);

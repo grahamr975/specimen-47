@@ -74,14 +74,19 @@ function drawBossFx(ctx) {
 
 // --- Floor 1 enemies ------------------------------------------------------------------
 // Culture Blob: barely moves; left alone, it swells and divides.
+// A culture divides ONCE. Its copy can't divide again and has no DNA worth
+// harvesting, so a room of cultures can always be cleared, and never farmed.
 function updateCulture(e, dt) {
+  if (e.offspring || e.divided) return;
   e.growT = (e.growT || 0) + dt;
   const split = floorDef(game.depth).cultureSplit;
   if (e.growT >= split) {
     e.growT = 0;
     if (game.enemies.filter(o => !o.dead).length < 18) {
+      e.divided = true;
       const a = rand(0, Math.PI * 2);
       const c = makeEnemy('culture', e.x, e.y);
+      c.offspring = true; c.noDna = true;
       c.spawnT = 0; c.kx = Math.cos(a) * 140; c.ky = Math.sin(a) * 140;
       game.enemies.push(c);
       bloodSpray(e.x, e.y, 0, 0, 8, FLUID.rot, 60);
@@ -195,6 +200,7 @@ function updateMother(e, dt, p) {
       for (const side of [-1, 1]) {
         if (Math.random() < 0.6 || side === 1) {
           const c = makeEnemy('culture', e.x + side * (e.r + 6), e.y + 6);
+          c.offspring = true; c.noDna = true; // born of the boss: no farming her
           c.spawnT = 0.3; c.kx = side * 120;
           game.enemies.push(c);
         }
@@ -251,7 +257,7 @@ function updateMotherling(e, dt, p) {
   if (e.birthT <= 0) {
     e.birthT = rand(7, 10);
     if (game.enemies.filter(o => !o.dead && o.type === 'culture').length < 5) {
-      const c = makeEnemy('culture', e.x, e.y + 8); c.spawnT = 0.3; game.enemies.push(c);
+      const c = makeEnemy('culture', e.x, e.y + 8); c.offspring = true; c.noDna = true; c.spawnT = 0.3; game.enemies.push(c);
     }
   }
   const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
