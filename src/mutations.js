@@ -1737,6 +1737,30 @@ function wouldSplice(p, id) {
   });
 }
 
+// ===========================================================================
+// COLORATION. Parts recolor your whole body: spider legs make you dark and
+// chitinous, a frog tongue turns you frog-green... Every node in a slot's
+// path can carry a tint: [color, strength 0-1, darkening 0-1]. The body
+// blends all of them (see bodyTint in player.js).
+// ===========================================================================
+const TINTS = {
+  // MOUTH
+  spike: ['#d8ccb0', 0.25], bile: ['#a8b840', 0.5], mandibles: ['#6a4020', 0.45, 0.15], tentacles: ['#8a3a6a', 0.5],
+  proboscis: ['#a03040', 0.4], ovipositor: ['#d8c890', 0.5], miasma: ['#6a9a3a', 0.55, 0.1], howl: ['#8a6a50', 0.35],
+  polyp: ['#c86a8a', 0.4], tongue: ['#4aa040', 0.65], silk: ['#c8c0b8', 0.45],
+  // HEAD
+  eyes: ['#c8a8a0', 0.2], skull: ['#d8ccb0', 0.35], nighteyes: ['#3a3a6a', 0.45, 0.25], parasite: ['#8a4a9a', 0.45], bloom: ['#d86a8a', 0.35],
+  // BACK
+  spines: ['#d8ccb0', 0.35], chitin: ['#6a4a24', 0.5, 0.15], eggsac: ['#d8c8a0', 0.3], twitch: ['#b04030', 0.4], thornbark: ['#6a5030', 0.5, 0.1],
+  toxic: ['#9ac030', 0.4],
+  // LIMBS
+  spider: ['#3a2a30', 0.7, 0.4], wings: ['#7a6a8a', 0.4], grapple: ['#8a3a6a', 0.5], burrow: ['#6a5038', 0.5, 0.15],
+  fins: ['#5a8aa0', 0.5], rootlegs: ['#6a5030', 0.5, 0.1], centipede: ['#7a3a1a', 0.4, 0.1],
+  // CORE
+  hide: ['#7a5a48', 0.35], marrow: ['#d8ccb0', 0.3], mitosis: ['#c86a9a', 0.4], starving: ['#8a7a6a', 0.4, 0.15],
+  heartwood: ['#6a5030', 0.45], overgrown: ['#9a2030', 0.35],
+};
+
 // --- Tree helpers -------------------------------------------------------------------
 function getMutDef(id) { return MUTATIONS[id]; }
 

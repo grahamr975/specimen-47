@@ -230,9 +230,13 @@ try {
     check('polyp: only a few grow at once', game.allies.filter(x => x.kind === 'polyp' && !x.dead).length <= p.stats.polyp.max);
     // Frog Tongue: swallow, then spit.
     p = setup('tongue'); a = spawnEnemy('mini', p.x + 40, p.y); a.spawnT = 0; a.speed = 0;
-    run(2, true);
-    check(`tongue: swallows small prey whole (gullet ${p.gullet})`, a.dead && p.gullet === 1);
-    b = dummy(50, 40); b.speed = 0; run(36, true); run(30);
+    run(1, true); Input.mouse.down = false;
+    check('tongue: it takes time to reach its prey', !!p.tongue && !a.dead);
+    let closest = 99; for (let i = 0; i < 40 && !a.dead; i++) { run(1); if (!a.dead) closest = Math.min(closest, a.x - p.x); }
+    check(`tongue: prey is reeled in to your mouth before it's eaten (got within ${closest.toFixed(1)}px)`, closest < 12);
+    check(`tongue: then swallowed whole, with a gulp (gullet ${p.gullet})`, a.dead && p.gullet === 1 && p.eatT > 0);
+    run(30);
+    b = dummy(50, 40); b.speed = 0; b.r = 8; run(20, true); run(30); // (too big to swallow)
     check(`tongue: fire again to spit it back (gullet ${p.gullet}, ${(40 - b.hp).toFixed(1)} dmg)`, p.gullet === 0 && b.hp < 40);
     // Silk Spinner.
     p = setup('silk'); run(2, true); a = dummy(30, 30); a.speed = 40; a.x = p.x + 30; a.y = p.y + 2;
@@ -264,6 +268,29 @@ try {
     check('all five plant parts: the plant set and body form', activeSet(p).set === 'PLANT' && activeSet(p).tier === 1 && (p.evolutions = 6, recomputeStats(p), p.form === 'PLANT'));
     p = setup('thornbark', 'rootlegs'); a = dummy(25, 50); a.speed = 0; idle(90);
     check(`strangler splice: rooted, thorns lash out around you (${(50 - a.hp).toFixed(1)} dmg)`, p.splices.includes('strangler') && a.hp < 50);
+  }
+  { // 0i) Travel time, and coloration.
+    const setup = (...ids) => { newRun(); combatRoom(); const p = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 100; p.y = 96; p.aimX = 1; p.aimY = 0; grow(p, ...ids); return p; };
+    let p = setup('tentacles'); let a = dummy(45, 50); a.speed = 0;
+    p.cd = {}; lash(p);
+    check('tendrils: a lash is in flight before it lands', game.whips.length === 1 && a.hp === 50);
+    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
+    check(`tendrils: it lands when the tip arrives (${(50 - a.hp).toFixed(1)} dmg)`, a.hp < 50);
+    p = setup('grapple'); a = dummy(70, 50); a.speed = 0; fireGrapple(p);
+    check('tentacle grapple: it flies out first', !!p.grappleShot && !p.pull);
+    for (let i = 0; i < 10 && !p.pull; i++) { update(1 / 60); Input.endFrame(); }
+    check('tentacle grapple: and pulls you once it sticks', !!p.pull && p.pull.enemy === a);
+    const lum = img => { const d = img.getContext('2d').getImageData(0, 0, img.width, img.height).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } return [r / n, g / n, b / n]; };
+    p = setup(); const pure = lum(tintedFrame(SPR.stages[0].body, { color: '#ffffff', amt: 0, dark: 0, key: 'none' }));
+    grow(p, 'spider'); const spider = lum(tintedFrame(SPR.stages[0].body, p.tint));
+    grow(p, 'tongue'); const frog = lum(tintedFrame(SPR.stages[0].body, p.tint));
+    check(`coloration: spider legs darken you (${pure.map(Math.round)} -> ${spider.map(Math.round)})`, spider[0] + spider[1] + spider[2] < (pure[0] + pure[1] + pure[2]) * 0.8);
+    check(`coloration: a frog tongue turns you green (${frog.map(Math.round)})`, frog[1] > frog[0] && frog[1] > frog[2]);
+    grow(p, 'tongue', 'parasite', 'spider'); check(`coloration: parts combine as a main color + an accent, and dark parts darken (${p.tint.color} with ${p.tint.accent}, dark ${p.tint.dark})`, p.tint.color === TINTS.tongue[0] && p.tint.accent === TINTS.parasite[0] && p.tint.dark > 0);
+    // Never muddy: however many colors you collect, the body keeps a vivid main color.
+    grow(p, 'tongue', 'parasite', 'twitch', 'spider', 'heartwood'); const mix = lum(tintedFrame(SPR.stages[3].body, p.tint));
+    const sat = c => (Math.max(...c) - Math.min(...c)) / Math.max(1, Math.max(...c));
+    check(`coloration: five colors don't mix to brown (main ${p.tint.color}, accent ${p.tint.accent}; saturation ${sat(mix).toFixed(2)})`, p.tint.color === TINTS.tongue[0] && sat(mix) > 0.25);
   }
   { // 0e) Splices: fused parts across slots.
     const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || new Set(pt.map(ids => slotOf(ids[0]))).size !== 2 || pt.some(ids => ids.some(id => slotOf(id) !== slotOf(ids[0]))); });

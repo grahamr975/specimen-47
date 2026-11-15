@@ -84,6 +84,41 @@ function recomputeStats(p) {
   }
   p.stage = stage;
   p.form = form;
+  p.tint = bodyTint(p);
+}
+
+// Your coloration. Averaging colors turns everything brown, so instead the
+// body is TWO-TONE: a main color (your strongest, most vivid tint) and an
+// accent along the back (the next tint whose hue is clearly different).
+// Dark parts darken the whole body. Pale tints (bone, hide) only win when
+// nothing more colorful is there.
+function bodyTint(p) {
+  const all = [];
+  for (const sl of SLOTS) {
+    const m = p.slots[sl];
+    if (!m || m.starter) continue;
+    for (const id of m.path) if (TINTS[id]) all.push(TINTS[id]);
+  }
+  if (!all.length) return null;
+  const hsl = hex => {
+    const c = parseInt(hex.slice(1), 16), r = (c >> 16 & 255) / 255, g = (c >> 8 & 255) / 255, b = (c & 255) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60 < 0 ? h * 60 + 360 : h * 60, s, l];
+  };
+  const ranked = all.map(t => ({ color: t[0], amt: t[1], dark: t[2] || 0, hsl: hsl(t[0]) }))
+    .map(t => ({ ...t, score: t.amt * (0.35 + t.hsl[1]) }))
+    .sort((a, b) => b.score - a.score);
+  const main = ranked[0];
+  const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  const accent = ranked.slice(1).find(t => t.hsl[1] > 0.25 && hueGap(t.hsl[0], main.hsl[0]) > 45);
+  const dark = Math.max(...ranked.map(t => t.dark));
+  const tint = { color: main.color, amt: Math.min(0.7, main.amt), dark };
+  if (accent) { tint.accent = accent.color; tint.accentAmt = Math.min(0.9, accent.amt + 0.35); }
+  tint.key = [tint.color, tint.amt, dark, tint.accent || '', tint.accentAmt || 0].join('|');
+  return tint;
 }
 
 // Which creature your body has become: the set most of your slots share
@@ -201,7 +236,10 @@ function updatePlayer(dt) {
   p.grappleCd -= dt;
   const limbAbility = Input.mouse.rightClicked || Input.hit('e');
   if (limbAbility && mv.hands && !(s.puppeteer && !p.held && mv.grapple && p.grappleCd <= 0)) handAction(p);
-  else if (limbAbility && mv.grapple && p.grappleCd <= 0 && p.dashT <= 0) fireGrapple(p);
+  else if (limbAbility && mv.grapple && p.grappleCd <= 0 && p.dashT <= 0 && !p.grappleShot) fireGrapple(p);
+  updateGrappleShot(p, dt);
+  updateTongue(p, dt);
+  if (p.eatT > 0) p.eatT -= dt;
 
   p.flying = mv.flyover; // wings carry you over obstacles
   let vx = 0, vy = 0;
@@ -667,6 +705,9 @@ function bite(p, dmg) {
 }
 
 // Tentacles: lash the nearest few enemies in front of you.
+// Tendrils: lash the nearest few enemies in front of you. Each lash takes
+// time to reach its target (see updateWhips); it hits when the tip arrives.
+const LASH_SPEED = 520;
 function lash(p) {
   const s = p.stats;
   const targets = game.enemies
@@ -677,22 +718,52 @@ function lash(p) {
     })
     .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))
     .slice(0, s.lashTargets);
+  const boost = p.dmgBoost || 1;
+  const send = (tx, ty, target, corpse) => game.whips.push({ tx, ty, target, corpse, len: 0, out: true, boost });
   const spare = s.lashTargets - targets.length;
-  if (spare > 0) {
-    for (const c of corpsesNear(p.x, p.y, s.lashRange, p.aimX, p.aimY, 0.35).slice(0, spare)) {
-      game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: c.x, y2: c.y, t: 0.14 });
-      damageCorpse(c, s.lashDmg, c.x - p.x, c.y - p.y);
-    }
+  if (spare > 0) for (const c of corpsesNear(p.x, p.y, s.lashRange, p.aimX, p.aimY, 0.35).slice(0, spare)) send(c.x, c.y, null, c);
+  for (const e of targets) send(e.x, e.y, e, null);
+  if (!targets.length) send(p.x + p.aimX * s.lashRange * 0.8, p.y + p.aimY * s.lashRange * 0.8, null, null); // a lash at nothing
+  Sfx.play('whip');
+}
+
+function updateWhips(dt) {
+  const p = game.player;
+  for (const w of game.whips) {
+    if (w.target && !w.target.dead) { w.tx = w.target.x; w.ty = w.target.y; } // the tip follows its prey
+    const dist = Math.hypot(w.tx - p.x, w.ty - p.y);
+    if (w.out) {
+      w.len += LASH_SPEED * dt;
+      if (w.len >= dist) { w.len = dist; w.out = false; whipLands(p, w); }
+    } else if ((w.len -= LASH_SPEED * 1.4 * dt) <= 0) w.done = true;
   }
-  if (!targets.length) {
-    // A lash at nothing, so the attack still feels responsive.
-    strikeSeal(p.x + p.aimX * s.lashRange * 0.4, p.y + p.aimY * s.lashRange * 0.4, s.lashRange * 0.4);
-    game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: p.x + p.aimX * s.lashRange * 0.8, y2: p.y + p.aimY * s.lashRange * 0.8, t: 0.1 });
-    Sfx.play('whip');
-    return;
+  game.whips = game.whips.filter(w => !w.done);
+}
+
+function whipLands(p, w) {
+  const s = p.stats;
+  if (w.target && !w.target.dead) {
+    const keep = p.dmgBoost; p.dmgBoost = w.boost; // a charged lash keeps its charge in flight
+    lashHit(p, w.target);
+    p.dmgBoost = keep;
+  } else if (w.corpse && !w.corpse.dead) damageCorpse(w.corpse, s.lashDmg, w.corpse.x - p.x, w.corpse.y - p.y);
+  else strikeSeal(w.tx, w.ty, 10);
+}
+
+function drawWhips(ctx) {
+  const p = game.player;
+  for (const w of game.whips) {
+    const d = Math.hypot(w.tx - p.x, w.ty - p.y) || 1;
+    const x2 = p.x + (w.tx - p.x) / d * w.len, y2 = p.y + (w.ty - p.y) / d * w.len;
+    pxLine(ctx, p.x, p.y, x2, y2, '#120a0e', 2);
+    pxLine(ctx, p.x, p.y, x2, y2, '#a8534f', 1);
   }
-  for (const e of targets) {
-    game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: e.x, y2: e.y, t: 0.14 });
+}
+
+// What a lash does when it lands.
+function lashHit(p, e) {
+  const s = p.stats;
+  {
     const wasBleeding = e.bleedT > 0;
     meleeHit(p, e, s.lashDmg, e.x - p.x, e.y - p.y);
     if (s.flay && wasBleeding) { // Flay: open wounds tear into a spray of shards
@@ -722,7 +793,6 @@ function lash(p) {
       e.kx -= (e.x - p.x) / d * 260; e.ky -= (e.y - p.y) / d * 260;
     }
   }
-  Sfx.play('whip');
 }
 
 // Feral Lunge: savage everything in a cone in front of you at the end of a leap.
@@ -752,21 +822,35 @@ function lungeBite(p) {
 // --- Tentacle grapple ----------------------------------------------------------------
 // Fire a tentacle along your aim. It sticks to the first wall, obstacle or
 // enemy it touches, then yanks you there.
+// The tentacle flies out along your aim (see updateGrappleShot) and sticks
+// to the first wall, obstacle or enemy it touches, then yanks you there.
 function fireGrapple(p) {
-  const s = p.stats;
-  p.grappleCd = s.grapple;
-  let x = p.x, y = p.y, anchor = null, enemy = null;
-  for (let d = 6; d <= s.grappleRange; d += 3) {
-    x = p.x + p.aimX * d; y = p.y + p.aimY * d;
-    enemy = game.enemies.find(e => !e.dead && e.spawnT <= 0 && Math.hypot(e.x - x, e.y - y) < e.r + 2);
-    if (enemy) { anchor = [enemy.x, enemy.y]; break; }
-    if (pointSolid(game.room, x, y)) { anchor = [x - p.aimX * 4, y - p.aimY * 4]; break; }
-  }
+  p.grappleCd = p.stats.grapple;
+  p.grappleShot = { len: 6, dirX: p.aimX, dirY: p.aimY };
   Sfx.play('whip');
-  if (!anchor) { // nothing to grab: it flops out and back
-    game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: x, y2: y, t: 0.15 });
-    return;
+}
+
+const GRAPPLE_SPEED = 620;
+function updateGrappleShot(p, dt) {
+  const g = p.grappleShot, s = p.stats;
+  if (!g) return;
+  if (!s.grapple) { p.grappleShot = null; return; }
+  for (let n = Math.ceil(GRAPPLE_SPEED * dt / 3); n > 0; n--) {
+    g.len += 3;
+    const x = p.x + g.dirX * g.len, y = p.y + g.dirY * g.len;
+    const enemy = game.enemies.find(e => !e.dead && e.spawnT <= 0 && Math.hypot(e.x - x, e.y - y) < e.r + 2);
+    if (enemy) { p.grappleShot = null; resolveGrapple(p, g, [enemy.x, enemy.y], enemy); return; }
+    if (pointSolid(game.room, x, y)) { p.grappleShot = null; strikeSeal(x, y, 6); resolveGrapple(p, g, [x - g.dirX * 4, y - g.dirY * 4], null); return; }
+    if (g.len >= s.grappleRange) { // nothing to grab: it flops out and back
+      p.grappleShot = null;
+      game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: x, y2: y, t: 0.12 });
+      return;
+    }
   }
+}
+
+function resolveGrapple(p, g, anchor, enemy) {
+  const s = p.stats;
   if (enemy && s.puppeteer) {
     const d = Math.hypot(enemy.x - p.x, enemy.y - p.y) || 1;
     enemy.kx += (p.x - enemy.x) / d * 520; enemy.ky += (p.y - enemy.y) / d * 520;
@@ -781,7 +865,7 @@ function fireGrapple(p) {
   }
   if (s.bileLine) { // Bile Line: burning bile along the whole length
     const len = Math.hypot(anchor[0] - p.x, anchor[1] - p.y);
-    for (let k = 12; k < len; k += 12) spawnPuddle(p.x + p.aimX * k, p.y + p.aimY * k, 7, 2.5, 'player');
+    for (let k = 12; k < len; k += 12) spawnPuddle(p.x + g.dirX * k, p.y + g.dirY * k, 7, 2.5, 'player');
   }
   p.pull = { x: anchor[0], y: anchor[1], enemy: enemy || null, hit: new Set() };
   p.pullT = 0.6;
@@ -979,6 +1063,7 @@ function hurtPlayer(dmg) {
 
 // --- Visual effects for melee (drawn above the darkness) -------------------------
 function updateFx(dt) {
+  updateWhips(dt);
   for (const f of game.fx) {
     f.t -= dt;
     if (f.kind === 'ring' || f.kind === 'howl') f.r += (f.max - f.r) * Math.min(1, dt * 18);
@@ -999,6 +1084,7 @@ function pxLine(ctx, x1, y1, x2, y2, color, w = 1, wiggle = 2) {
 }
 
 function drawFx(ctx) {
+  drawWhips(ctx);
   for (const f of game.fx) {
     if (f.kind === 'whip') {
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#120a0e', 2);
@@ -1098,10 +1184,18 @@ function drawPlayer(ctx) {
   if (limbsOk && p.slots.LIMBS && p.slots.LIMBS.path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
   for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
-  const body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
-  drawCentered(ctx, body, x, y);
+  let body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
+  // Coloration from your parts (half strength over a set's body form, which has its own colors).
+  if (p.tint && !hurt) body = tintedFrame(body, p.tint, p.form ? 0.5 : 1);
+  if (p.eatT > 0) {
+    // Swallowing: the body bulges and settles, and a lump slides down.
+    const k = Math.sin((1 - p.eatT / 0.4) * Math.PI);
+    const sx = 1 + 0.16 * k, sy = 1 - 0.08 * k;
+    ctx.drawImage(body, Math.round(x - body.width * sx / 2), Math.round(y - body.height * sy / 2 + body.height * (1 - sy) / 2), Math.round(body.width * sx), Math.round(body.height * sy));
+  } else drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[ov], x, y);
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
+  drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && p.slots.LIMBS) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
 
@@ -1234,6 +1328,11 @@ function drawCocoon(ctx, p, x, y) {
 function drawPlayerGlow(ctx) {
   const p = game.player;
   if (game.state !== 'play') return;
+  if (p.grappleShot) {
+    const g = p.grappleShot, tx = p.x + g.dirX * g.len, ty = p.y + g.dirY * g.len;
+    pxLine(ctx, p.x, p.y - 2, tx, ty, '#120a0e', 2);
+    pxLine(ctx, p.x, p.y - 2, tx, ty, '#a8534f', 1);
+  }
   if (p.pullT > 0 && p.pull) {
     const tx = p.pull.enemy && !p.pull.enemy.dead ? p.pull.enemy.x : p.pull.x;
     const ty = p.pull.enemy && !p.pull.enemy.dead ? p.pull.enemy.y : p.pull.y;

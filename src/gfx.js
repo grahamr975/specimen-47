@@ -71,6 +71,41 @@ function flipH(src) {
 }
 
 // Draw a sprite centered on (x, y), snapped to whole pixels.
+// A recolored copy of a sprite: the tint's hue over the sprite's own shading
+// (the 'color' blend keeps light and dark), an optional accent along the
+// top, optionally darkened. Cached per sprite and tint.
+const TINT_CACHE = new WeakMap();
+function tintedFrame(img, tint, scale = 1) {
+  let m = TINT_CACHE.get(img);
+  if (!m) TINT_CACHE.set(img, m = new Map());
+  const key = tint.key + scale;
+  let c = m.get(key);
+  if (c) return c;
+  c = makeCanvas(img.width, img.height);
+  const x = c.getContext('2d');
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = 'color';
+  if (tint.accent) {
+    // Two-tone: the accent owns the back (top), the main color the body, meeting mid-flank.
+    const fade = (col, a0, a1) => { const g = x.createLinearGradient(0, img.height * 0.5, 0, img.height * 0.72); g.addColorStop(0, a0 ? col : 'rgba(0,0,0,0)'); g.addColorStop(1, a1 ? col : 'rgba(0,0,0,0)'); return g; };
+    x.globalAlpha = tint.accentAmt * scale; x.fillStyle = fade(tint.accent, 1, 0); x.fillRect(0, 0, c.width, c.height);
+    x.globalAlpha = tint.amt * scale;       x.fillStyle = fade(tint.color, 0, 1);  x.fillRect(0, 0, c.width, c.height);
+  } else {
+    x.globalAlpha = tint.amt * scale;
+    x.fillStyle = tint.color; x.fillRect(0, 0, c.width, c.height);
+  }
+  if (tint.dark) {
+    x.globalCompositeOperation = 'multiply';
+    x.globalAlpha = tint.dark * scale;
+    x.fillStyle = '#404040'; x.fillRect(0, 0, c.width, c.height);
+  }
+  x.globalAlpha = 1;
+  x.globalCompositeOperation = 'destination-in';
+  x.drawImage(img, 0, 0);
+  m.set(key, c);
+  return c;
+}
+
 function drawCentered(ctx, img, x, y) {
   ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height / 2));
 }

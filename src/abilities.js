@@ -631,9 +631,12 @@ function polypFed(p) {
   if (++p.polypKills % p.stats.polypFeed === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
 }
 
-// Frog Tongue: lash out; swallow what's small, spit it back next time.
+// Frog Tongue: the tongue shoots out (see updateTongue). Small prey sticks to
+// it and is reeled in and swallowed whole; fire again to spit it back out.
+const TONGUE_OUT = 560, TONGUE_BACK = 380;
 function tongueAttack(p, mul = 1) {
   const s = p.stats, t = s.tongue;
+  if (p.tongue) return; // it's already out there
   if (p.gullet > 0) { // spit something back out
     p.gullet--;
     spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0 });
@@ -641,43 +644,97 @@ function tongueAttack(p, mul = 1) {
     Sfx.play('splat');
     return;
   }
-  let x = p.x, y = p.y, end = null;
-  const hits = [];
-  for (let d = 6; d <= t.range; d += 3) {
-    x = p.x + p.aimX * d; y = p.y + p.aimY * d;
-    if (pointSolid(game.room, x, y)) { end = 'wall'; break; }
-    const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && !hits.includes(o) && Math.hypot(o.x - x, o.y - y) < o.r + 2);
-    if (e) { hits.push(e); if (!s.tonguePierce) break; }
-    if (!hits.length) { const c = game.room.corpses.find(c => !c.dead && Math.hypot(c.x - x, c.y - y) < c.r + 2); if (c) { end = c; break; } }
-  }
-  game.fx.push({ kind: 'tongue', x1: p.x, y1: p.y - 2, x2: x, y2: y, t: 0.14 });
+  p.tongue = { len: 4, dirX: p.aimX, dirY: p.aimY, out: true, hits: [], carry: null, corpse: null, mul };
   Sfx.play('whip');
-  strikeSeal(x, y, 6);
-  if (end && end !== 'wall') { // a corpse: gulp it down
-    burstCorpse(end);
-    if (p.gullet < t.max) p.gullet++;
+}
+
+function tongueTip(p) {
+  const T = p.tongue;
+  return { x: p.x + T.dirX * T.len, y: p.y - 2 + T.dirY * T.len };
+}
+
+function updateTongue(p, dt) {
+  const T = p.tongue, s = p.stats, t = s.tongue;
+  if (!T) return;
+  if (!t) { if (T.carry) T.carry.held = false; p.tongue = null; return; }
+  if (T.out) {
+    for (let n = Math.ceil(TONGUE_OUT * dt / 3); n > 0 && T.out; n--) {
+      T.len += 3;
+      const { x, y } = tongueTip(p);
+      if (pointSolid(game.room, x, y)) { // a wall: it slaps and comes back (or reels you in)
+        T.out = false; strikeSeal(x, y, 6);
+        if (s.tongueYank) { reelIn(p, x - T.dirX * 6, y - T.dirY * 6, null); return; }
+        break;
+      }
+      const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && !o.held && !T.hits.includes(o) && Math.hypot(o.x - x, o.y - y) < o.r + 2);
+      if (e) {
+        T.hits.push(e);
+        if (!T.carry && T.hits.length === 1 && !ENEMY_TYPES[e.type].boss && !e.elite && e.r <= t.size && p.gullet < t.max) {
+          T.carry = e; e.held = true; e.kx = e.ky = 0; // stuck to the tongue
+          Sfx.play('chomp');
+          if (!s.tonguePierce) T.out = false;
+        } else {
+          damageEnemy(e, t.dmg * T.mul, p.x - e.x, p.y - e.y, true, 160); // yanked toward you
+          if (s.tongueVenom && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 2); e.slowT = Math.max(e.slowT || 0, 1.5); }
+          if (!s.tonguePierce) {
+            T.out = false;
+            if (s.tongueYank && !e.dead && !T.carry) { reelIn(p, e.x, e.y, e); return; } // too big: it reels YOU in
+          }
+        }
+        continue;
+      }
+      if (!T.carry && !T.hits.length && !T.corpse) {
+        const c = game.room.corpses.find(c => !c.dead && Math.hypot(c.x - x, c.y - y) < c.r + 2);
+        if (c) { T.corpse = c; T.out = false; break; }
+      }
+      if (T.len >= t.range) T.out = false;
+    }
     return;
   }
-  hits.forEach((e, i) => {
-    if (e.dead) return;
-    if (i === 0 && !ENEMY_TYPES[e.type].boss && !e.elite && e.r <= t.size && p.gullet < t.max) { // swallow it whole
-      e.swallowed = true;
-      damageEnemy(e, e.hp + 1, 0, 0, true);
-      p.gullet++;
-      floatText(p.x, p.y - 14, 'GULP', PAL.red);
-      if (p.hp < p.maxHp && Math.random() < 0.15) { p.hp++; floatText(p.x, p.y - 20, '+1 HP', PAL.red); }
-      Sfx.play('gulp');
-      return;
-    }
-    damageEnemy(e, t.dmg * mul, p.x - e.x, p.y - e.y, true, 160); // yanked toward you
-    if (s.tongueVenom && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 2); e.slowT = Math.max(e.slowT || 0, 1.5); }
-  });
-  // Grapple Tongue: anything too big (or a wall) reels YOU in.
-  const big = hits.find(e => !e.dead);
-  if (s.tongueYank && (big || end === 'wall')) {
-    p.pull = { x: big ? big.x : x - p.aimX * 6, y: big ? big.y : y - p.aimY * 6, enemy: big || null, hit: new Set() };
-    p.pullT = 0.5; p.dashT = 0; p.inv = Math.max(p.inv, 0.15);
+  // Reeling back in, with whatever is stuck to it.
+  T.len -= TONGUE_BACK * dt;
+  const { x, y } = tongueTip(p);
+  if (T.carry) { if (T.carry.dead) T.carry = null; else { T.carry.x = x; T.carry.y = y + 2; } }
+  if (T.corpse && !T.corpse.dead) { T.corpse.x = x; T.corpse.y = y + 2; }
+  if (T.len > 5) return;
+  // In the mouth: gulp.
+  if (T.carry) swallow(p, T.carry);
+  if (T.corpse && !T.corpse.dead) {
+    burstCorpse(T.corpse);
+    if (p.gullet < t.max) p.gullet++;
+    p.eatT = 0.4;
+    Sfx.play('gulp');
   }
+  p.tongue = null;
+}
+
+// Swallowed whole: the body bulges, and it's gone (DNA and all).
+function swallow(p, e) {
+  e.held = false;
+  e.swallowed = true;
+  damageEnemy(e, e.hp + 1, 0, 0, true);
+  p.gullet++;
+  p.eatT = 0.4;
+  bloodSpray(p.x + p.aimX * 5, p.y - 2, 0, 0, 6, ENEMY_TYPES[e.type].fluid, 50);
+  floatText(p.x, p.y - 16, 'GULP', PAL.red);
+  if (p.hp < p.maxHp && Math.random() < 0.15) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); }
+  Sfx.play('gulp');
+}
+
+// Grapple Tongue: the tongue sticks, and drags YOU in.
+function reelIn(p, x, y, enemy) {
+  p.tongue = null;
+  p.pull = { x, y, enemy: enemy || null, hit: new Set() };
+  p.pullT = 0.5; p.dashT = 0; p.inv = Math.max(p.inv, 0.15);
+}
+
+function drawTongue(ctx, p) {
+  if (!p.tongue) return;
+  const { x, y } = tongueTip(p);
+  const mx = p.x + p.tongue.dirX * 4, my = p.y - 2;
+  pxLine(ctx, mx, my, x, y, '#3a0a14', 3, 0);
+  pxLine(ctx, mx, my, x, y, '#d86a7a', 1, 0);
+  pxCircle(ctx, x, y, 2, '#e88a9a');
 }
 
 // Silk Spinner: lay sticky web lines on the floor.

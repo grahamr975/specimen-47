@@ -13,7 +13,7 @@ const game = {
   floor: null, room: null, player: null,
   enemies: [], bullets: [], puddles: [], particles: [], texts: [],
   fx: [], pendingEvolutions: [], allies: [], clouds: [], decoy: null, webs: [],
-  telegraphs: [], bombs: [], bossName: null, bossMax: 1,
+  telegraphs: [], bombs: [], bossName: null, bossMax: 1, whips: [],
   shake: 0, fade: 0, banner: null, menu: null, paused: false,
 };
 
@@ -52,6 +52,7 @@ function enterRoom(room, side) {
   game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.decoy = null; game.webs = [];
   game.telegraphs = []; game.bombs = []; game.bossName = null;
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
+  game.player.tongue = null; game.player.grappleShot = null; game.whips = [];
   for (const a of game.allies) { a.x = game.player.x; a.y = game.player.y; }
 
   const p = game.player;
