@@ -1865,16 +1865,18 @@ function meetsRequirement(p, id, except) {
 //   a new ROOT in a free slot (one head and one set of limbs at most),
 //   a MOUTH root that replaces your starter Slime Blob,
 //   a METAMORPHOSIS: a fully grown part sheds into a rarer root of its kind.
-// CORE only grows from devoured boss cores (onlyLoc = 'CORE').
+// A CORE root is only PLANTED from a devoured boss core (onlyLoc = 'CORE');
+// once planted it branches like any other part.
 function bodyOffers(p, onlyLoc) {
   const out = [];
-  const okLoc = loc => onlyLoc ? loc === onlyLoc : loc !== 'CORE';
+  const okLoc = loc => onlyLoc ? loc === onlyLoc : loc !== 'CORE'; // new roots and metamorphoses
   const free = freeSlots(p);
   const starter = p.parts.find(m => m.starter);
   for (const m of p.parts) {
-    if (m.starter || !okLoc(m.loc)) continue;
+    if (m.starter || (onlyLoc && m.loc !== onlyLoc)) continue;
     const kids = childrenOf(m.id);
     if (kids.length) { if (canGrowYet(m)) for (const id of kids) out.push({ id, kind: 'branch', part: m }); continue; }
+    if (!okLoc(m.loc)) continue;
     // Fully grown: it can shed into a rarer root.
     const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
     for (const r of rootsOf(m.loc)) {
@@ -1956,7 +1958,9 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   for (const g of byPart.values()) groups.push({ cards: g });
   for (const loc of LOCS) { const g = all.filter(c => c.kind === 'root' && locOf(c.id) === loc); if (g.length) groups.push({ cards: g }); }
   const metas = all.filter(c => c.kind === 'meta');
-  if (metas.length && Math.random() < 0.5) groups.push({ cards: metas }); // tempting, never the whole offer
+  // Tempting, never the whole offer: only sometimes, unless there's nothing else to grow.
+  const nothingElse = !out.length && !groups.length;
+  if (metas.length && (nothingElse || Math.random() < 0.5)) groups.push({ cards: metas });
   groups.sort(() => Math.random() - 0.5);
   for (const g of groups) { if (out.length >= n) break; take(pickWeighted(g.cards)); }
   // Still short? Take more from what's on offer (never a second metamorphosis).

@@ -403,8 +403,15 @@ try {
   }
   { // 0f) Boss cores: CORE only grows by eating what guards each floor.
     let p, core = 0;
-    for (let i = 0; i < 200; i++) { newRun(); p = game.player; for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE')) core++; }
-    check(`normal evolutions never offer CORE (${core}/200)`, core === 0);
+    for (let i = 0; i < 200; i++) { newRun(); p = game.player; if (i % 2) { p.capacity = 5; applyChoice(p, { id: 'hide' }); } for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE' && c.kind !== 'branch')) core++; }
+    check(`normal evolutions never PLANT a CORE (${core}/200)`, core === 0);
+    newRun(); p = game.player; grow(p, 'spike', 'hide', 'marrow');
+    check('...but a planted CORE branches like any other part', bodyOffers(p).some(c => c.kind === 'branch' && slotOf(c.id) === 'CORE'));
+    // A full body, everything else grown: the cards still offer something real.
+    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'bonejaws', 'venomquills', 'hide', 'marrow', 'heartwood'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
+      check(`full body with ungrown cores: never just Gorge (${onlyGorge}/100)`, onlyGorge === 0); }
+    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'bonejaws', 'venomquills', 'trapdoor'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
+      check(`full, fully grown body: a metamorphosis is always offered beside Gorge (${onlyGorge}/100 only Gorge)`, onlyGorge === 0); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
     spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check(`eating a core makes room (+1 slot: ${slotCapacity(p)}) and queues a CORE evolution`, p.capacity === START_SLOTS + 1 && game.pendingEvolutions.some(o => o.slot === 'CORE') && evolveReady(p));
