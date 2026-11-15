@@ -1853,7 +1853,16 @@ function mutOverlays(id) {
 // sheet is scaled up (damage, counts, ranges), and whatever it times is
 // sped up (delays, cooldowns). Per kind: [stronger per level, faster per level].
 const LEVEL_GAIN = { MOUTH: [0.10, 0.08], LIMBS: [0.06, 0.08], HEAD: [0.10, 0.10], BACK: [0.12, 0.08], CORE: [0.08, 0.08] };
-const LEVEL_TEXT = { MOUTH: '+10% DAMAGE, +8% FIRE RATE', LIMBS: '+6% SPEED, QUICKER DASH AND ABILITY', HEAD: 'STRONGER, AND A QUICKER Q', BACK: 'A STRONGER EFFECT', CORE: 'STRONGER, AND TOUGHER' };
+// What a level-up card says: + for a small bump, ++ / +++ for a big one.
+const bumpSign = g => g > 0.2 ? '+++' : g > 0.12 ? '++' : '+';
+function levelText(m, L) {
+  const [up, fast] = LEVEL_GAIN[m.loc] || [0.1, 0.08];
+  if (m.loc === 'MOUTH') return `${bumpSign(up)}DAMAGE ${bumpSign(fast)}FIRE RATE`;
+  if (m.loc === 'LIMBS') return `${bumpSign(up)}SPEED ${bumpSign(fast)}DASH ${bumpSign(fast)}ABILITY`;
+  if (m.loc === 'HEAD') return `${bumpSign(up)}POWER ${bumpSign(fast)}Q`;
+  if (m.loc === 'BACK') return `${bumpSign(up)}EFFECT`;
+  return `${bumpSign(up)}POWER` + (Math.floor(L / 2) > Math.floor((L - 1) / 2) ? ' ++HEALTH' : ''); // CORE: +1 max health every other level
+}
 const LOWER_IS_BETTER = new Set(['biteDelay', 'lashDelay', 'lungeDelay', 'vomitDelay', 'dashCd', 'grapple', 'shieldCd', 'regen', 'delay', 'every', 'rate', 'glare']);
 const NO_LEVEL_SCALE = new Set(['maxHp', 'hitCost', 'starve', 'invulnCap', 'invuln', 'hop', 'dashTime', 'accel', 'drag', 'limbCount', 'hpMul', 'lightMul', 'speedMul', 'dnaMul', 'rateMul', 'damageMul', 'speed', 'dashSpeed', 'fins', 'compound', 'power']);
 const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit']);
@@ -2102,7 +2111,7 @@ function choiceInfo(p, c) {
   if (c.kind === 'level') {
     const m = c.part, d = MUTATIONS[m.id], L = (m.lvl || 0) + 1, evolves = L >= LEVEL_MAX && childrenOf(m.id).length > 0;
     return { id: m.id, name: d.name, rarity: d.rarity, desc: d.desc, malignant: !!d.malignant && slotMalignant(m), set: null, slot: m.loc, kind: 'level',
-      status: evolves ? 'EVOLVES!' : 'LEVEL ' + L, note: LEVEL_TEXT[m.loc], noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: L, size: 1 };
+      status: evolves ? 'EVOLVES!' : 'LEVEL ' + L, note: levelText(m, L), noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: L, size: 1 };
   }
   if (c.id === '_gorge') {
     const free = freeSlots(p);

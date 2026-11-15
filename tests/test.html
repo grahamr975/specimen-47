@@ -493,6 +493,8 @@ try {
       openEvolution(game.pendingEvolutions.shift());
       check(`...the fork shows both of its branches (${game.menu.choices.map(c => c.id).join(',')})`, game.menu.choices.length === 2 && game.menu.choices.every(c => c.kind === 'branch' && MUTATIONS[c.id].from === 'spike'));
       game.menu.t = 2; render(); game.menu = null; }
+    { newRun(); const q = game.player; grow(q, 'spike', 'spider', 'eyes', 'spines', 'hide'); const notes = q.parts.map(m => choiceInfo(q, { kind: 'level', part: m }).note);
+      check(`level cards say +/++ instead of percents (${notes.join(' | ')})`, notes.every(n => /^\+/.test(n) && !/%/.test(n))); }
     { let ok = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'spike', 'spider'); q.capacity = 5; const cs = rollLevelUps(q, 3); if (cs.some(c => c.kind === 'level') && !cs.some(c => c.kind === 'branch')) ok++; }
       check(`biomass level-ups offer levels (and new parts), never a branch (${ok}/100)`, ok === 100); }
     { newRun(); const q = game.player; grow(q, 'spike', 'spider'); q.capacity = 4; const cs = rollLevelUps(q, 3);
