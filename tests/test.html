@@ -81,10 +81,10 @@ const combatRoom = () => { enterRoom(game.floor.rooms.find(r => r.type === 'comb
 function pathTo(id) { const out = [id]; while (MUTATIONS[out[0]].from) out.unshift(MUTATIONS[out[0]].from); return out; }
 // Grow the given nodes (each with its whole path). MOUTH keeps the starter slime blob unless given.
 // One part per id; a later HEAD or LIMBS replaces an earlier one. Capacity grows to fit.
+// ('slime' still works: the old starting spit, kept around for tests.)
 function grow(p, ...ids) {
   p.parts = [];
   for (const id of ids) { const loc = locOf(id); if (LOC_MAX[loc]) p.parts = p.parts.filter(m => m.loc !== loc); p.parts.push({ id, path: pathTo(id), loc }); }
-  if (!p.parts.some(m => m.loc === 'MOUTH')) p.parts.unshift({ id: 'slime', path: ['slime'], loc: 'MOUTH', starter: true });
   p.capacity = Math.max(START_SLOTS, slotsUsed(p));
   recomputeStats(p);
 }
@@ -137,7 +137,7 @@ try {
         check(`rarer roots can require a part elsewhere (burrow without a skull: ${before}, with: ${offersAt(q, 'LIMBS').includes('burrow')}; card says "${choiceInfo(q, { id: 'burrow' }).note}")`, !before && offersAt(q, 'LIMBS').includes('burrow') && /FED BY/.test(choiceInfo(q, { id: 'burrow' }).note)); }
       check(`metamorphosis is never forced (${two} rolls with 2+, ${forced} with no way to decline)`, !two && !forced); }
     newRun(); p = game.player;
-    check('the starter slime blob can be replaced by any (non-boss) MOUTH root', kindsAt(p, 'MOUTH', 'replace').join() === rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).join());
+    check('a fresh body is offered any (non-boss) MOUTH root', !p.parts.length && kindsAt(p, 'MOUTH', 'root').join() === rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).join());
     applyChoice(p, { id: 'tentacles' });
     check('...and then a second MOUTH can grow in a free slot (glass cannon)', partsAt(p, 'MOUTH').length === 1 && !p.parts.some(m => m.starter) && kindsAt(p, 'MOUTH', 'root').includes('spike') && !offersAt(p, 'MOUTH').includes('tentacles'));
     // Rolls never offer something illegal, never overfill the body, and usually show a fork side by side.
@@ -158,13 +158,13 @@ try {
     log.push(`forks shown side by side in ${forks}/300 rolls`);
     let mouthOffered = 0;
     for (let i = 0; i < 200; i++) { newRun(); if (rollChoices(game.player, 3).some(c => slotOf(c.id) === 'MOUTH')) mouthOffered++; }
-    check(`while you still spit slime, every roll offers a new MOUTH (${mouthOffered}/200)`, mouthOffered === 200);
+    check(`with no mouth yet, every roll offers one (${mouthOffered}/200)`, mouthOffered === 200);
     { let legs = 0, tries = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; for (let k = 0; k < randInt(0, 2); k++) { const c = rollChoices(q, 3).find(c => locOf(c.id) !== 'LIMBS'); if (c && c.id !== '_gorge') applyChoice(q, c); } if (partAt(q, 'LIMBS') || freeSlots(q) < 1) continue; tries++; if (rollChoices(q, 3).some(c => locOf(c.id) === 'LIMBS')) legs++; }
       check(`while you're a limbless slug, every roll offers limbs (${legs}/${tries})`, legs === tries && tries > 50); }
-    newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p);
+    newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'slime');
     { const r = dummy(30); r.speed = 40; spawnBullet({ x: r.x - 5, y: r.y, vx: 135, vy: 0, r: 2.5, dmg: 1, slow: p.stats.guns[0].slow, life: 0.3, kind: 'shot' }); update(1 / 60); Input.endFrame();
       check(`slime blobs slow what they hit (${(r.slowT || 0).toFixed(1)}s)`, r.slowT > 0.8); }
-    { const dps = g => g.dmg * g.count / g.delay; grow(p); const slime = dps(p.stats.guns[0]); grow(p, 'spike'); const spike = dps(p.stats.guns[0]);
+    { const dps = g => g.dmg * g.count / g.delay; grow(p, 'slime'); const slime = dps(p.stats.guns[0]); grow(p, 'spike'); const spike = dps(p.stats.guns[0]);
       check(`bone spike is never a downgrade from the slime (${slime.toFixed(2)} -> ${spike.toFixed(2)} dps)`, spike > slime); }
     check(`most rolls show a fork side by side (${forks}/300)`, forks > 120);
     for (let i = 0; i < 60; i++) { update(1 / 60); render(); Input.endFrame(); }
@@ -191,8 +191,8 @@ try {
     check(`release fires a bone shotgun (${mine().length} pellets)`, mine().length >= 8);
     // Stream Fibers: rapid stream.
     newRun(); combatRoom(); p = game.player;
-    grow(p); const slow = p.stats.guns[0].delay;
-    grow(p, 'streamfibers');
+    grow(p, 'slime'); const slow = p.stats.guns[0].delay;
+    grow(p, 'slime', 'streamfibers');
     check(`stream fibers turn the spit into a rapid stream (${slow.toFixed(2)}s -> ${p.stats.guns[0].delay.toFixed(2)}s)`, p.stats.guns[0].delay < slow * 0.4 && p.stats.guns[0].spread > 0);
     // Charged melee (Loaded Marrow).
     newRun(); combatRoom(); p = game.player; game.enemies = [];
@@ -216,7 +216,7 @@ try {
       for (let i = 0; i < 40; i++) { p.hp = p.maxHp; p.inv = 1; Input.keys.clear(); Input.mouse.down = false; update(1 / 60); Input.endFrame(); }
       return e.x - 118;
     };
-    const blob = push(p => grow(p), (p, e) => spawnBullet({ x: e.x - 6, y: e.y, vx: 115, vy: 0, r: 2.5, dmg: p.stats.guns[0].dmg, life: 0.3, kind: 'shot' }));
+    const blob = push(p => grow(p, 'slime'), (p, e) => spawnBullet({ x: e.x - 6, y: e.y, vx: 115, vy: 0, r: 2.5, dmg: p.stats.guns[0].dmg, life: 0.3, kind: 'shot' }));
     const bit = push(p => grow(p, 'mandibles'), p => bite(p, p.stats.biteDmg));
     const shotgun = push(p => grow(p, 'shotgun'), (p, e) => { for (let i = 0; i < 8; i++) spawnBullet({ x: e.x - 6, y: e.y + (i % 3) - 1, vx: 160, vy: 0, r: 1.5, dmg: p.stats.guns[0].dmg * 0.9, knock: 160, life: 0.3, kind: 'shot' }); });
     const heavy = push(p => grow(p, 'mandibles'), p => bite(p, p.stats.biteDmg), 'splitter');
@@ -430,9 +430,31 @@ try {
     newRun(); const q = game.player; grow(q, 'parasite'); q.hp = 1; q.parasiteT = 0; update(1 / 60); Input.endFrame();
     check('at 1 health the parasite does not take over', !(q.controlT > 0));
   }
+  { // 0q) Colored vials. You're born with nothing; the first room holds a MOUTH vial.
+    newRun(); let p = game.player;
+    const v = game.room.pickups.find(k => k.kind === 'vial');
+    check(`the first room holds a red MOUTH vial (${v && v.loc}), away from the middle`, v && v.loc === 'MOUTH' && Math.hypot(v.x - p.x, v.y - p.y) > 30);
+    p.x = v.x; p.y = v.y; update(1 / 60); Input.endFrame();
+    for (let i = 0; i < 150 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
+    check(`picking it up: a MOUTH screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'MOUTH VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
+    game.menu = null; game.evolving = false;
+    const vault = game.floor.rooms.find(r => r.type === 'vault');
+    check(`floor 1's vault holds a blue LIMBS vial for the slug (${vault && vault.vialLoc})`, vault && vault.vialLoc === 'LIMBS');
+    for (const loc of VIAL_LOCS) {
+      let bad = 0;
+      for (let i = 0; i < 40; i++) { newRun(); const q = game.player; q.capacity = 5; grow(q, 'spike', 'spines'); q.capacity = 5; const cs = rollChoices(q, 3, 'uncommon', loc); if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== loc)) bad++; }
+      check(`a ${loc} vial only offers ${loc} cards (${bad}/40 off)`, bad === 0);
+    }
+    newRun(); p = game.player; grow(p, 'bonejaws', 'venomquills', 'trapdoor'); p.capacity = 3;
+    const cs = rollChoices(p, 3, null, 'HEAD');
+    check(`a vial with nothing to grow falls back to a mixed roll (${cs.map(c => c.id).join(',')})`, cs.length > 0);
+    newRun(); combatRoom(); game.room.pickups = []; const e = spawnPickup('vial', 50, 50);
+    check(`elite vials get a color (${e.loc})`, VIAL_LOCS.includes(e.loc));
+    render();
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
-    check(`you start with ${START_SLOTS} slots, the slime in one`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 1);
+    check(`you start with ${START_SLOTS} empty slots and no attack`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 0 && !p.stats.guns.length && !p.stats.bite && !p.stats.lash);
     grow(p, 'spike', 'bile');
     check('two mouths both fire (glass cannon)', p.stats.guns.some(g => g.id === 'spike') && p.stats.guns.some(g => g.id === 'bile'));
     { game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96; fireFor(20); check(`...in a real fight, both fire (${new Set(mine().map(b => b.color)).size} kinds of shot)`, new Set(mine().map(b => b.color)).size >= 2); }
@@ -643,14 +665,14 @@ try {
     }
     game.depth = 1;
     check(`the vault is always next to the start (${adj}/60), a dead end (${deadEnd}/60), never the exit (${exitOk}/60)`, adj === 60 && deadEnd === 60 && exitOk === 60);
-    newRun(); let p = game.player; grow(p);
+    newRun(); let p = game.player; game.room.pickups = []; grow(p, 'slime');
     const room = game.room, dir = Object.keys(room.seals)[0], c = doorCenter(dir);
     check('the start room has a sealed door', !!sealAt(room, dir));
     // Walk into it: it holds.
     const keyFor = { up: 'w', down: 's', left: 'a', right: 'd' }[dir];
     for (let i = 0; i < 180; i++) { Input.keys.clear(); Input.keys.add(keyFor); update(1 / 60); Input.endFrame(); }
     check('the seal blocks the way', game.room === room);
-    // Shoot it with the starting slime blob.
+    // Shoot it with a slime blob.
     let shots = 0;
     p.x = clamp(c.x, TILE + 30, ROOM_PX_W - TILE - 30); p.y = clamp(c.y, TILE + 30, ROOM_PX_H - TILE - 30);
     for (let i = 0; i < 60 * 8 && sealAt(room, dir); i++) {
@@ -936,7 +958,7 @@ try {
   p.inv = 0; p.hp = 1; hurtPlayer(1);
   log.push('then: state=' + game.state);
   step(200, false);
-  log.push('after restart: state=' + game.state + ' mouth=' + partAt(game.player, 'MOUTH').id);
+  log.push('after restart: state=' + game.state + ' parts=' + game.player.parts.length);
 } catch (e) { log.push('EXCEPTION ' + e.message + '\n' + e.stack); }
 document.getElementById('out').textContent = log.concat(window.__errs).join('\n');
 </script>

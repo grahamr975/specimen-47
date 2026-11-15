@@ -10,11 +10,12 @@
 function openEvolution(opts) {
   const p = game.player;
   game.menu = {
-    choices: rollChoices(p, 3, opts.minRarity, opts.slot),
+    choices: rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc),
+    color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -141,7 +142,7 @@ function drawMenu(ctx) {
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
   const mutagen = menu.title === 'MUTAGEN';
-  drawText(ctx, menu.title, VIEW_W / 2, 18, mutagen ? VIAL_COLOR : PAL.red, 2, 'center');
+  drawText(ctx, menu.title, VIEW_W / 2, 18, menu.color || (mutagen ? VIAL_COLOR : PAL.red), 2, 'center');
   drawText(ctx, menu.sub, VIEW_W / 2, 36, PAL.slate, 1, 'center');
   const free = freeSlots(p);
   drawText(ctx, free > 0 ? `${free} FREE SLOT${free > 1 ? 'S' : ''}` : 'NO FREE SLOTS', VIEW_W - 4, 4, free > 0 ? VIAL_COLOR : PAL.slate, 1, 'right');
@@ -193,9 +194,10 @@ function drawHUD(ctx) {
   else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
+  else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial' && k.loc === 'MOUTH')) { msg = 'YOU HAVE NO MOUTH - TAKE THE RED VIAL'; col = vialColor('MOUTH'); }
   else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - BURST IT'; col = VIAL_COLOR; }
-  else if (room.type === 'vault') { msg = 'MUTAGEN VAULT'; col = VIAL_COLOR; }
+  else if (room.type === 'vault') { msg = (room.vialLoc || 'MUTAGEN') + ' VAULT'; col = vialColor(room.vialLoc); }
   else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d))) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; }
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');
 
@@ -248,7 +250,7 @@ function drawMinimap(ctx) {
     ctx.fillRect(x, y, 6, 4);
     let mark = null;
     if (r.type === 'exit') mark = PAL.red;
-    if (r.type === 'vault') mark = VIAL_COLOR;
+    if (r.type === 'vault') mark = vialColor(r.vialLoc);
     if ((r.corpses.length || r.orbs.length) && r.visited) mark = '#e8a0b8';
     if (mark && !current) { ctx.fillStyle = mark; ctx.fillRect(x + 2, y + 1, 2, 2); }
   }

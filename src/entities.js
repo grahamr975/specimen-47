@@ -334,12 +334,18 @@ function drawTexts(ctx) {
 }
 
 // --- Pickups ---------------------------------------------------------------------
-// kind: 'vial' (mutagen: a free evolution, uncommon or better) or 'heart'.
-// Stored per room so they persist.
-const VIAL_COLOR = '#c96a8f';
+// kind: 'vial', 'heart' or 'core'. Stored per room so they persist.
+// A VIAL is colored by the kind of part it grows: red MOUTH, blue LIMBS,
+// yellow HEAD, bone BACK. Picking one up is a free evolution offering only
+// that kind (uncommon or better, except the first room's mouth vial).
+const VIAL_COLOR = '#c96a8f'; // biomass pink (the HUD, globules)
+const VIAL_LOCS = ['MOUTH', 'LIMBS', 'HEAD', 'BACK'];
+const VIAL_COLORS = { MOUTH: '#e04848', LIMBS: '#4a8ae0', HEAD: '#e8c020', BACK: '#e0d8b8' };
+const vialColor = loc => VIAL_COLORS[loc] || VIAL_COLOR;
 
-function spawnPickup(kind, x, y) {
-  const p = { kind, x, y, t: Math.random() * 6, waitForLeave: false };
+function spawnPickup(kind, x, y, extra) {
+  const p = Object.assign({ kind, x, y, t: Math.random() * 6, waitForLeave: false }, extra);
+  if (kind === 'vial' && !p.loc) p.loc = pick(VIAL_LOCS);
   game.room.pickups.push(p);
   return p;
 }
@@ -379,8 +385,8 @@ function updatePickups(dt) {
     } else if (p.kind === 'vial') {
       p.dead = true;
       Sfx.play('gulp');
-      floatText(p.x, p.y - 8, 'MUTAGEN', VIAL_COLOR);
-      game.pendingEvolutions.push({ minRarity: p.minRarity || 'uncommon', title: 'MUTAGEN' });
+      floatText(p.x, p.y - 8, p.loc + ' VIAL', vialColor(p.loc));
+      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, title: p.loc + ' VIAL', color: vialColor(p.loc) });
 
     }
   }
@@ -399,8 +405,8 @@ function drawPickups(ctx) {
       if (beat) pxRing(ctx, p.x, p.y + bob, 10, '#7a1420');
       drawCentered(ctx, beat ? SPR.bossCore2 : SPR.bossCore, p.x, p.y + bob);
     } else {
-      if (Math.floor(p.t * 3) % 2) pxRing(ctx, p.x, p.y + bob, 8, VIAL_COLOR);
-      drawCentered(ctx, vialSprite(VIAL_COLOR), p.x, p.y + bob);
+      if (Math.floor(p.t * 3) % 2) pxRing(ctx, p.x, p.y + bob, 8, vialColor(p.loc));
+      drawCentered(ctx, vialSprite(vialColor(p.loc)), p.x, p.y + bob);
     }
   }
 }

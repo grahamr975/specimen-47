@@ -33,7 +33,7 @@
 
 const LOCS = ['MOUTH', 'HEAD', 'BACK', 'LIMBS', 'CORE'];
 const LOC_MAX = { HEAD: 1, LIMBS: 1 }; // one head, one way of moving
-const START_SLOTS = 3;                  // the slime blob takes one of them
+const START_SLOTS = 3;                  // you start with all of them empty
 const MAX_SLOTS = 5;                    // the hard cap: a finished body is 5 parts, not a hodgepodge
 const GROWTH_PER_FLOOR = 2;             // how often one part can grow per floor
 // POWER IS EARNED. A fresh body hits at 70%; every fully grown part and every
@@ -1988,6 +1988,26 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   const gorge = { id: '_gorge' };
   const all = bodyOffers(p, onlyLoc);
 
+  if (onlyLoc && onlyLoc !== 'CORE') {
+    // A colored vial: only that kind of part. Usually a fork, never two
+    // metamorphoses. If nothing of that kind can grow, it's a mixed roll instead.
+    if (!all.length) return rollChoices(p, n, minRarity);
+    const cs = all.slice(), out = [];
+    const take = c => { if (!out.some(o => o.id === c.id)) out.push(card(c)); };
+    const byPart = new Map();
+    for (const c of cs) if (c.kind === 'branch') { if (!byPart.has(c.part)) byPart.set(c.part, []); byPart.get(c.part).push(c); }
+    const forks = [...byPart.values()].filter(g => g.length === 2);
+    if (forks.length && Math.random() < 0.7) forks[Math.floor(Math.random() * forks.length)].forEach(take);
+    let metas = out.filter(c => c.kind === 'meta').length;
+    while (out.length < n) {
+      const left = cs.filter(c => !out.some(o => o.id === c.id) && (c.kind !== 'meta' || !metas));
+      if (!left.length) break;
+      const c = pickWeighted(left); if (c.kind === 'meta') metas++;
+      take(c);
+    }
+    if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge);
+    return out.sort(() => Math.random() - 0.5);
+  }
   if (onlyLoc) {
     // A devoured core: one CORE card (Thick Hide while you can still plant it)
     // and the rest BOSS PICKS, the strangest parts there are.
@@ -2006,6 +2026,9 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   // Still spitting the starter slime? Always offer a way out of it.
   const replace = all.filter(c => c.kind === 'replace');
   if (replace.length) take(pickWeighted(replace));
+  // No mouth yet (you skipped the first room's vial)? Always offer one.
+  const mouths = !partAt(p, 'MOUTH') && all.filter(c => c.kind === 'root' && locOf(c.id) === 'MOUTH');
+  if (mouths && mouths.length) take(pickWeighted(mouths));
   // Still a limbless slug? Always offer a way to move.
   const legs = !partAt(p, 'LIMBS') && all.filter(c => c.kind === 'root' && locOf(c.id) === 'LIMBS');
   if (legs && legs.length) take(pickWeighted(legs));

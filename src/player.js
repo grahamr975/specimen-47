@@ -10,8 +10,8 @@ function makePlayer() {
     x: ROOM_PX_W / 2, y: ROOM_PX_H / 2, r: 5,
     hp: BASE_HP, maxHp: BASE_HP,
     // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
-    // You're born spitting slime; your first MOUTH pick replaces it.
-    parts: [{ id: 'slime', path: ['slime'], loc: 'MOUTH', starter: true }], capacity: START_SLOTS,
+    // You're born with nothing at all: the first room holds a MOUTH vial.
+    parts: [], capacity: START_SLOTS,
     limbCd: 0, headCd: 0,
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
     moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,

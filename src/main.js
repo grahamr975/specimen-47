@@ -36,6 +36,9 @@ function startFloor() {
   if (game.player.parts) recomputeStats(game.player); // Rings of Age count floors
   game.player.twinDead = false; // a new twin grows each floor
   game.floor = generateFloor(game.depth);
+  // Each vault's vial color is decided now, so the minimap and its seal can show it.
+  // Floor 1's is LIMBS while you're still a slug.
+  for (const r of game.floor.rooms) if (r.type === 'vault') r.vialLoc = game.depth === 1 && !partAt(game.player, 'LIMBS') ? 'LIMBS' : pick(VIAL_LOCS);
   game.player.x = ROOM_PX_W / 2;
   game.player.y = ROOM_PX_H / 2;
   enterRoom(game.floor.start, null);
@@ -69,7 +72,9 @@ function enterRoom(room, side) {
       Sfx.play('door');
     } else {
       room.cleared = true;
-      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2);
+      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, { loc: room.vialLoc });
+      // You're born with nothing: the first room holds your first mouth (off to one side, out of the way).
+      if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) spawnPickup('vial', ROOM_PX_W / 2 - 40, ROOM_PX_H / 2 - 30, { loc: 'MOUTH', minRarity: null });
     }
   }
   game.fade = 0.2;
@@ -234,6 +239,8 @@ function drawDoors(ctx) {
       let img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmat' + dmg];
       if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash']; }
       ctx.drawImage(img, tx * TILE, ty * TILE);
+      const behind = room.doors[name]; // a glint of the vial waiting behind the seal
+      if (behind && behind.vialLoc && Math.floor(game.time * 2) % 2) { const c = doorCenter(name); ctx.fillStyle = vialColor(behind.vialLoc); ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3); }
       continue;
     }
     const lair = isLairDoor(room, name);
