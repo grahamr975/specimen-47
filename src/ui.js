@@ -10,9 +10,9 @@
 function openEvolution(opts) {
   const p = game.player;
   game.menu = {
-    choices: rollChoices(p, 3, opts.minRarity),
+    choices: rollChoices(p, 3, opts.minRarity, opts.slot),
     title: opts.title || 'EVOLUTION',
-    sub: opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.slot ? 'ITS CORE BECOMES YOURS' : opts.minRarity ? 'A RARE SAMPLE - UNCOMMON OR BETTER' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -117,6 +117,8 @@ function drawCard(ctx, info, i, x, y, menu) {
     for (const line of wrapText(info.note.toUpperCase(), 21)) { drawText(ctx, line, cx, ty, info.noteColor, 1, 'center', null); ty += 7; }
   }
 
+  // It would complete a splice: don't say which, just let it pulse.
+  if (info.stirs && Math.floor(menu.t * 3) % 3) drawText(ctx, 'SOMETHING STIRS', cx, y + h - 20, VIAL_COLOR, 1, 'center');
   drawText(ctx, `[${i + 1}]`, cx, y + h - 10, hover ? rc : PAL.slate, 1, 'center');
 }
 
@@ -347,7 +349,7 @@ function drawTitle(ctx) {
   for (const ov of OVERLAY_ORDER) if (shown.has(ov)) ctx.drawImage(st.overlay[ov], bx, by, 72, 72);
 
   if (Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK OR PRESS SPACE TO ESCAPE', VIEW_W / 2, 156, PAL.white, 1, 'center');
-  drawText(ctx, 'DEVOUR THE DEAD. EVOLVE. ESCAPE.', VIEW_W / 2, 172, PAL.slate, 1, 'center');
+  drawText(ctx, 'CONSUME. EVOLVE. ESCAPE.', VIEW_W / 2, 172, PAL.slate, 1, 'center');
 
   const lines = [
     ['WASD', 'MOVE'],
@@ -380,6 +382,7 @@ function drawGameOver(ctx) {
     const label = d.name.toUpperCase() + (m.path.length >= 3 ? '' : ` (${m.path.length}/3)`);
     drawText(ctx, label, VIEW_W / 2 + 8, 132 + i * 9, mutColor(p, m.id));
   });
+  if (p.splices.length) drawText(ctx, 'SPLICED: ' + p.splices.map(k => SPLICES[k].name.toUpperCase()).join(', '), VIEW_W / 2, 182, VIAL_COLOR, 1, 'center');
 
   if (game.overT > 1 && Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK TO TRY AGAIN', VIEW_W / 2, 200, PAL.white, 1, 'center');
 }

@@ -28,6 +28,9 @@ Open `index.html` in a browser. There's no build step and nothing to install.
   - A planted slot **branches**: two ways to go, and taking one locks out the other. Usually both show up side by side, and the card says what you'd give up.
   - Root, then branch, then branch: four end forms per root. Branches mostly add interactions, not bigger numbers (Bone Spike > Bone Shotgun > Bone Jaws: every bite drives a spike out the back of the victim).
 - **Sets.** Every mutation belongs to a set: Bone, Fungal, Hive, Predator or Abomination (shown on the card). Each slot counts as the set of its current form, so a branch can switch it. 3 matching slots wake a set bonus; all 5 wake a stronger one (Fungal: kills burst into spore clouds; Hive: kills hatch spiderlings...).
+- **Body forms.** Once two of your slots share a set, your whole body reshapes into that set's creature: a skeletal Bone crawler, a mushroom-sprouting Fungal mass, a Hive insect, a hunched Predator beast, or a lopsided Abomination. Mutation parts still grow on top.
+- **Cores.** Your CORE slot never shows up in normal evolutions. Each floor's boss (or, on floors without one yet, the exit room's Warden) drops its still-beating core: eat it to evolve your CORE. The first one always offers Thick Hide.
+- **Splices.** Certain parts in different slots fuse when you grow both (Spore Fire + Crop Duster = Firestorm: your flying spore trail burns). They're never named in advance; a card that would complete one just says SOMETHING STIRS.
 - **Rarity.** Mutations are Common, Uncommon, Rare or Legendary. Rare ones get likelier on deeper floors.
 - **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most have a branch that cures them, and a sibling branch that doubles down.
 - **Mutagen vials** (dropped by elites and found in vaults) give a free evolution with Uncommon-or-better cards.

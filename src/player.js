@@ -13,7 +13,7 @@ function makePlayer() {
     // You're born spitting slime; your first MOUTH pick replaces it.
     slots: { MOUTH: { id: 'slime', path: ['slime'], starter: true }, HEAD: null, BACK: null, LIMBS: null, CORE: null },
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
-    moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '',
+    moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,
     dna: 0, level: 0,
     evolutions: 0, stage: 0,  // how far it has degenerated from its pure form
     stats: baseStats(),
@@ -21,7 +21,7 @@ function makePlayer() {
     aimX: 1, aimY: 0, trailT: 0, ghostT: 0, t: 0, moving: false,
     regenT: 0, adrenalT: 0, dripT: 0, chompT: 0,
     lungeT: 0, lungeX: 1, lungeY: 0, hungerT: 0, cancerRooms: 0,
-    chargeT: 0, dmgBoost: 1, evolveT: 0,
+    chargeT: 0, dmgBoost: 1, evolveT: 0, form: null, lastSet: null,
     mvx: 0, mvy: 0, hopT: 0, hopAir: 0, hopX: 0, hopY: 0, slimeT: 0, flying: false,
     grappleCd: 0, pullT: 0, pull: null,
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
@@ -39,7 +39,20 @@ function recomputeStats(p) {
   const set = activeSet(p);
   if (set) SETS[set.set].bonus[set.tier].apply(s, p);
   if (p.frenzyT > 0 && s.setKillFrenzy) s.damageMul *= 1.4; // Apex frenzy
+  // Splices: parts in different slots that have fused.
+  const splices = activeSplices(p);
+  for (const k of splices) SPLICES[k].apply(s, p);
   finalizeStats(s);
+  for (const k of splices) {
+    if (p.splices.includes(k) || !game.room) continue;
+    game.banner = { text: 'SPLICED', sub: SPLICES[k].name, color: VIAL_COLOR, t: 2.8 };
+    whisper(SPLICES[k].whisper);
+    bloodSpray(p.x, p.y, 0, 0, 20, FLUID.blood, 120);
+    burst(p.x, p.y, VIAL_COLOR, 24, 110, 0.8);
+    game.shake = Math.max(game.shake, 4);
+    Sfx.play('splice');
+  }
+  p.splices = splices;
   const key = set ? set.set + set.tier : '';
   if (key !== (p.setKey || '')) {
     if (set && game.room) {
@@ -52,7 +65,7 @@ function recomputeStats(p) {
     p.setKey = key;
   }
   p.stats = s;
-  p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp) * s.hpMul));
+  p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp + (p.coreBonus || 0)) * s.hpMul));
   if (!s.flyover && game.room && circleHitsWall(game.room, p.x, p.y, p.r, false)) {
     const spot = randomFloorSpot(game.room, null, 0);
     p.x = spot.x; p.y = spot.y; // lost your wings over a crate: drop to the floor nearby
@@ -60,8 +73,8 @@ function recomputeStats(p) {
   p.hp = Math.min(p.hp, p.maxHp);
 
   // The body grows more grotesque as it evolves.
-  const stage = specimenStage(p);
-  if (stage > p.stage && game.room) {
+  const stage = specimenStage(p), form = specimenForm(p, stage);
+  if ((stage > p.stage || form !== p.form) && game.room) {
     bloodSpray(p.x, p.y, 0, 0, 30, FLUID.blood, 120);
     gibs(p.x, p.y, 5, ['#a8534f', '#5e2229', '#d9cfa0'], FLUID.blood);
     floatText(p.x, p.y - 22, 'YOU ARE CHANGING', PAL.red);
@@ -69,6 +82,26 @@ function recomputeStats(p) {
     Sfx.play('gulp');
   }
   p.stage = stage;
+  p.form = form;
+}
+
+// Which creature your body has become: the set most of your slots share
+// (at least 2), once you've started to degenerate. Ties go to the set you grew
+// most recently. null = still the slug.
+function specimenForm(p, stage) {
+  if (stage < 1) return null;
+  const n = setCounts(p);
+  let best = null;
+  for (const k in n) {
+    if (n[k] < 2) continue;
+    if (!best || n[k] > n[best] || (n[k] === n[best] && k === p.lastSet)) best = k;
+  }
+  return best;
+}
+
+// The body frames to draw right now.
+function bodyFrames(p) {
+  return p.form ? SPR.forms[p.form][p.stage] : SPR.stages[p.stage];
 }
 
 // Evolutions needed to reach each stage. Owning anything malignant adds a stage.
@@ -190,6 +223,10 @@ function updatePlayer(dt) {
       game.particles.push({ x: p.x - 3, y: p.y - 3, vx: 0, vy: 0, life: 0.12, color: '#5e2229', size: 6 });
     }
     if (s.dashDmg > 0) chargeHits(p);
+    if (s.boneSaw && (p.sawT = (p.sawT || 0) - dt) <= 0) { // Bone Saw
+      p.sawT = 0.03;
+      for (const side of [-1, 1]) spawnBullet({ x: p.x, y: p.y, vx: -p.dashY * side * 170 - p.dashX * 30, vy: p.dashX * side * 170 - p.dashY * 30, r: 1.5, kind: 'spine', dmg: 0.7 * s.damage, life: 0.35, color: PAL.white });
+    }
     if (p.dashT <= 0) {
       if (s.ring > 0) fireRing(p, s.ring);
       if (s.slamDmg > 0) slam(p);
@@ -242,6 +279,7 @@ function updatePlayer(dt) {
     }
   }
   updateBranchUpkeep(p, dt);
+  updateSpiderLegs(p, dt);
 
   // --- Upkeep: shell, regrowth, hunger, bleeding ---
   if (s.shieldCd > 0 && !p.shieldUp) {
@@ -459,7 +497,7 @@ function fireGun(p, g, mul = 1) {
       x: p.x + Math.cos(a) * 5, y: p.y + Math.sin(a) * 5,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       r: g.r, dmg: g.dmg * mul, life: g.range * (g.spread ? rand(0.8, 1.1) : 1), pierce: s.pierce,
-      homing: s.homing, split: s.split, bleed: g.bleed,
+      homing: s.homing, split: s.split, bleed: g.bleed, slow: g.slow,
       acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
       venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
       flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
@@ -518,6 +556,7 @@ function drainOne(p, target, dmg, fromX, fromY) {
   if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
+  if (s.drainDna && (p.bloodDna += dmg) >= s.drainDna) { p.bloodDna = 0; gainDna(1); floatText(p.x, p.y - 22, '+DNA', VIAL_COLOR); } // Blood Pump
   if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
   // Bloat: drained to death, it bursts.
   if (target.dead && s.drainBurst) {
@@ -797,6 +836,7 @@ function slam(p) {
     if (d < s.slamR + e.r) {
       damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, 260); // shockwave flings them outward
       if (s.slamStun && !e.dead) e.stunT = s.slamStun;
+      if (s.slamBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.slamBleed); } // Impaler
     }
   }
   for (const c of corpsesNear(p.x, p.y, s.slamR)) damageCorpse(c, s.slamDmg, c.x - p.x, c.y - p.y);
@@ -823,7 +863,7 @@ function hurtPlayer(dmg) {
   // Exoskeleton Molt: once per room, slip out of your skin and leave a decoy.
   if (s.molt && !game.room.moltUsed && !(p.moltT > 0)) {
     if (s.moltCd) p.moltT = s.moltCd; else game.room.moltUsed = true;
-    game.decoy = { x: p.x, y: p.y, t: 3, stage: p.stage };
+    game.decoy = { x: p.x, y: p.y, t: 3, stage: p.stage, body: bodyFrames(p).body };
     p.inv = 0.8;
     burst(p.x, p.y, '#8a7a5a', 16, 90);
     floatText(p.x, p.y - 14, 'MOLTED', '#8a7a5a');
@@ -878,6 +918,7 @@ function hurtPlayer(dmg) {
   bloodSpray(p.x, p.y, 0, 0, 16, FLUID.blood, 100);
   stain(p.x, p.y + 3, 2.5, FLUID.blood);
   if (s.ring > 0) fireRing(p, s.ring);
+  if (s.hurtFrags) for (const a of [0, Math.PI]) spawnFragments(p.x, p.y, a, s.hurtFrags / 2, 1.2 * s.damage, 4, 6, null); // Septic Blood
   if (s.toxicBlood > 0) {
     spawnPuddle(p.x, p.y, 20, 2.5, 'player');
     for (const e of game.enemies) {
@@ -1010,10 +1051,14 @@ function drawPlayer(ctx) {
     for (const lx of [-5, -1, 3, 6]) { pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#2e2618', 2, 0); pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#c4b898', 1, 0); }
   }
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
-  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
-  const body = hurt ? st.hurt : st[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
+  const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
+  if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
+  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
+  const fb = bodyFrames(p);
+  const body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
   drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[ov], x, y);
+  if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && p.slots.LIMBS) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
 
@@ -1025,6 +1070,91 @@ function drawPlayer(ctx) {
 
   ctx.fillStyle = PAL.white;
   ctx.fillRect(Math.round(p.x + p.aimX * 11), Math.round(p.y + p.aimY * 11), 1, 1);
+}
+
+// --- Spider legs: eight jointed legs that really walk ------------------------------------
+// Each foot stays planted on the floor while the body moves. When the body
+// gets too far ahead, the foot lifts and steps to a new spot ahead of you.
+// Legs move in two alternating groups (like a real spider's gait), and the
+// knees solve to arch up between hip and foot. The four far legs are drawn
+// behind the body, the four near legs in front of it.
+const SPIDER_LEGS = [
+  // hip (relative to the body), resting foot (relative to the floor point under you), near/far, gait group
+  { hx: -2.5, hy: -1, fx: -18, fy: -3, near: false, g: 0 },
+  { hx: -1, hy: -1, fx: -10, fy: -7, near: false, g: 1 },
+  { hx: 1, hy: -1, fx: 10, fy: -7, near: false, g: 0 },
+  { hx: 2.5, hy: -1, fx: 18, fy: -3, near: false, g: 1 },
+  { hx: -2.5, hy: 1, fx: -19, fy: 5, near: true, g: 1 },
+  { hx: -1, hy: 1, fx: -10, fy: 8, near: true, g: 0 },
+  { hx: 1, hy: 1, fx: 10, fy: 8, near: true, g: 1 },
+  { hx: 2.5, hy: 1, fx: 19, fy: 5, near: true, g: 0 },
+];
+const LEG_STEP_TIME = 0.065; // how long a foot is in the air
+const LEG_STRIDE = 12;       // how far the body travels before a foot steps
+
+function spiderLegsActive(p) {
+  const m = p.slots.LIMBS;
+  return !!(m && m.path[0] === 'spider' && !(p.limbWear > 0) && p.burrowT <= 0 && !p.withdrawn && !p.flying);
+}
+
+function updateSpiderLegs(p, dt) {
+  if (!spiderLegsActive(p)) { p.legs = null; return; }
+  const k = STAGE_SCALE[p.stage] * 1.1;
+  const vx = (p.x - (p.lastLegX ?? p.x)) / dt, vy = (p.y - (p.lastLegY ?? p.y)) / dt;
+  p.lastLegX = p.x; p.lastLegY = p.y;
+  const rest = (L, lead) => ({ x: p.x + L.fx * k + vx * lead, y: p.y + 2 + L.fy * k + vy * lead });
+  if (!p.legs) p.legs = SPIDER_LEGS.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
+  const stepping = g => p.legs.some((f, i) => f.t > 0 && SPIDER_LEGS[i].g === g);
+  const fast = Math.hypot(vx, vy) > 160;
+  p.legs.forEach((f, i) => {
+    const L = SPIDER_LEGS[i];
+    if (f.t > 0) { // mid-step: swing toward the target
+      f.t = Math.max(0, f.t - dt);
+      const u = 1 - f.t / LEG_STEP_TIME;
+      f.x = f.sx + (f.tx - f.sx) * u; f.y = f.sy + (f.ty - f.sy) * u;
+      return;
+    }
+    const want = rest(L, 0.12);
+    const d = Math.hypot(want.x - f.x, want.y - f.y);
+    if (d > 40) { f.x = want.x; f.y = want.y; return; } // teleported (doors, grapples)
+    // Step when stretched too far, and only while the other group is planted.
+    if ((d > LEG_STRIDE * k && (fast || !stepping(1 - L.g))) || d > LEG_STRIDE * 1.8 * k) { // (a badly stretched leg steps anyway)
+      f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = LEG_STEP_TIME * (fast ? 0.6 : 1);
+    } else if (!p.moving && d > 2) { // standing still: feet settle back under you
+      f.x += (want.x - f.x) * Math.min(1, dt * 6); f.y += (want.y - f.y) * Math.min(1, dt * 6);
+    }
+  });
+}
+
+// Two-bone leg: hip -> knee -> foot. The knee bends up and outward.
+function drawSpiderLegs(ctx, p, bx, by, which) {
+  const k = STAGE_SCALE[p.stage] * 1.1;
+  const L1 = 11 * k, L2 = 13 * k;
+  const dark = '#100808', mid = '#5a4030', hi = '#a08060';
+  p.legs.forEach((f, i) => {
+    const L = SPIDER_LEGS[i];
+    if (L.near !== (which === 'near')) return;
+    const hx = bx + L.hx * k, hy = by + 2 + L.hy * k;
+    const lift = f.t > 0 ? Math.sin((1 - f.t / LEG_STEP_TIME) * Math.PI) * 3 : 0;
+    const fx = f.x, fy = f.y - lift;
+    let dx = fx - hx, dy = fy - hy, d = Math.hypot(dx, dy) || 1;
+    const reach = Math.min(d, L1 + L2 - 0.5);
+    const a = (L1 * L1 - L2 * L2 + reach * reach) / (2 * reach);
+    const h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+    const ux = dx / d, uy = dy / d;
+    // Of the two knee solutions, take the one that points up (and outward).
+    let nx = -uy, ny = ux;
+    if (ny > 0 || (ny === 0 && nx * ux < 0)) { nx = -nx; ny = -ny; }
+    const kx = hx + ux * a + nx * h, ky = hy + uy * a + ny * h;
+    const ex = hx + ux * reach, ey = hy + uy * reach; // where the foot actually is (clamped)
+    // Thin, dark-edged segments: a thicker femur up to the knee, a fine tibia down to the claw.
+    pxLine(ctx, hx, hy + 1, kx, ky + 1, dark, 1, 0); pxLine(ctx, kx + 1, ky, ex + 1, ey, dark, 1, 0);
+    pxLine(ctx, hx, hy, kx, ky, mid, 1, 0); pxLine(ctx, hx, hy - 1, kx, ky - 1, hi, 1, 0);
+    pxLine(ctx, kx, ky, ex, ey, mid, 1, 0);
+    ctx.fillStyle = dark; ctx.fillRect(Math.round(kx) - 1, Math.round(ky) - 2, 3, 3);  // knee joint
+    ctx.fillStyle = hi; ctx.fillRect(Math.round(kx), Math.round(ky) - 1, 1, 1);
+    ctx.fillStyle = dark; ctx.fillRect(Math.round(ex), Math.round(ey), 1, 2);        // claw tip
+  });
 }
 
 // The cocoon wraps up from the floor as it grows, then pulses before splitting.

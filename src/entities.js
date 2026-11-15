@@ -149,6 +149,7 @@ function onPlayerBulletHit(b, enemy) {
     if (s.stunChance && Math.random() < s.stunChance) enemy.stunT = Math.max(enemy.stunT || 0, 0.8);    // Brain Worm
   }
   if (b.bleed) { enemy.bleedT = 3; enemy.bleedDps = b.bleed; }
+  if (b.slow && !enemy.dead) enemy.slowT = Math.max(enemy.slowT || 0, b.slow); // sticky slime
   if (b.split > 0) spawnFragments(b.x, b.y, Math.atan2(b.vy, b.vx), b.split, b.dmg * 0.5, b.homing, b.acid ? b.acid * 0.6 : 0, enemy);
 }
 
@@ -336,6 +337,22 @@ function updatePickups(dt) {
         floatText(p.x, p.y - 8, '+1 HP', PAL.red);
         Sfx.play('pickup');
       }
+    } else if (p.kind === 'core') {
+      // A boss's core: eat it. It grows your CORE (or, if that's fully grown, makes you tougher).
+      p.dead = true;
+      bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 130);
+      game.shake = Math.max(game.shake, 4);
+      Sfx.play('gulp');
+      pl.hp = Math.min(pl.maxHp, pl.hp + 1);
+      if (slotOffers(pl, 'CORE').length) {
+        game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
+        floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
+        floatText(pl.x, pl.y - 22, 'HOLD F TO COCOON', VIAL_COLOR);
+      } else {
+        pl.coreBonus = (pl.coreBonus || 0) + 1; pl.hp++;
+        recomputeStats(pl);
+        floatText(pl.x, pl.y - 14, '+1 MAX HP', PAL.red);
+      }
     } else if (p.kind === 'vial') {
       p.dead = true;
       Sfx.play('gulp');
@@ -353,6 +370,11 @@ function drawPickups(ctx) {
     pxCircle(ctx, p.x, p.y + 5, 3, 'rgba(0,0,0,0.35)');
     if (p.kind === 'heart') {
       drawCentered(ctx, SPR.heart, p.x, p.y + bob);
+    } else if (p.kind === 'core') {
+      // Still beating.
+      const beat = Math.floor(p.t * 2.5) % 3 === 0;
+      if (beat) pxRing(ctx, p.x, p.y + bob, 10, '#7a1420');
+      drawCentered(ctx, beat ? SPR.bossCore2 : SPR.bossCore, p.x, p.y + bob);
     } else {
       if (Math.floor(p.t * 3) % 2) pxRing(ctx, p.x, p.y + bob, 8, VIAL_COLOR);
       drawCentered(ctx, vialSprite(VIAL_COLOR), p.x, p.y + bob);

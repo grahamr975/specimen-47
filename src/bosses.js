@@ -265,13 +265,12 @@ function onBossPartKilled(e) {
   if (rest.length) return;
   // The boss is dead.
   game.bossName = null;
-  game.banner = { text: 'THE MOTHER IS DEAD', sub: 'Something rare spills from her', color: PAL.lime, t: 3 };
+  game.banner = { text: 'THE MOTHER IS DEAD', sub: 'Her core is still beating', color: PAL.lime, t: 3 };
   for (let i = 0; i < 8; i++) {
     const a = rand(0, Math.PI * 2), sp = rand(40, 110);
     game.room.orbs.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
   }
-  const vial = spawnPickup('vial', ROOM_PX_W / 2 + 34, ROOM_PX_H / 2);
-  vial.minRarity = 'rare';
+  spawnPickup('core', ROOM_PX_W / 2 + 34, ROOM_PX_H / 2);
   game.shake = 8;
 }
 

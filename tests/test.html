@@ -128,6 +128,14 @@ try {
       if (new Set(cards.map(c => c.id)).size !== cards.length) illegal++;
     }
     check(`cards never offer a locked path (${illegal} bad)`, illegal === 0);
+    let mouthOffered = 0;
+    for (let i = 0; i < 200; i++) { newRun(); if (rollChoices(game.player, 3).some(c => slotOf(c.id) === 'MOUTH')) mouthOffered++; }
+    check(`while you still spit slime, every roll offers a new MOUTH (${mouthOffered}/200)`, mouthOffered === 200);
+    newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p);
+    { const r = dummy(30); r.speed = 40; spawnBullet({ x: r.x - 5, y: r.y, vx: 135, vy: 0, r: 2.5, dmg: 1, slow: p.stats.guns[0].slow, life: 0.3, kind: 'shot' }); update(1 / 60); Input.endFrame();
+      check(`slime blobs slow what they hit (${(r.slowT || 0).toFixed(1)}s)`, r.slowT > 0.8); }
+    { const dps = g => g.dmg * g.count / g.delay; grow(p); const slime = dps(p.stats.guns[0]); grow(p, 'spike'); const spike = dps(p.stats.guns[0]);
+      check(`bone spike is never a downgrade from the slime (${slime.toFixed(2)} -> ${spike.toFixed(2)} dps)`, spike > slime); }
     check(`most rolls show a fork side by side (${forks}/300)`, forks > 120);
     for (let i = 0; i < 60; i++) { update(1 / 60); render(); Input.endFrame(); }
   }
@@ -187,6 +195,44 @@ try {
     check(`a point-blank shotgun blast sends it flying (${shotgun.toFixed(1)}px)`, shotgun > bit);
     check(`heavier enemies resist (splitter ${heavy.toFixed(1)}px vs rat ${bit.toFixed(1)}px)`, heavy < bit * 0.7);
   }
+  { // 0e) Splices: fused parts across slots.
+    const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || new Set(pt.map(ids => slotOf(ids[0]))).size !== 2 || pt.some(ids => ids.some(id => slotOf(id) !== slotOf(ids[0]))); });
+    check('every splice joins parts from two different slots' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
+    newRun(); combatRoom(); let p = game.player; game.enemies = [];
+    grow(p, 'sporefire');
+    check('a card that would complete a splice stirs', wouldSplice(p, 'cropduster') && choiceInfo(p, { id: 'cropduster' }).stirs && !choiceInfo(p, { id: 'plague' }).stirs);
+    grow(p, 'sporefire', 'cropduster');
+    check('growing both halves splices them', p.splices.includes('firestorm') && p.stats.fireTrail && game.banner && game.banner.text === 'SPLICED');
+    check('a part keeps counting after its path branches on', (grow(p, 'bloodbattery', 'hemophage'), p.splices.includes('bloodpump')));
+    // Run every splice in a fight.
+    for (const k in SPLICES) { newRun(); combatRoom(); p = game.player; grow(p, ...SPLICES[k].parts.map(ids => ids[ids.length - 1])); step(120, true); }
+    log.push('all ' + Object.keys(SPLICES).length + ' splices ran in a fight');
+    // Each splice actually does its thing.
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = []; grow(p, 'bonejaws', 'mantis', 'spines');
+    { const pid = p.slots.BACK; grow(p, 'spines', 'mantis'); p.dashCd = 0; Input.pressed.add(' '); update(1 / 60); Input.endFrame(); for (let i = 0; i < 6; i++) { update(1 / 60); Input.endFrame(); }
+      check('bone saw: dashing sprays shards', game.bullets.filter(b => b.kind === 'spine').length >= 4); }
+    newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'hide', 'chitin'); p.shieldUp = false;
+    for (let i = 0; i < 5; i++) { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); }
+    check('living armor: 5 kills regrow your shell', p.shieldUp);
+  }
+  { // 0f) Boss cores: CORE only grows by eating what guards each floor.
+    let p, core = 0;
+    for (let i = 0; i < 200; i++) { newRun(); p = game.player; for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE')) core++; }
+    check(`normal evolutions never offer CORE (${core}/200)`, core === 0);
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
+    spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+    check('eating a core queues a CORE evolution', game.pendingEvolutions.some(o => o.slot === 'CORE') && evolveReady(p));
+    for (let i = 0; i < 130 && !game.menu; i++) { Input.keys.clear(); Input.keys.add('f'); update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check(`its cards are all CORE, and include Thick Hide (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.every(c => slotOf(c.id) === 'CORE') && game.menu.choices.some(c => c.id === 'hide'));
+    game.menu = null; game.evolving = false;
+    grow(p, 'secondheart'); const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+    check(`a fully grown CORE: the core makes you tougher instead (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && !game.pendingEvolutions.length);
+    newRun(); game.depth = 2; startFloor(); p = game.player;
+    enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
+    const w = game.enemies.find(e => e.warden);
+    check('floors without a boss have a warden in the exit room', !!w);
+    if (w) { w.spawnT = 0; damageEnemy(w, 9999, 0, 0, true); check('the warden drops its core', game.room.pickups.some(k => k.kind === 'core')); }
+  }
   { // 0c) Sets.
     const untagged = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && !setOf(id));
     check('every mutation belongs to a set' + (untagged.length ? ' (' + untagged.join(',') + ')' : ''), !untagged.length);
@@ -217,6 +263,16 @@ try {
     check('abomination: getting hurt lashes everything near you', r.hp < 99);
     grow(p, formOf('BONE', 'MOUTH'), formOf('BONE', 'HEAD'), formOf('HIVE', 'BACK'));
     check('a slot counts as its CURRENT form (2 bone + 1 hive = no set)', !activeSet(p));
+    // Body forms: two of a set reshapes the body (once it has started to degenerate).
+    p.evolutions = 0; recomputeStats(p);
+    check('the pure slug keeps its shape', p.stage === 0 && !p.form);
+    p.evolutions = 4; recomputeStats(p);
+    check(`two bone slots turn the body into the bone form (form ${p.form}, stage ${p.stage})`, p.form === 'BONE' && bodyFrames(p) === SPR.forms.BONE[p.stage]);
+    grow(p, ...SLOTS.map(sl => formOf('HIVE', sl)));
+    check('a full hive body is the hive form', p.form === 'HIVE');
+    const forms = Object.keys(SPR.forms);
+    check('every set has a body form at every stage', Object.keys(SETS).every(k => forms.includes(k) && SPR.forms[k].length === 5 && SPR.forms[k].every(f => f.body && f.body2_L && f.hurt)));
+    for (const k of forms) { grow(p, ...SLOTS.map(sl => formOf(k, sl))); render(); }
   }
   { // 0b) Evolving takes a cocoon: hold F with a full DNA bar.
     newRun(); combatRoom(); let p = game.player; calm(); game.enemies = [];
@@ -319,7 +375,8 @@ try {
       for (let i = 0; i < 60 * 16 && !runner.dead; i++) { p.hp = 3; p.inv = 1; update(1 / 60); Input.endFrame(); }
       check('left alone, it gets away (no DNA)', runner.dead && !game.room.orbs.some(o => o.t < 1));
     }
-    // Sticky spills slow you.
+    // Sticky spills slow you. (Start on open floor, clear of crates.)
+    game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 90; p.y = 96; game.hitstop = 0; p.evolveT = 0;
     game.room.hazards = [{ kind: 'sticky', x: p.x, y: p.y + 3, r: 30 }];
     const x0 = p.x; for (let i = 0; i < 30; i++) { Input.keys.clear(); Input.keys.add('d'); update(1 / 60); Input.endFrame(); }
     const slowDist = p.x - x0; game.room.hazards = [];
@@ -352,7 +409,7 @@ try {
     for (const e of game.enemies.slice()) if (!e.dead) damageEnemy(e, 999, 0, 0, true);
     for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
     check('boss defeated: bar gone, hatch open', !game.bossName && exit.hatch);
-    check('boss drops a rare+ mutagen', exit.pickups.some(k => k.kind === 'vial' && k.minRarity === 'rare'));
+    check('the boss drops its still-beating core', exit.pickups.some(k => k.kind === 'core'));
 
     // Affixes.
     for (const a of Object.keys(AFFIXES)) {
@@ -434,8 +491,15 @@ try {
   for (const e of game.enemies) { e.spawnT = 0; e.x = p.x + 20; e.y = p.y; } p.dashCd = 0;
   Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('echo scream stuns', game.enemies.every(e => e.stunT > 0));
   { const e = game.enemies[0], h = e.hp; damageEnemy(e, 0.5, 0, 0, true); check('shatter scream: stunned enemies take double', Math.abs(h - e.hp - 1) < 0.01 || e.dead); }
-  newRun(); combatRoom(); p = game.player; grow(p, 'spider');
+  newRun(); combatRoom(); p = game.player; grow(p, 'spider'); game.enemies = [];
+  game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 80; p.y = 96;
+  { update(1 / 60); Input.endFrame(); const f0 = p.legs && p.legs.map(f => f.x); let steps = 0, planted = 0, frames = 0;
+    for (let i = 0; i < 60; i++) { Input.keys.clear(); Input.keys.add('d'); update(1 / 60); Input.endFrame(); render(); frames++;
+      steps += p.legs.filter(f => f.t > 0).length; planted += p.legs.filter(f => f.t === 0).length; }
+    Input.keys.clear();
+    check(`spider legs walk: feet plant and step (${(planted / frames).toFixed(1)} planted on average, ${p.legs.filter((f, i) => f.x > f0[i] + 20).length}/8 feet carried forward)`, planted / frames >= 4 && p.legs.every((f, i) => f.x > f0[i] + 20)); }
   p.inv = 0; hurtPlayer(1); check('limb wear after a hit', p.limbWear > 0 && movement(p).slug);
+  check('torn legs vanish (you are a slug again)', !p.legs || (update(1 / 60), Input.endFrame(), !p.legs));
   newRun(); combatRoom(); p = game.player; grow(p, 'wings', 'secondheart'); p.evolutions = 8; recomputeStats(p);
   p.hp = 1; p.inv = 0; hurtPlayer(1); check('second heart: reborn limbless & pure (stage ' + p.stage + ')', game.state === 'play' && !p.slots.LIMBS && p.stage <= 1);
   newRun(); combatRoom(); p = game.player; grow(p);
@@ -475,7 +539,7 @@ try {
 
   // 3) Evolution flow stress: 150 level-ups with random choices.
   newRun(); combatRoom(); game.enemies = []; // a cleared room: safe to cocoon
-  for (let i = 0; i < 150; i++) game.pendingEvolutions.push({});
+  for (let i = 0; i < 150; i++) game.pendingEvolutions.push(i % 30 === 0 ? { slot: 'CORE' } : {}); // (a few devoured cores)
   for (let i = 0; i < 3000 && (evolveReady(game.player) || game.menu); i++) step(1, true);
   p = game.player;
   log.push(`after 150 evolutions: ${SLOTS.map(s => s + '=' + (p.slots[s] ? p.slots[s].path.join('>') : '-')).join(' ')}`);
@@ -503,9 +567,10 @@ try {
       for (const d in room.seals || {}) {
         if (!sealAt(room, d)) continue;
         const c = doorCenter(d), p = game.player;
-        p.x = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8); p.y = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8);
-        for (let k = 0; k < 600 && sealAt(room, d); k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !(p.stats.charge && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
-        if (sealAt(room, d)) sealFails++;
+        const sx = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8), sy = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8);
+        // Hold position next to it, as a player would.
+        for (let k = 0; k < 600 && sealAt(room, d); k++) { p.x = sx; p.y = sy; p.mvx = p.mvy = 0; Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !(p.stats.charge && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        if (sealAt(room, d)) { sealFails++; log.push(`seal held vs ${SLOTS.map(sl => p.slots[sl] ? p.slots[sl].path.join('>') : '-').join(' | ')} (door ${d}, hits ${room.seals[d].hits}, pos ${p.x.toFixed(0)},${p.y.toFixed(0)}, control ${p.controlT > 0}, withdrawn ${p.withdrawn})`); }
       }
       const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);
       const dir = unv.length ? pick(unv) : pick(names);

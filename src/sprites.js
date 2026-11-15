@@ -110,6 +110,152 @@ function paintSpecimen(ramp, o = {}) {
   return P.outline().toCanvas();
 }
 
+// --- Body forms -------------------------------------------------------------------
+// Once two of your slots share a set, your whole body reshapes into that set's
+// creature (see specimenForm in player.js). Same 24x24 frame, head at the
+// front (right) near SPECIMEN.eye, so mutation overlays still land roughly right.
+// `br` is the breathing frame; `st` the stage (1-4: more grotesque each time).
+const FORM_RAMP = {
+  BONE:        ['#14100c', '#3a2e24', '#6a5444', '#9a8068', '#c8b098'], // gaunt, dried flesh
+  FUNGAL:      ['#12160e', '#2e3824', '#566246', '#8a9670', '#c4ccA4'], // pallid, damp
+  HIVE:        ['#0c0806', '#2a1a0c', '#5a3a14', '#9a6a24', '#e0b050'], // glossy chitin
+  PREDATOR:    ['#160606', '#481414', '#7e2a22', '#ac4e3a', '#dc8a6a'], // skinned muscle
+  ABOMINATION: ['#140814', '#3a1434', '#682a5c', '#9c5288', '#d08cb8'], // bruised, raw
+};
+const CAP = ['#1e1008', '#4a2a14', '#8a5428', '#c08848', '#ecc888'];
+
+// Teeth along a jaw line from (x0, y) to (x1, y).
+function paintTeeth(P, x0, x1, y, seed) {
+  for (let x = x0; x <= x1; x++) {
+    P.dot(x, y, '#120608').dot(x, y + 1, '#1e0a0c');
+    if (hash2(x, 5, seed) > 0.35) P.dot(x, y + (x % 2 ? 0 : 1), hash2(x, 6, seed) > 0.5 ? '#e0d4b8' : '#a8987a');
+  }
+}
+
+const FORM_PAINT = {
+  // A skeletal crawler: gaunt torso inside a ribcage, a spine of plates, a skull.
+  BONE(P, ramp, st, br) {
+    for (let i = 0; i < 4; i++) P.blob(1.6 + i * 1.7, 20.4 - i * 0.5, 1.05 - i * 0.05, 0.95, R.bone, { spec: 1 }); // vertebrae tail
+    P.blob(11, 20.8, 7.4, 1.1, ramp, { shift: -0.3 });
+    P.blob(10.5, 18 + br * 0.3, 6.6, 3.1 - br * 0.2, ramp, { spec: 1, shift: -0.2, noise: 0.1 });
+    for (let k = 0; k < 5; k++) { // ribs arching over the gut
+      const x = 6 + k * 2.1;
+      P.tube([[x + 0.6, 15], [x - 0.5, 17.5], [x + 0.2, 20.4]], 0.65, 0.45, R.bone, { spec: 1 });
+    }
+    for (let k = 0; k < (st >= 3 ? 6 : 5); k++) { // spinal plates
+      const x = 3.6 + k * 2.3, y = 14.9 - k * 0.15;
+      P.blob(x, y, 1.1, 1.3, R.bone, { spec: 1 });
+      if (st >= 4 && k % 2) P.tube([[x, y - 1], [x - 0.6, y - 3.4]], 0.7, 0.2, R.bone, { spec: 1 });
+    }
+    // Skull: domed cranium, deep sockets, a hinged jaw full of teeth.
+    P.blob(17.8, 13.6, 4.3, 3.6, R.bone, { spec: 1 });
+    P.tube([[15.2, 17.6], [19, 18.2], [22.2, 17.2]], 1.3, 0.9, R.bone, { spec: 1 });
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 2.3, 2.2, R.socket, { noise: 0 });
+    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.2, '#d8b040', { milky: false });
+    P.blob(15.4, 13.6, 1.3, 1.3, R.socket, { noise: 0 });
+    P.scratch([[20.2, 15.6], [21.4, 15.2]], '#2a2016'); // nasal slit
+    paintTeeth(P, 17, 22, 16.4, 11);
+    if (st >= 3) P.scratch([[16.5, 10.6], [17.6, 12], [17.2, 13]], '#2e2418'); // cracked dome
+  },
+
+  // Bloated and spotted, sprouting caps; threads of mycelium trail beneath.
+  FUNGAL(P, ramp, st, br) {
+    for (const [x, l] of [[5, 2.5], [9, 3], [13, 2.2], [16, 2.8]]) P.scratch([[x, 21], [x - 0.6, 21 + l * 0.5], [x + 0.4, 21 + l]], '#b8bc98'); // mycelium
+    P.tube([[4, 19.2], [1.6, 20.4], [0.6, 21]], 2.2, 0.8, ramp, { noise: 0.15 });
+    P.blob(10.5, 20.6, 8.6, 1.4, ramp, { shift: -0.22 });
+    P.blob(10.5, 17.6 + br * 0.2, 8.4, 4.4 + br * 0.3, ramp, { spec: 1, noise: 0.18 });
+    P.blob(5.5, 16.6, 3.2, 2.6, ramp, { spec: 1, noise: 0.2 });
+    for (const [x, y] of [[7, 18.4], [11, 19.4], [13.5, 17], [4, 17.4], [9.5, 15.6]]) P.dot(x, y, '#d8dcb8'); // spots
+    // Head: heavy and drooping, with a gill-mouth.
+    P.blob(18.2, 15.4, 4, 3.7, ramp, { spec: 1, noise: 0.12 });
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1] + 0.6, 1.9, 1.7, R.socket, { noise: 0 });
+    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1] + 0.6, 1.3, '#9a9a60', { milky: true });
+    for (let x = 18; x <= 21.5; x++) P.scratch([[x, 17.2], [x + 0.2, 18.6]], '#2a3020');
+    // Caps on stalks, growing out of the back (more each stage).
+    const caps = [[11, 9.2, 3.6], [5.6, 11.2, 2.6], [15.2, 8.6, 2.1], [2.6, 13.6, 1.7], [8.4, 7.6, 1.6]].slice(0, st + 1);
+    for (const [x, y, r] of caps) {
+      P.tube([[x - 0.3, 15.5], [x + 0.2, y + r * 0.3]], r * 0.3, r * 0.24, ['#2a2c20', '#5a5c48', '#8e8e74', '#b8b49a', '#dcd8c0'], { spec: 1 }); // stalk
+      P.blob(x, y, r, r * 0.62, CAP, { spec: 1, noise: 0.08 });                                  // domed cap
+      P.scratch([[x - r * 0.85, y + r * 0.5], [x + r * 0.85, y + r * 0.5]], '#3a2410');          // gill rim
+      for (const [dx, dy] of [[-0.45, -0.25], [0.3, -0.4], [0.55, 0.05]]) P.dot(x + dx * r, y + dy * r, '#f4e8c8'); // spots
+    }
+  },
+
+  // An insect: banded abdomen, thorax on stubby legs, a head with a compound eye.
+  HIVE(P, ramp, st, br) {
+    const ab = 4.6 + (st >= 3 ? 0.6 : 0) + br * 0.3;
+    if (st >= 4) P.tube([[2.2, 18.6], [0.6, 20.4]], 0.8, 0.2, ramp, { spec: 1 }); // stinger
+    P.blob(6.6, 17.6, ab, ab * 0.78, ramp, { spec: 1 });
+    for (let k = 0; k < 4; k++) { // amber bands across the abdomen
+      const x = 3.6 + k * 2;
+      P.scratch([[x + 0.6, 14.4 + k * 0.1], [x, 17.6], [x + 0.5, 20.8]], k % 2 ? '#e0b050' : '#140c06');
+    }
+    for (const x of [11.2, 13, 14.8]) P.tube([[x, 18.6], [x - 0.6, 20.4], [x + 0.2, 22]], 0.55, 0.35, ramp); // legs
+    P.blob(13, 16.6, 3.3, 2.8, ramp, { spec: 1 });                                                       // thorax
+    P.blob(18, 14.6, 3.6, 3.2, ramp, { spec: 1 });                                                        // head
+    // Compound eye: a dark glossy dome dotted with facets.
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 2.4, 2.2, ['#0a0204', '#3a0a10', '#6a1418', '#a02a20', '#e06040'], { spec: 1 });
+    for (const [dx, dy] of [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]]) P.dot(SPECIMEN.eye[0] + dx, SPECIMEN.eye[1] + dy, '#200608');
+    P.tube([[20.6, 16.4], [22.6, 17.6], [21.8, 18.8]], 0.7, 0.35, ramp, { spec: 1 });                    // mandible
+    P.tube([[19.6, 17], [21, 18.8]], 0.6, 0.3, ramp);
+    if (st >= 2) for (const x of [16, 18]) P.tube([[x, 11.8], [x - 1.4 + (x - 16), 8.4]], 0.4, 0.3, ramp);  // feelers
+  },
+
+  // A hunched, skinned beast: heavy shoulders, haunches, a long toothed snout.
+  PREDATOR(P, ramp, st, br) {
+    P.tube([[4.6, 17], [2, 15.6], [0.8, 13.4]], 1, 0.35, ramp, { spec: 1 });                 // whip tail
+    for (const [a, b] of [[[6.4, 19], [6, 22]], [[14.8, 18.4], [15.6, 22]]]) P.tube([a, b], 1.5, 1.1, ramp, { spec: 1 }); // legs
+    P.blob(6.4, 18, 3.6, 3, ramp, { spec: 1 });                                               // haunch
+    P.blob(10.4, 17 + br * 0.2, 6.6, 3.6 + br * 0.3, ramp, { spec: 1, noise: 0.1 });
+    P.blob(14, 14.6, 3.8, 3.4, ramp, { spec: 1 });                                            // shoulders
+    for (let k = 0; k < 5; k++) P.scratch([[7 + k * 1.7, 15.2], [6.4 + k * 1.7, 19]], ramp[1]); // muscle striations
+    for (let k = 0; k < 6; k++) P.tube([[5 + k * 1.9, 14.6 - (k > 3 ? 1 : 0)], [4.4 + k * 1.9, 12.8 - (k > 3 ? 1 : 0)]], 0.6, 0.2, R.fur); // hackles
+    // Long head: skull plus snout, teeth bared.
+    P.blob(17.8, 13.8, 3.4, 2.9, ramp, { spec: 1 });
+    P.tube([[18.4, 15.2], [21, 15.8], [23, 16.2]], 2, 1.3, ramp, { spec: 1 });
+    paintTeeth(P, 18, 22.5, 16.8, 23);
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.6, 1.4, R.socket, { noise: 0 });
+    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.1, '#f0c020', {});
+    P.tube([[16.6, 11.6], [15.6, 9.4]], 0.9, 0.3, ramp);                                     // ear
+    if (st >= 4) P.tube([[21.6, 18], [21.8, 20.6]], 0.5, 0.3, R.blood, { spec: 1 });         // drool
+  },
+
+  // A lopsided mass: a second head on its back, eyes and mouths where they shouldn't be.
+  ABOMINATION(P, ramp, st, br) {
+    for (const [x, l] of [[7, 2.4], [10.5, 3.2], [13.5, 2]]) P.tube([[x, 20], [x + 0.4, 20 + l * 0.6], [x - 0.4, 20 + l]], 0.6, 0.3, ramp); // dangling tendrils
+    P.blob(10.5, 18.4 + br * 0.2, 8.6, 3.8 + br * 0.3, ramp, { spec: 1, noise: 0.22 });
+    P.blob(5.4, 16, 3.6, 3, ramp, { spec: 1, noise: 0.25 });
+    P.blob(13.2, 15.4, 3.2, 2.6, ramp, { spec: 1, noise: 0.2 });
+    if (st >= 3) P.blob(2.8, 18.6, 2.4, 2, ramp, { spec: 1, noise: 0.3 });
+    // The second head, growing from the back, with its own eye and mouth.
+    P.tube([[8.6, 15.4], [7.6, 12.6], [6.4, 10.6]], 1.9, 1.5, ramp, { spec: 1 });
+    P.blob(5.8, 9.4, 3.1, 2.7, ramp, { spec: 1 });
+    P.blob(5, 8.8, 1.5, 1.4, R.socket, { noise: 0 });
+    P.eye(5, 8.8, 1.1, '#e0c040', { bloodshot: true });
+    paintTeeth(P, 3.4, 7.4, 10.6, 31);
+    // Eyes scattered across the flank.
+    for (const [x, y, r] of [[10, 17.8, 1.1], [5, 17.4, 0.9], [13.4, 19, 0.9], [8, 20, 0.7]].slice(0, st + 1)) {
+      P.blob(x, y, r + 0.4, r + 0.3, R.socket, { noise: 0 });
+      P.eye(x, y, r, '#7a2014', { bloodshot: true });
+    }
+    P.scratch([[3, 15.5], [8, 14.4], [12, 16.6]], '#120e08'); // stitches
+    for (let x = 4; x < 12; x += 2) P.dot(x, 14.6 + (x > 8 ? 1 : 0), '#a49c80');
+    // Main head with a mouth that opens down its whole front.
+    P.blob(18.2, 14.6, 4.4, 4, ramp, { spec: 1, noise: 0.12 });
+    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 2.6, 2.4, R.socket, { noise: 0 });
+    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.9, '#7a2014', { bloodshot: true });
+    P.scratch([[21.4, 13.8], [22, 16], [21.2, 18.4]], '#120608');
+    for (let y = 14; y <= 18; y += 1.5) P.dot(21.2 + (y % 3 ? 0.4 : -0.2), y, '#d8ccb0');
+  },
+};
+
+function paintForm(form, stage, breath) {
+  const P = new Painter(24, 24, 60 + stage);
+  P.scaleAround(STAGE_SCALE[stage], ...SPECIMEN.anchor);
+  FORM_PAINT[form](P, FORM_RAMP[form], stage, breath || 0);
+  return P.outline().toCanvas();
+}
+
 // --- Mutation overlays (same 24x24 frame as the specimen, scaled per stage) ------
 function paintOverlay(fn, stage, seed = 5) {
   const P = new Painter(24, 24, seed);
@@ -407,6 +553,18 @@ function paintHazmat(horiz, dmg) {
     P.scratch([[w * 0.55, h * 0.3], [w * 0.7, h * 0.55], [w * 0.85, h * 0.6], [w * 0.75, h * 0.85]], '#060404');
     P.dot(Math.round(w * 0.7), Math.round(h * 0.6), '#c96a8f'); // the vault's glow leaks through
   }
+  return P.outline().toCanvas();
+}
+
+// A boss's core: a dark, veined heart, still beating. `big` = mid-beat.
+function paintBossCore(big) {
+  const P = new Painter(16, 16, 81);
+  const k = big ? 1.12 : 1;
+  P.tube([[8, 4], [7, 1.2]], 1.1, 0.8, R.blood, { spec: 1 }).tube([[10, 4.5], [12, 1.8]], 0.9, 0.6, R.cyst);
+  P.blob(8, 9, 5.4 * k, 5 * k, ['#1a0408', '#4a0c18', '#7a1828', '#b03040', '#e87080'], { spec: 1, noise: 0.15 });
+  P.blob(6, 8, 2.4 * k, 2.6 * k, ['#1a0408', '#4a0c18', '#7a1828', '#b03040', '#e87080'], { spec: 1 });
+  P.vein(4, 9, 5, '#2a0410', 0.6).vein(9, 12, 4, '#2a0410', -1.4).vein(10, 6, 3, '#2a0410', 1.2);
+  if (big) P.dot(8, 9, '#ffb0c0');
   return P.outline().toCanvas();
 }
 
@@ -859,10 +1017,19 @@ function withFlash(name, img) {
     }
     return o;
   });
+  // Each set's body form at each stage: SPR.forms[set][stage] -> { body, body2, _L versions, hurt }
+  SPR.forms = {};
+  for (const f in FORM_PAINT) {
+    SPR.forms[f] = STAGE_SCALE.map((_, st) => {
+      const body = paintForm(f, st), body2 = paintForm(f, st, 0.5);
+      return { body, body2, body_L: flipH(body), body2_L: flipH(body2), hurt: silhouette(body, PAL.red) };
+    });
+  }
   // Full-grown versions (used by the title screen).
   SPR.blob = SPR.stages[3].body;
   SPR.overlay = SPR.stages[3].overlay;
 
+  SPR.bossCore = paintBossCore(false); SPR.bossCore2 = paintBossCore(true);
   SPR.icons = {};
   for (const id in ICON_PAINT) SPR.icons[id] = paintIcon(id);
 

@@ -112,7 +112,7 @@ function finalizeStats(s) {
 function gun(s, props) {
   s.guns.push(Object.assign({
     id: '', dmg: 1, delay: 0.75, speed: 155, range: 0.7, r: 2, count: 1, spread: 0,
-    acid: 0, acidChance: 0, bleed: 0, lob: false, cloud: 0, round: false, fade: false,
+    acid: 0, acidChance: 0, bleed: 0, slow: 0, lob: false, cloud: 0, round: false, fade: false,
     native: false, color: '#cfc4a4', sound: 'shoot',
   }, props));
 }
@@ -132,13 +132,13 @@ const MUTATIONS = {
   // MOUTH pick replaces it with a real root.
   slime: {
     name: 'Slime Blob', slot: 'MOUTH', part: true, rarity: 'common',
-    desc: 'Spit a slow little glob of slime.',
-    apply(s) { gun(s, { id: 'slime', dmg: 0.9, delay: 0.7, speed: 115, range: 0.6, r: 2.5, round: true, color: '#9aae8a', sound: 'splat' }); },
+    desc: 'Spit little globs of sticky slime. Whatever they hit is slowed for a moment.',
+    apply(s) { gun(s, { id: 'slime', dmg: 1, delay: 0.5, speed: 135, range: 0.55, r: 2.5, slow: 1.2, round: true, color: '#9aae8a', sound: 'splat' }); },
   },
   spike: {
     name: 'Bone Spike', slot: 'MOUTH', rarity: 'common',
-    desc: 'Fire a slow bone spike. Harder and faster as it grows; twin spikes at full growth.',
-    apply(s, l) { gun(s, { id: 'spike', dmg: 1 + 0.4 * (l - 1), delay: 0.75 - 0.1 * (l - 1), count: l >= 3 ? 2 : 1 }); },
+    desc: 'Fire a fast bone spike. Harder and faster as it grows; twin spikes at full growth.',
+    apply(s, l) { gun(s, { id: 'spike', dmg: 1.4 + 0.4 * (l - 1), delay: 0.6 - 0.08 * (l - 1), speed: 170, count: l >= 3 ? 2 : 1 }); },
   },
   shotgun: {
     name: 'Bone Shotgun', from: 'spike', rarity: 'uncommon', icon: ['spike', 'marrow'],
@@ -1221,6 +1221,56 @@ function activeSet(p) {
   return null;
 }
 
+// ===========================================================================
+// SPLICES. Hidden pairings between parts in DIFFERENT slots. Grow both halves
+// (anywhere along their paths) and they fuse into something new. Each half
+// lists the nodes that count. Cards never name a splice; a card that would
+// complete one just says SOMETHING STIRS.
+// ===========================================================================
+const SPLICES = {
+  firestorm:      { name: 'Firestorm',       parts: [['sporefire'], ['cropduster']],      apply(s) { s.fireTrail = true; },
+    desc: 'The spore trail you drop while flying is burning.', whisper: 'Everything you drop behind you is burning.' },
+  hivemind:       { name: 'Hive Mind',       parts: [['brood'], ['eggsac']],              apply(s) { s.allyDmg = 2; s.allyLife = Math.max(s.allyLife || 1, 1.5); },
+    desc: 'Your brood bites twice as hard and lives longer.', whisper: 'All your children share one mind now. Yours.' },
+  bonesaw:        { name: 'Bone Saw',        parts: [['spines'], ['mantis']],             apply(s) { s.boneSaw = true; },
+    desc: 'Dashing sprays bone shards the whole way.', whisper: 'Lunge, and the shards come loose all along the way.' },
+  bloodpump:      { name: 'Blood Pump',      parts: [['proboscis'], ['hemophage']],       apply(s) { s.drainDna = 8; },
+    desc: 'The blood you drink turns into DNA.', whisper: 'What you drink, you keep.' },
+  echochamber:    { name: 'Echo Chamber',    parts: [['echo'], ['spines']],               apply(s) { s.screamRing = 10; },
+    desc: 'Your scream shakes a ring of shards loose.', whisper: 'The scream rattles the bones in your back loose.' },
+  livingarmor:    { name: 'Living Armor',    parts: [['chitin'], ['hide']],               apply(s) { s.shellOnKills = 5; },
+    desc: 'Every 5 kills regrow your shell.', whisper: 'Your hide feeds your shell. Kill, and it grows back.' },
+  septicblood:    { name: 'Septic Blood',    parts: [['toxic'], ['mitosis']],             apply(s) { s.hurtFrags = 8; },
+    desc: 'When you bleed, your blood splits into seeking acid fragments.', whisper: 'Your blood divides as it leaves you, and it hunts.' },
+  parasiticbrood: { name: 'Parasitic Brood', parts: [['parasite'], ['brood']],            apply(s) { s.parasiteBrood = 3; },
+    desc: 'When the parasite takes control, maggots burst out of you.', whisper: 'When it drives, it lays.' },
+  impaler:        { name: 'Impaler',         parts: [['horns'], ['huntsman', 'locust']],  apply(s) { s.slamBleed = 3; s.slamStun = Math.max(s.slamStun || 0, 0.6); },
+    desc: 'Your pounce lands horns first: everything under it bleeds and reels.', whisper: 'Land horns first.' },
+  acidskin:       { name: 'Acid Skin',       parts: [['acidmaw'], ['urchinhide']],        apply(s) { s.contactMark = true; },
+    desc: 'Anything that touches you bursts into bile when it dies.', whisper: 'Your skin bites too. What it bites, it rots.' },
+  nightmarelure:  { name: 'Nightmare Lure',  parts: [['nighteyes'], ['lure']],            apply(s) { s.nightLure = true; },
+    desc: 'Your lure is a dark eye that blinds whatever comes close.', whisper: 'The light on your back has learned to look back.' },
+  wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
+    desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
+};
+
+// Every splice whose two halves you've grown.
+function activeSplices(p) {
+  const has = ids => ids.some(id => hasMutation(p, id));
+  return Object.keys(SPLICES).filter(k => SPLICES[k].parts.every(has));
+}
+
+// Would picking `id` complete a splice you don't have yet?
+function wouldSplice(p, id) {
+  const now = activeSplices(p);
+  return Object.keys(SPLICES).some(k => {
+    if (now.includes(k)) return false;
+    const parts = SPLICES[k].parts;
+    const i = parts.findIndex(ids => ids.includes(id));
+    return i >= 0 && parts.every((ids, j) => j === i || ids.some(x => hasMutation(p, x)));
+  });
+}
+
 // --- Tree helpers -------------------------------------------------------------------
 function getMutDef(id) { return MUTATIONS[id]; }
 
@@ -1282,7 +1332,9 @@ function slotOffers(p, slot) {
 
 // Roll `n` cards. Usually one slot shows BOTH of its next branches side by
 // side, so you see exactly which path you're giving up.
-function rollChoices(p, n, minRarity) {
+// `onlySlot`: a devoured boss core offers only CORE cards. Normal evolutions
+// never offer CORE: you grow it by eating what guards each floor.
+function rollChoices(p, n, minRarity, onlySlot) {
   const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
   const luck = r => (r === 'rare' || r === 'legendary') ? 1 + 0.2 * (game.depth - 1) : 1;
   const weight = id => {
@@ -1300,13 +1352,26 @@ function rollChoices(p, n, minRarity) {
     return ids[ids.length - 1];
   };
 
+  if (onlySlot) {
+    const ids = slotOffers(p, onlySlot).slice();
+    if (!ids.length) return [{ id: '_gorge' }];
+    const out = [];
+    if (ids.includes('hide')) out.push({ id: ids.splice(ids.indexOf('hide'), 1)[0] }); // health is always on the table
+    while (out.length < n && ids.length) out.push({ id: ids.splice(ids.indexOf(pickWeighted(ids)), 1)[0] });
+    return out.sort(() => Math.random() - 0.5);
+  }
   const offers = {};
-  for (const slot of SLOTS) { const o = slotOffers(p, slot); if (o.length) offers[slot] = o; }
+  for (const slot of SLOTS) { if (slot === 'CORE') continue; const o = slotOffers(p, slot); if (o.length) offers[slot] = o; }
   const slots = Object.keys(offers).sort(() => Math.random() - 0.5);
   const out = [];
+  // Still spitting the starter slime? Always offer a way out of it.
+  if (offers.MOUTH && p.slots.MOUTH && p.slots.MOUTH.starter) {
+    out.push({ id: pickWeighted(offers.MOUTH) });
+    slots.splice(slots.indexOf('MOUTH'), 1);
+  }
   // A fork: both branches of one slot.
   const forks = slots.filter(sl => p.slots[sl] && childrenOf(p.slots[sl].id).length === 2);
-  if (forks.length && n >= 2 && Math.random() < 0.8) {
+  if (forks.length && n - out.length >= 2 && Math.random() < 0.8) {
     const sl = forks[Math.floor(Math.random() * forks.length)];
     for (const id of childrenOf(p.slots[sl].id)) out.push({ id });
     slots.splice(slots.indexOf(sl), 1);
@@ -1341,7 +1406,7 @@ function choiceInfo(p, c) {
   }
   return {
     id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, cost: d.cost, malignant: !!d.malignant, cures: !!d.cures, set: setOf(c.id),
-    slot, status, note, noteColor, tier: m && d.from ? m.path.length : 0, overlays: mutOverlays(c.id),
+    slot, status, note, noteColor, tier: m && d.from ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c.id),
   };
 }
 
@@ -1359,6 +1424,7 @@ function applyChoice(p, c) {
     m.starter = false;
   }
   whisper(HINTS[c.id]);
+  p.lastSet = setOf(c.id);
   if (d.onGain) d.onGain(p);
   const col = d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color;
   floatText(p.x, p.y - 14, d.name.toUpperCase(), col);

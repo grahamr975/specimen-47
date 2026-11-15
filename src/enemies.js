@@ -67,6 +67,8 @@ function spawnRoomEnemies(room) {
     const spot = randomFloorSpot(room, game.player, 90);
     const e = spawnEnemy(pick(fd.pool.filter(t => t !== 'culture')), spot.x, spot.y, true);
     rollAffixes(e);
+    // On floors without a boss yet, the exit's elite is the WARDEN: it carries the floor's core.
+    if (room.type === 'exit') { e.warden = true; e.hp = e.maxHp = e.maxHp * 1.6; }
   }
   // Scavengers crawl in a little later, looking for meat.
   if (fd.scavengers) {
@@ -86,6 +88,7 @@ function onSetKill(e, p, s) {
   if (s.setKillBrood && Math.random() < s.setKillBrood) spawnAlly('spiderling', e.x, e.y); // Hive
   if (s.setKillFrenzy) { if (!(p.frenzyT > 0)) { p.frenzyT = 3; recomputeStats(p); } else p.frenzyT = 3; } // Apex
   if (s.setKillHeal && ++p.setKills % s.setKillHeal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+  if (s.shellOnKills && s.shieldCd > 0 && !p.shieldUp && ++p.armorKills % s.shellOnKills === 0) { p.shieldUp = true; Sfx.play('shieldUp'); floatText(p.x, p.y - 14, 'SHELL REGROWN', '#8a7a5a'); } // Living Armor
 }
 
 // --- Knockback ----------------------------------------------------------------------
@@ -201,6 +204,10 @@ function killEnemy(e) {
   }
   onAffixDeath(e);
   if (T.boss) { onBossPartKilled(e); return; }
+  if (e.warden) {
+    spawnPickup('core', e.x, e.y);
+    game.banner = { text: 'WARDEN KILLED', sub: 'Its core is still beating', color: PAL.lime, t: 2.5 };
+  }
 
   // Drops: elites often drop a mutagen vial; anything might drop a heart.
   const room = game.room;
@@ -306,6 +313,11 @@ function updateEnemies(dt) {
     }
 
     if (e.blindT > 0 && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
+    // Stuck in your slime blob: half speed, dripping.
+    if (e.slowT > 0) {
+      e.slowT -= dt; mx *= 0.5; my *= 0.5;
+      if (Math.random() < dt * 6) stainPx(e.x + rand(-2, 2), e.y + rand(1, 3), ['#3c4238', '#5a6a52'], 1);
+    }
     // Your slime is slippery: things crawling through it slow and slide.
     if (!e.flying && game.room.slime.length && onSlime(e.x, e.y + 2, 5)) {
       const slow = p.stats.slimeSlow || 0.55; // Slime Glands: much stickier
@@ -345,6 +357,7 @@ function updateEnemies(dt) {
         if (p.stats.eggPods) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Egg Pods
         Sfx.play('splat');
       }
+      if (p.stats.contactMark) e.acidMarked = true; // Acid Skin
       // Urchin Hide: touching you sets off your shard ring.
       if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
       // Thorned Plate: your shell shreds whatever touches it.
@@ -432,6 +445,7 @@ function drawEnemyGlow(ctx) {
       ctx.globalAlpha = 1;
     }
     if (e.stunT > 0 && Math.floor(game.time * 8) % 2) drawText(ctx, '*', e.x, e.y - 12, PAL.yellow, 1, 'center');
+    if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
     if (e.spawnT > 0) {
       // Something is crawling out: a warning so spawns are never unfair.
       if (Math.floor(e.spawnT * 14) % 2 === 0) pxRing(ctx, e.x, e.y, 2 + e.spawnT * 9, PAL.red);

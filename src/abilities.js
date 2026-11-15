@@ -42,6 +42,7 @@ function lurePoint(p) {
 function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
   a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
+  if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
   game.allies.push(a);
   return a;
 }
@@ -67,10 +68,10 @@ function updateAllies(dt) {
     } else {
       const e = nearestEnemy(a.x, a.y, 200);
       if (e) {
-        tx = e.x; ty = e.y; speed = a.kind === 'spiderling' ? 95 : 42;
+        tx = e.x; ty = e.y; speed = (a.kind === 'spiderling' ? 95 : 42) * (a.flying ? 1.5 : 1);
         if (Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1 && a.biteT <= 0) {
           a.biteT = 0.5;
-          damageEnemy(e, a.kind === 'maggot' ? 1 : 0.8, e.x - a.x, e.y - a.y, true);
+          damageEnemy(e, (a.kind === 'maggot' ? 1 : 0.8) * (p.stats.allyDmg || 1), e.x - a.x, e.y - a.y, true);
           if (a.kind === 'spiderling' && p.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player');
           bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
         }
@@ -129,6 +130,7 @@ function updateClouds(dt) {
         if (!(e.blindT > 0)) floatText(e.x, e.y - 10, '?', '#9aae50');
         e.blindT = Math.max(e.blindT || 0, 2);
         if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
+        if (c.fire) damageEnemy(e, 3 * s.damage * dt, 0, 0, true);               // Firestorm
       }
     }
   }
@@ -157,7 +159,7 @@ function drawClouds(ctx) {
     ctx.globalAlpha = 0.5 * fade;
     for (let i = 0; i < 26; i++) {
       const a = hash2(i, 1, 9) * Math.PI * 2 + c.life * 0.4, d = Math.sqrt(hash2(i, 2, 9)) * c.r;
-      pxCircle(ctx, c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, 2 + hash2(i, 3, 9) * 2, i % 3 ? '#5a6a3a' : '#7a8a52');
+      pxCircle(ctx, c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, 2 + hash2(i, 3, 9) * 2, c.fire ? (i % 3 ? '#a04018' : '#e8a020') : i % 3 ? '#5a6a3a' : '#7a8a52');
     }
     ctx.globalAlpha = 1;
   }
@@ -181,8 +183,8 @@ function updateDecoy(dt) {
 function drawDecoy(ctx) {
   const d = game.decoy;
   if (!d) return;
-  if (!SPR.husks) SPR.husks = SPR.stages.map(st => darkened(st.body));
-  drawCentered(ctx, SPR.husks[d.stage], d.x, d.y - 4);
+  if (!d.husk) d.husk = darkened(d.body || SPR.stages[d.stage].body); // a dried shell of whatever you were
+  drawCentered(ctx, d.husk, d.x, d.y - 4);
 }
 
 // --- Centipede body: segments trailing behind you -------------------------------------
@@ -399,6 +401,7 @@ function updateParasite(p, dt) {
     const a = rand(0, Math.PI * 2);
     p.controlX = Math.cos(a); p.controlY = Math.sin(a);
     floatText(p.x, p.y - 22, 'IT TAKES CONTROL', MALIGNANT_COLOR);
+    for (let i = 0; i < (p.stats.parasiteBrood || 0); i++) spawnAlly('maggot', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Parasitic Brood
     Sfx.play('flicker');
   }
 }
@@ -416,6 +419,7 @@ function scream(p) {
   if (p.stats.banshee) { // Banshee: shreds enemy shots out of the air
     for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(b.x - p.x, b.y - p.y) < 60) { b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); }
   }
+  if (p.stats.screamRing) fireRing(p, p.stats.screamRing); // Echo Chamber
   Sfx.play('scream');
 }
 
@@ -440,7 +444,7 @@ function updateBranchUpkeep(p, dt) {
   // Crop Duster: flying drops a trail of spore clouds.
   if (s.cropDuster && p.flying && p.moving) {
     p.dustT = (p.dustT || 0) - dt;
-    if (p.dustT <= 0) { p.dustT = 0.5; game.clouds.push({ x: p.x, y: p.y, r: 14, life: 2.2 }); }
+    if (p.dustT <= 0) { p.dustT = 0.5; game.clouds.push({ x: p.x, y: p.y, r: 14, life: 2.2, fire: !!s.fireTrail }); }
   }
   // Quill Pulse: the shard ring fires on its own.
   if (s.autoRing && s.ring > 0 && game.room.locked) {
@@ -471,6 +475,10 @@ function updateBranchUpkeep(p, dt) {
       Sfx.play('bite');
     }
     for (const e of game.enemies) if (e.lureT > 0) e.lureT -= dt;
+  }
+  if (s.nightLure && s.lure) { // Nightmare Lure
+    const lp = lurePoint(p);
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !(e.blindT > 0)) { e.blindT = 1.5; floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
   }
   updateSegments(p, dt);
 }
