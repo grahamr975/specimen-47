@@ -1867,8 +1867,7 @@ function partFor(p, id) {
 function partSize(m) { return m.starter ? 1 : (MUTATIONS[m.path[0]].size || 1); }
 function rootSize(id) { return MUTATIONS[id].size || 1; }
 function slotsUsed(p) { return p.parts.reduce((n, m) => n + partSize(m), 0); }
-// Every splice fuses two parts into one: it frees a slot.
-function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity + activeSplices(p).length); }
+function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity); } // (splices add to p.capacity when they form)
 function freeSlots(p) { return slotCapacity(p) - slotsUsed(p); }
 
 // A part can only grow GROWTH_PER_FLOOR times per floor (planting counts),

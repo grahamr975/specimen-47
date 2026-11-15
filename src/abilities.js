@@ -259,6 +259,9 @@ function drawCentipede(ctx, p) {
   const segs = centipedeSegments(p);
   for (let i = segs.length - 1; i >= 0; i--) {
     const s = segs[i];
+    const ph = Math.floor(p.t * (p.moving ? 16 : 3) + i * 2) % 2; // a ripple of little legs down the body
+    ctx.fillStyle = '#2a1c14';
+    ctx.fillRect(Math.round(s.x - 5), Math.round(s.y - 1 + ph), 2, 1); ctx.fillRect(Math.round(s.x + 4), Math.round(s.y - ph), 2, 1);
     drawCentered(ctx, SPR.segment, s.x, s.y - 2 + (Math.floor(p.t * 10 + i) % 2 ? 0 : -1));
   }
 }
@@ -401,7 +404,7 @@ function updateBurrow(p, dt, ix, iy) {
       for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) e.stunT = Math.max(e.stunT || 0, s.eruptStun);
     }
     if (s.eruptRing) fireRing(p, s.eruptRing);
-    if (s.seismicHowl && s.howl) howl(p, 1.5, true); // Seismic Howl
+    if (s.seismicHowl && s.howl) { howl(p, 1.5, true); groundCracks(p.x, p.y + 4); } // Seismic Howl
     for (let i = 0; i < (s.eruptBrood || 0); i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3));
     if (s.ambush) p.ambushT = 1.5;
     for (const c of corpsesNear(p.x, p.y, 24)) damageCorpse(c, s.burrowDmg);
@@ -412,17 +415,47 @@ function updateBurrow(p, dt, ix, iy) {
 }
 
 // --- Parasite Brain: sometimes it drives --------------------------------------------------
+// It drives, but it needs its host alive: it heads somewhere clear of
+// enemies (bosses most of all), enemy acid and enemy shots, and turns away
+// if danger appears ahead. At 1 health it doesn't dare take over.
+function parasiteRisk(p, ax, ay) {
+  let risk = 0;
+  for (let d = 0; d <= 40; d += 8) {
+    const x = p.x + ax * d, y = p.y + ay * d;
+    for (const pd of game.puddles) if (pd.team !== 'player' && Math.hypot(x - pd.x, y - pd.y) < pd.r + 5) risk += 3;
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(x - e.x, y - e.y) < e.r + (ENEMY_TYPES[e.type].boss ? 22 : 10)) risk += ENEMY_TYPES[e.type].boss ? 6 : 3;
+    for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(x - b.x, y - b.y) < 8) risk += 1;
+  }
+  return risk;
+}
+function parasiteHeading(p) {
+  let best = [0, 0], bestRisk = Infinity;
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6 + rand(-0.2, 0.2), ax = Math.cos(a), ay = Math.sin(a);
+    const r = parasiteRisk(p, ax, ay) + Math.random() * 0.5;
+    if (r < bestRisk) { bestRisk = r; best = [ax, ay]; }
+  }
+  return best;
+}
+
 function updateParasite(p, dt) {
   if (!p.stats.parasite || p.stats.symbiote) { p.controlT = 0; return; }
   if (p.controlT > 0 && p.stats.parasiteInv && Math.random() < dt * 20) burst(p.x, p.y - 2, MALIGNANT_COLOR, 1, 30, 0.2);
-  if (p.controlT > 0) { p.controlT -= dt; return; }
+  if (p.controlT > 0) {
+    p.controlT -= dt;
+    if ((p.steerT = (p.steerT || 0) - dt) <= 0) { // look ahead; swerve away from danger
+      p.steerT = 0.1;
+      if (parasiteRisk(p, p.controlX, p.controlY) > 0) [p.controlX, p.controlY] = parasiteHeading(p);
+    }
+    return;
+  }
   const gap = () => p.stats.parasiteOften ? rand(5, 9) : rand(10, 18);
   p.parasiteT = (p.parasiteT === undefined ? gap() : p.parasiteT) - dt;
+  if (p.parasiteT <= 0 && p.hp <= 1) p.parasiteT = 1; // too close to death: it waits
   if (p.parasiteT <= 0) {
     p.parasiteT = gap();
     p.controlT = 1.2;
-    const a = rand(0, Math.PI * 2);
-    p.controlX = Math.cos(a); p.controlY = Math.sin(a);
+    [p.controlX, p.controlY] = parasiteHeading(p);
     floatText(p.x, p.y - 22, 'IT TAKES CONTROL', MALIGNANT_COLOR);
     for (let i = 0; i < (p.stats.parasiteBrood || 0); i++) spawnAlly('maggot', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Parasitic Brood
     Sfx.play('flicker');
@@ -1113,6 +1146,7 @@ function useActive(p, a) {
       if (s.boneCannon) { // Bone Cannon: a huge lance out of your skull
         spawnBullet({ x: p.x + p.aimX * 8, y: p.y - 2 + p.aimY * 8, vx: p.aimX * 260, vy: p.aimY * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
         game.shake = Math.max(game.shake, 4); Sfx.play('blast');
+        moveEntity(game.room, p, -p.aimX * 6, -p.aimY * 6); burst(p.x + p.aimX * 10, p.y - 2 + p.aimY * 10, '#e8e0c8', 6, 60, 0.3); // recoil
       }
       Sfx.play('ram');
       return true;
@@ -1213,6 +1247,8 @@ function drawActFx(ctx, f) {
       ctx.fillRect(x, y - up, 2, up);
       ctx.fillStyle = '#7a5a34'; ctx.fillRect(x, y - up, 1, 1); ctx.fillStyle = '#4a3420';
     }
+  } else if (f.what === 'stitch') {
+    drawStitchFx(ctx, f);
   } else if (f.what === 'pollen') {
     const rr = f.max * (1 - k);
     ctx.fillStyle = '#e8c860';

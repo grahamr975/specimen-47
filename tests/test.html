@@ -28,6 +28,7 @@
 <script src="../src/player.js"></script>
 <script src="../src/dna.js"></script>
 <script src="../src/abilities.js"></script>
+<script src="../src/bodyfx.js"></script>
 <script src="../src/floors.js"></script>
 <script src="../src/bosses.js"></script>
 <script src="../src/ui.js"></script>
@@ -378,6 +379,57 @@ try {
       if (d2) { const c2 = doorCenter(d2); p.x = clamp(c2.x, TILE + 6, ROOM_PX_W - TILE - 6); p.y = clamp(c2.y, TILE + 6, ROOM_PX_H - TILE - 6); Input.keys.add({ up: 'w', down: 's', left: 'a', right: 'd' }[d2]); for (let i = 0; i < 25 && game.room !== exit; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
         check('once you have been in, it opens like any door', game.room === exit); } }
   }
+  { // 0n) Body FX: every limb, every set form and the big splices draw and animate.
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.inv = 99; return q; };
+    const walk = (q, n, key = 'd') => { Input.keys.clear(); Input.keys.add(key); for (let i = 0; i < n; i++) { update(1 / 60); Input.endFrame(); if (i % 5 === 0) render(); } Input.keys.clear(); };
+    for (const r of rootsOf('LIMBS')) { const q = arena(); grow(q, leaves().find(l => rootOf(l) === r)); walk(q, 40); }
+    log.push('every LIMBS path walked and drew');
+    let q = arena(); grow(q, 'grapple'); walk(q, 40);
+    check(`tentacles: real tips that grip the floor and step (${q.tents && q.tents.length})`, q.tents && q.tents.length === 5);
+    q = arena(); grow(q, 'locust'); q.dashCd = 0; Input.pressed.add(' '); walk(q, 30);
+    check('a pounce lands with a squash', q.landT !== undefined);
+    q = arena(); grow(q, 'wings'); walk(q, 30); { const flying = bodyPose(q).alt; Input.keys.clear(); for (let i = 0; i < 4; i++) { update(1 / 60); Input.endFrame(); }
+      check(`wings: you fly higher than you hover, and glide with wings spread (alt ${flying.toFixed(1)}, frame ${limbFrame(q, 'wings')})`, flying > 4 && limbFrame(q, 'wings') === 'wings'); }
+    q = arena(); grow(q, 'fins'); { Input.keys.clear(); Input.keys.add('d'); let lo = 9, hi = 0; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); const sx = bodyPose(q).sx; lo = Math.min(lo, sx); hi = Math.max(hi, sx); } Input.keys.clear(); render();
+      check(`pseudopods: the body reaches and flows (sx ${lo.toFixed(2)}-${hi.toFixed(2)})`, hi - lo > 0.15); }
+    const formOf = (k, sl) => Object.keys(MUTATIONS).find(id => !MUTATIONS[id].part && locOf(id) === sl && setOf(id) === k);
+    for (const k of Object.keys(SETS)) { q = arena(); grow(q, ...LOCS.map(sl => formOf(k, sl)).filter(Boolean)); q.evolutions = 8; recomputeStats(q); walk(q, 30); q.inv = 0; q.hp = q.maxHp; hurtPlayer(1); q.inv = 99; walk(q, 10); }
+    log.push('every set form animated, glowed and got hurt');
+    q = arena(); const leafUnder = id => leaves().find(l => pathTo(l).includes(id));
+    grow(q, leafUnder('tongue'), leafUnder('proboscis'), leafUnder('spike'), 'juggernaut', leafUnder('silk')); q.gullet = 2; walk(q, 20);
+    check('splices draw their marks (seam, bulging gullet, bone barrel)', q.splices.length >= 2);
+    grow(q, leafUnder('howl'), leafUnder('burrow')); q.burrowT = 0.02; update(1 / 60); Input.endFrame(); render();
+    log.push('seismic howl cracked the floor');
+  }
+  { // 0o) Evolving never starts somewhere that hurts.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.locked = false; q.x = 120; q.y = 96; q.hp = q.maxHp = 99;
+    gainDna(dnaNeeded(q.level)); game.puddles = [{ x: q.x, y: q.y, r: 14, life: 99, team: 'enemy' }];
+    for (let i = 0; i < 120; i++) { q.inv = 0; q.hp = q.maxHp; update(1 / 60); Input.endFrame(); }
+    log.push(`in acid: state ${game.state}, hp ${q.hp}/${q.maxHp}`);
+    check(`no cocoon while you stand in enemy acid (evolveT ${q.evolveT}, menu ${!!game.menu})`, q.evolveT === 0 && !game.menu && !game.evolving);
+    game.puddles = [];
+    for (let i = 0; i < 150 && !game.menu && q.evolveT === 0; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); }
+    check('...step out of it and you cocoon', q.evolveT > 0 || !!game.menu);
+    if (q.evolveT > 0) { q.inv = 0; hurtPlayer(1); let again = 0; for (let i = 0; i < 60; i++) { update(1 / 60); Input.endFrame(); if (q.evolveT > 0) again++; }
+      check(`a torn cocoon waits before wrapping up again (${again} frames cocooned in the next second)`, again === 0); }
+    game.menu = null; game.evolving = false;
+  }
+  { // 0p) The parasite drives, but it won't walk you into danger.
+    let hurt = 0, tries = 0;
+    for (let run = 0; run < 20; run++) {
+      newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+      q.x = 160; q.y = 96; grow(q, 'parasite'); q.hp = q.maxHp;
+      // Acid on three sides, a boss-sized brute on the fourth.
+      const open = randInt(0, 3), dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      game.puddles = dirs.filter((d, i) => i !== open).map(([dx, dy]) => ({ x: q.x + dx * 26, y: q.y + dy * 26, r: 14, life: 99, team: 'enemy' }));
+      q.parasiteT = 0; const h0 = q.hp;
+      for (let i = 0; i < 80; i++) { Input.keys.clear(); update(1 / 60); Input.endFrame(); }
+      tries++; if (q.hp < h0) hurt++;
+    }
+    check(`the parasite steers clear of enemy acid (${hurt}/${tries} runs hurt)`, hurt <= 1);
+    newRun(); const q = game.player; grow(q, 'parasite'); q.hp = 1; q.parasiteT = 0; update(1 / 60); Input.endFrame();
+    check('at 1 health the parasite does not take over', !(q.controlT > 0));
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} slots, the slime in one`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 1);
@@ -397,8 +449,10 @@ try {
     applyChoice(p, { id: 'heartwood' });
     check('a big part fills two slots', slotsUsed(p) === 3 && freeSlots(p) === 0);
     check('a full body offers no new parts', !bodyOffers(p).some(c => c.kind === 'root'));
-    grow(p, 'sporefire', 'cropduster'); p.capacity = 3;
+    newRun(); p = game.player; grow(p, 'sporefire', 'cropduster');
     check(`a splice fuses two parts into one: it frees a slot (${slotsUsed(p)}/${slotCapacity(p)})`, p.splices.includes('firestorm') && slotCapacity(p) === 4);
+    { const m = partFor(p, 'cropduster'); applyChoice(p, { id: 'grapple', kind: 'meta', shed: m });
+      check(`...and keeps it even if the splice breaks later (${slotsUsed(p)}/${slotCapacity(p)})`, !p.splices.includes('firestorm') && slotCapacity(p) === 4 && slotsUsed(p) <= slotCapacity(p)); }
     p.capacity = 5; check(`...but never past the cap of ${MAX_SLOTS}`, slotCapacity(p) === MAX_SLOTS);
     newRun(); p = game.player; game.room.pickups = []; for (let i = 0; i < 4; i++) { spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame(); }
     check(`four cores later: still only ${slotCapacity(p)} slots`, slotCapacity(p) === MAX_SLOTS); game.pendingEvolutions = [];
@@ -558,9 +612,10 @@ try {
     for (let i = 0; i < 10 && game.menu; i++) { screens++; autoMenu(); update(1 / 60); Input.endFrame(); }
     check(`one cocoon covers everything waiting (${screens} card screens)`, screens >= 1 && !evolveReady(p));
     // A hit tears it.
-    combatRoom(); game.enemies = []; p.x = 100; p.y = 96; grow(p); p.hp = p.maxHp; gainDna(dnaNeeded(p.level)); wait(50); // (a plain body: no shell to block the hit)
-    p.inv = 0; hurtPlayer(1);
-    check('getting hit tears the cocoon', p.evolveT === 0 && !game.menu);
+    combatRoom(); game.enemies = []; p.x = 100; p.y = 96; grow(p); p.hp = p.maxHp; p.cocoonWait = 0; gainDna(dnaNeeded(p.level)); // (a plain body: no shell to block the hit)
+    for (let i = 0; i < 150 && !(p.evolveT > 0.2) && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
+    const wrapped = p.evolveT > 0.2; p.inv = 0; hurtPlayer(1);
+    check(`getting hit tears the cocoon (was wrapped: ${wrapped})`, wrapped && p.evolveT === 0 && !game.menu);
   }
   { // 0j) Bug reports: cultures, and silk vs bosses.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
@@ -834,7 +889,7 @@ try {
       if (game.kills === lastKills) still += 30; else { still = 0; lastKills = game.kills; }
       if (still > 5000 && !reported) { // no progress for a long time: say what's going on
         reported = true; const q = game.player, r = game.room;
-        log.push(`STALL run ${run}: room ${r.type} locked=${r.locked} cleared=${r.cleared} enemies=[${game.enemies.map(e => e.type + (e.held ? '(held)' : '') + '@' + e.x.toFixed(0) + ',' + e.y.toFixed(0)).join(' ')}] p@${q.x.toFixed(0)},${q.y.toFixed(0)} evolveT=${q.evolveT.toFixed(2)} ready=${evolveReady(q)} menu=${!!game.menu} evolving=${game.evolving} pullT=${q.pullT} dashT=${q.dashT.toFixed(2)} withdrawn=${q.withdrawn} tongue=${!!q.tongue} hitstop=${game.hitstop} parts=${q.parts.map(m => m.id).join(',')} doors=${Object.keys(r.doors).join(',')} seals=${JSON.stringify(r.seals || {})}`);
+        log.push(`STALL run ${run}: room ${r.type} locked=${r.locked} cleared=${r.cleared} enemies=[${game.enemies.map(e => e.type + (e.held ? '(held)' : '') + '@' + e.x.toFixed(0) + ',' + e.y.toFixed(0)).join(' ')}] p@${q.x.toFixed(0)},${q.y.toFixed(0)} evolveT=${q.evolveT.toFixed(2)} ready=${evolveReady(q)} menu=${!!game.menu} evolving=${game.evolving} pullT=${q.pullT} dashT=${q.dashT.toFixed(2)} withdrawn=${q.withdrawn} tongue=${!!q.tongue} hitstop=${game.hitstop} parts=${q.parts.map(m => m.id).join(',')} doors=${Object.keys(r.doors).map(d => d + '>' + r.doors[d].type + (r.doors[d].visited ? '(v)' : '')).join(',')} lairT=${q.lairT} inX=${q.inX} inY=${q.inY} paused=${game.paused} state=${game.state} slowT=${game.slowT} moving=${q.moving} speed=${q.stats.speed} rooted=${q.rooted} limbWear=${q.limbWear.toFixed(2)} pending=${game.pendingEvolutions.length} snooze=${q.snoozeRoom === r} control=${q.controlT} floorRooms=${game.floor.rooms.map(x => x.type[0] + (x.visited ? 'v' : '') + (x.cleared ? 'c' : '')).join('')} seals=${JSON.stringify(r.seals || {})}`);
       }
       const room = game.room;
       if (room.locked) { lockedFor += 30; if (lockedFor > 1800) for (const e of game.enemies.slice()) damageEnemy(e, 999, 0, 0, true); continue; }
@@ -862,6 +917,7 @@ try {
       const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
       game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
+      Input.mouse.down = false; // walk through, don't lunge away from the door
       { const from = game.room; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); } }
       const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
       if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');

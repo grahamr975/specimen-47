@@ -133,6 +133,16 @@ const Sfx = {
       case 'charge': this.tone(200 + Math.random() * 30, 0.06, 'triangle', 0.02, 320); break;
       case 'chargeFull': this.tone(880, 0.12, 'square', 0.04); this.later(60, () => this.tone(1320, 0.1, 'square', 0.03)); break;
       case 'blast': this.noise(0.3, 0.16, 900); this.tone(90, 0.3, 'sine', 0.3, 35); break;
+      // Movement: quiet, so they sit under everything else.
+      case 'skitter': this.tone(1700 + Math.random() * 500, 0.015, 'square', 0.006); break;
+      case 'squelch': this.noise(0.09, 0.035, 420); break;
+      case 'thump': this.tone(70, 0.12, 'sine', 0.12, 40); this.noise(0.06, 0.04, 300); break;
+      case 'thudsoft': this.tone(90, 0.08, 'sine', 0.05, 60); break;
+      case 'clack': this.tone(900, 0.03, 'triangle', 0.02, 500); this.noise(0.02, 0.02, 3000); break;
+      case 'creak': this.tone(140, 0.3, 'sawtooth', 0.012, 95); break;
+      case 'buzz': this.tone(150 + Math.random() * 25, 0.06, 'sawtooth', 0.006); break;
+      case 'scrape': this.noise(0.06, 0.025, 2200); break;
+      case 'rattle': [0, 40, 75].forEach(d => this.later(d, () => this.tone(1200 + Math.random() * 300, 0.015, 'square', 0.006))); break;
       case 'secondHeart':
         [0, 300, 600].forEach(d => this.later(d, () => { this.tone(62, 0.15, 'sine', 0.45, 38); this.noise(0.1, 0.05, 300); }));
         break;

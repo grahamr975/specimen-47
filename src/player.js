@@ -48,8 +48,11 @@ function recomputeStats(p) {
   s.damageMul *= s.power; // weak when fresh, strong when fully evolved
   finalizeStats(s);
   for (const k of splices) {
+    // The two parts fuse into one: the slot it frees is yours for good (up to the cap).
+    if (!(p.splicedEver = p.splicedEver || []).includes(k)) { p.splicedEver.push(k); p.capacity = Math.min(MAX_SLOTS, Math.max(p.capacity, slotsUsed(p)) + 1); }
     if (p.splices.includes(k) || !game.room) continue;
     game.banner = { text: 'SPLICED', sub: SPLICES[k].name + ' - A SLOT FREES UP', color: VIAL_COLOR, t: 2.8 };
+    game.fx.push({ kind: 'act', what: 'stitch', x: p.x, y: p.y - 4, t: 0.8, max: 0.8 }); // threads of flesh stitch you together
     whisper(SPLICES[k].whisper);
     bloodSpray(p.x, p.y, 0, 0, 20, FLUID.blood, 120);
     burst(p.x, p.y, VIAL_COLOR, 24, 110, 0.8);
@@ -307,7 +310,7 @@ function updatePlayer(dt) {
       if (p.hopAir > 0) {
         p.hopAir -= dt;
         vx = p.hopX * top; vy = p.hopY * top;
-        if (p.hopAir <= 0) burst(p.x, p.y + 5, '#3a3230', 4, 30, 0.25); // landing dust
+        if (p.hopAir <= 0) landing(p, 0.5); // squash, dust, thump
       } else { vx = ix * 18; vy = iy * 18; }
     } else {
       // Legs: snappy. No limbs: a slow, pulsing slug crawl.
@@ -330,6 +333,7 @@ function updatePlayer(dt) {
   }
   updateBranchUpkeep(p, dt);
   updateSpiderLegs(p, dt);
+  updateBodyFx(p, dt);
 
   // --- Upkeep: shell, regrowth, hunger, bleeding ---
   if (s.shieldCd > 0 && !p.shieldUp) {
@@ -398,7 +402,7 @@ function hitstop(t) {
 const COCOON_TIME = 1.0;
 const COCOON_WAIT = 0.6; // a beat after the room clears before it starts
 function updateCocoon(p, dt) {
-  const can = evolveReady(p) && !game.room.locked && p.dashT <= 0 && p.pullT <= 0 && p.lungeT <= 0 && !p.withdrawn && !p.tongue;
+  const can = evolveReady(p) && !game.room.locked && p.dashT <= 0 && p.pullT <= 0 && p.lungeT <= 0 && !p.withdrawn && !p.tongue && safeToCocoon(p);
   const auto = can && p.snoozeRoom !== game.room;
   if (auto && p.evolveT === 0) { // let the room settle a moment first
     p.cocoonWait = (p.cocoonWait || 0) + dt;
@@ -431,6 +435,11 @@ function updateCocoon(p, dt) {
     Sfx.play('hatch');
   }
   return true;
+}
+
+// Never wrap up somewhere that hurts (enemy acid).
+function safeToCocoon(p) {
+  return p.stats.stilts || !game.puddles.some(pd => pd.team !== 'player' && Math.hypot(p.x - pd.x, p.y - pd.y) < pd.r + 4);
 }
 
 // Out of the cocoon after the last card: shed the husk.
@@ -548,6 +557,7 @@ function blast(p, frac, g, mul = 1) {
 // Bone spikes are tinted by what's modifying them; other weapons keep their color.
 function shotColor(s, g) {
   if (g.id !== 'spike') return g.color;
+  if (s.venomBarrage) return '#9ac030';
   if (s.venomSpike) return '#b0c040';
   if (s.pierce) return '#e8a020';  // abyssal / lance
   if (s.homing) return '#e0d0a0';
@@ -938,6 +948,7 @@ function chargeHits(p) {
     damageEnemy(e, s.dashDmg * (ram ? 3 : 1), p.dashX * 3, p.dashY * 3, true);
     knock(e, p.dashX, p.dashY, ram ? 320 : 200);
     if (ram && !e.dead) { e.stunT = Math.max(e.stunT || 0, ENEMY_TYPES[e.type].boss ? 0.3 : 1.2); burst(e.x, e.y, '#8a7a5a', 8, 90); }
+    if (ram) burst(e.x, e.y, '#ffd070', 6, 120, 0.2); // sparks off the shell
     hitstop(0.045);
     if (s.bleed > 0) { e.bleedT = 3; e.bleedDps = s.bleed; }
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);
@@ -951,6 +962,7 @@ function chargeHits(p) {
 
 function slam(p) {
   const s = p.stats;
+  landing(p, 1);
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: s.slamR, t: 0.25 });
   strikeSeal(p.x, p.y, s.slamR);
   for (const e of game.enemies) {
@@ -1035,6 +1047,7 @@ function hurtPlayer(dmg) {
     return true;
   }
   if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
+  p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   p.hp -= dmg * s.hitCost; // Hollow Body: every hit costs double
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
@@ -1052,6 +1065,7 @@ function hurtPlayer(dmg) {
   }
   game.shake = 5;
   Sfx.play('hurt');
+  bodyHurtFx(p);
   bloodSpray(p.x, p.y, 0, 0, 16, FLUID.blood, 100);
   stain(p.x, p.y + 3, 2.5, FLUID.blood);
   if (s.ring > 0) fireRing(p, s.ring);
@@ -1163,7 +1177,10 @@ function playerOverlays(p) {
 // Animation frame for limbs: legs skitter and wings flap.
 function limbFrame(p, ov) {
   if (ov === 'spiderlegs' && p.moving && Math.floor(p.t * 14) % 2) return 'spiderlegs2';
-  if (ov === 'wings' && Math.floor(p.t * (p.moving ? 18 : 9)) % 2) return 'wings2';
+  if (ov === 'wings') { // beating hard when you push, spread wide when you glide
+    if (!p.moving && Math.hypot(p.mvx || 0, p.mvy || 0) > 25) return 'wings';
+    return Math.floor(p.t * (p.moving ? 22 : 9)) % 2 ? 'wings2' : 'wings';
+  }
   return ov;
 }
 
@@ -1173,24 +1190,23 @@ function drawPlayer(ctx) {
   if (p.burrowT > 0) {
     pxCircle(ctx, p.x, p.y + 3, 5, '#1e1a18');
     pxCircle(ctx, p.x, p.y + 2, 3.5, '#3a3230');
+    ctx.fillStyle = '#e8e0c8'; // claw tips poking out, digging
+    ctx.fillRect(Math.round(p.x - 3), Math.round(p.y - 1 + Math.floor(p.t * 10) % 2), 1, 2);
+    ctx.fillRect(Math.round(p.x + 2), Math.round(p.y - 1 + Math.floor(p.t * 10 + 1) % 2), 1, 2);
     return;
   }
   drawCentipede(ctx, p);
   if (p.inv > 0 && p.dashT <= 0 && !p.withdrawn && Math.floor(p.inv * 16) % 2) return;
 
-  // Soft shadow (grows with the body; stays on the floor when you fly)
-  const sw = Math.round(7 * STAGE_SCALE[p.stage]);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  // Altitude, squash & stretch, tilt (see bodyfx.js).
+  const mvNow = movement(p), pose = p.pose = bodyPose(p);
+  // Soft shadow on the floor: smaller and fainter the higher you are.
+  const hk = clamp(1 - pose.alt * 0.05, 0.55, 1);
+  const sw = Math.round(7 * STAGE_SCALE[p.stage] * hk);
+  ctx.fillStyle = `rgba(0,0,0,${(0.35 * hk).toFixed(2)})`;
   ctx.fillRect(Math.round(p.x - sw), Math.round(p.y + 4), sw * 2, 3);
   ctx.fillRect(Math.round(p.x - sw + 2), Math.round(p.y + 3), sw * 2 - 4, 5);
-
-  let bob = 0;
-  const mvNow = movement(p);
-  if (mvNow.stilts) bob = -6 + (p.moving ? Math.round(Math.sin(p.t * 9)) : 0);  // up on stilts
-  else if (mvNow.flyover) bob = -4 + Math.round(Math.sin(p.t * 6) * 1.2);       // hovering
-  else if (s.hop && p.hopAir > 0) bob = -Math.round(Math.sin((p.hopAir / 0.2) * Math.PI) * 5); // mid-hop
-  else if (p.moving && !s.slug) bob = -Math.round(Math.abs(Math.sin(p.t * 12)));
-  const x = p.x, y = p.y - 4 + bob;
+  const x = p.x, y = p.y - 4 - Math.round(pose.alt);
   const hurt = p.inv > s.invuln - 0.2;
   const left = p.aimX < 0;
   // A slug inches along: its body stretches and contracts as it crawls.
@@ -1208,8 +1224,14 @@ function drawPlayer(ctx) {
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
   if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
+  const tents = limbsOk && !!p.tents; // real, gripping tentacles replace the painted ones
+  if (tents) drawTentacles(ctx, p, x, y, 'far');
+  if (limbsOk) drawPseudopod(ctx, p, x, y);
   if (limbsOk && partAt(p, 'LIMBS') && partAt(p, 'LIMBS').path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
-  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
+  // Squash, stretch and tilt the body around its feet.
+  const ay = y + 8;
+  ctx.save(); ctx.translate(x, ay); if (pose.rot) ctx.rotate(pose.rot); ctx.scale(pose.sx, pose.sy); ctx.translate(-x, -ay);
+  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs') && !(tents && ov === 'tentlimbs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
   let body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
   // Coloration from your parts (half strength over a set's body form, which has its own colors).
@@ -1221,7 +1243,11 @@ function drawPlayer(ctx) {
     ctx.drawImage(body, Math.round(x - body.width * sx / 2), Math.round(y - body.height * sy / 2 + body.height * (1 - sy) / 2), Math.round(body.width * sx), Math.round(body.height * sy));
   } else drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[ov], x, y);
+  drawBodyMarks(ctx, p, x, y);
+  if (limbsOk) drawLimbDetails(ctx, p, x, y);
+  ctx.restore();
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
+  if (tents) drawTentacles(ctx, p, x, y, 'near');
   drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && partAt(p, 'LIMBS')) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
@@ -1275,6 +1301,7 @@ function updateSpiderLegs(p, dt) {
     const L = SPIDER_LEGS[i];
     if (f.t > 0) { // mid-step: swing toward the target
       f.t = Math.max(0, f.t - dt);
+      if (f.t === 0) { if (Math.random() < 0.35) stainPx(f.tx, f.ty, ['#141010'], 1); if (Math.random() < 0.3) Sfx.play('skitter'); } // pinprick footprints
       const u = 1 - f.t / LEG_STEP_TIME;
       f.x = f.sx + (f.tx - f.sx) * u; f.y = f.sy + (f.ty - f.sy) * u;
       return;
@@ -1355,6 +1382,7 @@ function drawCocoon(ctx, p, x, y) {
 function drawPlayerGlow(ctx) {
   const p = game.player;
   if (game.state !== 'play') return;
+  drawBodyGlow(ctx, p);
   if (p.grappleShot) {
     const g = p.grappleShot, tx = p.x + g.dirX * g.len, ty = p.y + g.dirY * g.len;
     pxLine(ctx, p.x, p.y - 2, tx, ty, '#120a0e', 2);

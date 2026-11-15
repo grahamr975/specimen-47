@@ -54,6 +54,7 @@ function updateBullets(dt) {
         b.vy = Math.sin(cur + turn) * sp;
       }
     }
+    if (b.venomBurst && Math.random() < 0.35) game.particles.push({ x: b.x, y: b.y, vx: 0, vy: 25, life: 0.2, color: '#9ac030', size: 1 }); // Venom Barrage drips
     // Compound Eyes: enemy shots crawl when they get close to you.
     let bdt = dt;
     if (b.team === 'enemy' && game.player.stats.compound && Math.hypot(b.x - game.player.x, b.y - game.player.y) < 42) bdt *= game.player.stats.compound;

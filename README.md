@@ -45,6 +45,8 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Rarity.** Mutations are Common, Uncommon, Rare or Legendary. Rare ones get likelier on deeper floors.
 - **Malignant mutations** (purple cards) are extra strong with a hidden cost. Most have a branch that cures them, and a sibling branch that doubles down.
 - **Mutagen vials** (dropped by elites and found in vaults) give a free evolution with Uncommon-or-better cards.
+- **Parasite Brain** sometimes takes control of your body, but it needs you alive: it steers clear of enemies, bosses and enemy acid, and at 1 health it won't take over.
+- **Bodies look and feel different.** Wings fly higher the faster you go and glide with wings spread; hops squash and stretch and land with a thump; tentacles grip the floor and step like the spider legs; pseudopods reach ahead and flow after; every limb has its own footprints and sounds. Body forms have their own ambience (a predator's eye-shine in the dark, glowing fungal spots, hive flies, bone dust, falling leaves, blinking extra eyes), a full set glows, and splices leave a stitched seam.
 - Clear the farthest room on each floor to open the hatch down. Its door is a toothed, red-glowing maw marked BOSS (or WARDEN); the first time, walking into it stops you at the threshold, and you keep walking to go in.
 
 ## Where to tweak things

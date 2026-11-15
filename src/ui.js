@@ -189,6 +189,7 @@ function drawHUD(ctx) {
   const room = game.room;
   let msg = null, col = PAL.white;
   if (p.evolveT > 0) { msg = 'YOU ARE CHANGING...'; col = VIAL_COLOR; }
+  else if (evolveReady(p) && !room.locked && !safeToCocoon(p)) { msg = 'GET OUT OF THE ACID TO EVOLVE'; col = VIAL_COLOR; }
   else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
