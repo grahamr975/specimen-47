@@ -113,7 +113,15 @@ try {
     check('a branch whispers too', game.whisper.text === HINTS.urchinhide.toUpperCase());
     check('taking a branch locks out its sibling', !slotOffers(p, 'BACK').includes('quillpulse') && slotOffers(p, 'BACK').includes('venomquills'));
     applyChoice(p, { id: 'venomquills' });
-    check('a fully grown path offers nothing more', slotOffers(p, 'BACK').length === 0 && p.slots.BACK.path.join() === 'spines,urchinhide,venomquills');
+    check('a fully grown path offers only a METAMORPHOSIS into a rarer root', p.slots.BACK.path.join() === 'spines,urchinhide,venomquills' && slotOffers(p, 'BACK').length > 0 && slotOffers(p, 'BACK').every(id => !MUTATIONS[id].from && RARITY_ORDER.indexOf(MUTATIONS[id].rarity) > RARITY_ORDER.indexOf('common')));
+    applyChoice(p, { id: 'chitin' });
+    check('metamorphosis sheds the old path and starts over at level 1', p.slots.BACK.path.join() === 'chitin' && game.banner.text === 'METAMORPHOSIS' && slotOffers(p, 'BACK').join() === childrenOf('chitin').join());
+    { let forced = 0, two = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; grow(q, 'venomquills', 'bonejaws', 'fractured', 'trapdoor'); const cards = rollChoices(q, 3); const metas = cards.filter(c => c.id !== '_gorge' && isMetamorph(q, c.id)).length; if (metas > 1) two++; if (metas && cards.every(c => c.id === '_gorge' || isMetamorph(q, c.id)) && !cards.some(c => c.id === '_gorge')) forced++; }
+      { newRun(); const q = game.player; grow(q, 'venomquills', 'trapdoor');
+        const before = slotOffers(q, 'LIMBS').includes('burrow');
+        grow(q, 'venomquills', 'trapdoor', 'shatter');
+        check(`rarer roots can require a part elsewhere (burrow without a skull: ${before}, with: ${slotOffers(q, 'LIMBS').includes('burrow')}; card says "${choiceInfo(q, { id: 'burrow' }).note}")`, !before && slotOffers(q, 'LIMBS').includes('burrow') && /FED BY/.test(choiceInfo(q, { id: 'burrow' }).note)); }
+      check(`metamorphosis is never forced (${two} rolls with 2+, ${forced} with no way to decline)`, !two && !forced); }
     check('the starter slime blob can be replaced by any MOUTH root', slotOffers(p, 'MOUTH').join() === rootsOf('MOUTH').join());
     applyChoice(p, { id: 'tentacles' });
     check('...which then locks the MOUTH too', p.slots.MOUTH.path.join() === 'tentacles' && !slotOffers(p, 'MOUTH').includes('spike'));
@@ -195,6 +203,42 @@ try {
     check(`a point-blank shotgun blast sends it flying (${shotgun.toFixed(1)}px)`, shotgun > bit);
     check(`heavier enemies resist (splitter ${heavy.toFixed(1)}px vs rat ${bit.toFixed(1)}px)`, heavy < bit * 0.7);
   }
+  { // 0g) Playstyle mouths.
+    const setup = (...ids) => { newRun(); combatRoom(); const p = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 100; p.y = 96; p.aimX = 1; p.aimY = 0; grow(p, ...ids); return p; };
+    const run = (n, hold = false) => { for (let i = 0; i < n; i++) { const p = game.player; p.hp = p.maxHp; p.inv = 1; Input.keys.clear(); Input.mouse.down = hold; Input.mouse.x = p.x + 60; Input.mouse.y = p.y + ROOM_Y; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } Input.mouse.down = false; };
+    // Ovipositor: infest, eat, burst, spread.
+    let p = setup('ovipositor'); let a = dummy(40, 30); a.speed = 0; let b = dummy(70, 30); b.speed = 0; b.y += 8;
+    run(40, true);
+    check('ovipositor: a larva infests its host', !!a.infest || a.hp < 30);
+    run(60 * 5);
+    check(`ovipositor: the brood bursts out and finds a new host (host hp ${a.hp.toFixed(1)}, next host infested ${!!b.infest || b.hp < 30})`, a.hp < 30 && (b.infest || b.hp < 30));
+    // Miasma: passive gas, venting widens it.
+    p = setup('miasma'); a = dummy(18, 20); a.speed = 0; const far = dummy(36, 20); far.speed = 0;
+    run(60);
+    check(`miasma: the gas eats what's close (${(20 - a.hp).toFixed(1)} dmg) and not what's far`, a.hp < 19 && far.hp === 20);
+    run(60, true);
+    check(`miasma: venting widens it to reach farther (${p.gasR.toFixed(0)}px)`, far.hp < 20);
+    check('miasma: never fires anything', !game.bullets.some(b => b.team === 'player'));
+    // Howl: hurls enemies, damage comes from the wall.
+    p = setup('howl'); p.x = ROOM_PX_W - TILE - 50; a = dummy(20, 30); a.speed = 0;
+    run(2, true); const thrown = !!a.thrown; run(40);
+    check(`howl: flings enemies into walls (thrown ${thrown}, ${(30 - a.hp).toFixed(1)} dmg)`, thrown && a.hp < 30 - 1.5);
+    // Polyp Seeder.
+    p = setup('polyp'); run(2, true); a = dummy(60, 30); a.speed = 0; run(120);
+    check(`polyp: plants a polyp that spits at enemies (${game.allies.filter(x => x.kind === 'polyp').length} polyps, ${(30 - a.hp).toFixed(1)} dmg)`, game.allies.some(x => x.kind === 'polyp') && a.hp < 30);
+    run(60 * 4, true);
+    check('polyp: only a few grow at once', game.allies.filter(x => x.kind === 'polyp' && !x.dead).length <= p.stats.polyp.max);
+    // Frog Tongue: swallow, then spit.
+    p = setup('tongue'); a = spawnEnemy('mini', p.x + 40, p.y); a.spawnT = 0; a.speed = 0;
+    run(2, true);
+    check(`tongue: swallows small prey whole (gullet ${p.gullet})`, a.dead && p.gullet === 1);
+    b = dummy(50, 40); b.speed = 0; run(36, true); run(30);
+    check(`tongue: fire again to spit it back (gullet ${p.gullet}, ${(40 - b.hp).toFixed(1)} dmg)`, p.gullet === 0 && b.hp < 40);
+    // Silk Spinner.
+    p = setup('silk'); run(2, true); a = dummy(30, 30); a.speed = 40; a.x = p.x + 30; a.y = p.y + 2;
+    run(30);
+    check(`silk: webs stick and cut (${game.webs.length} webs, ${(30 - a.hp).toFixed(1)} dmg, stuck ${a.webT > 0})`, game.webs.length > 0 && a.hp < 30);
+  }
   { // 0e) Splices: fused parts across slots.
     const bad = Object.keys(SPLICES).filter(k => { const pt = SPLICES[k].parts; return pt.some(ids => ids.some(id => !MUTATIONS[id])) || new Set(pt.map(ids => slotOf(ids[0]))).size !== 2 || pt.some(ids => ids.some(id => slotOf(id) !== slotOf(ids[0]))); });
     check('every splice joins parts from two different slots' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
@@ -225,13 +269,13 @@ try {
     for (let i = 0; i < 130 && !game.menu; i++) { Input.keys.clear(); Input.keys.add('f'); update(1 / 60); Input.endFrame(); } Input.keys.clear();
     check(`its cards are all CORE, and include Thick Hide (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.every(c => slotOf(c.id) === 'CORE') && game.menu.choices.some(c => c.id === 'hide'));
     game.menu = null; game.evolving = false;
-    grow(p, 'secondheart'); const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+    grow(p, 'mirrortwin'); const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame(); // (a rare root: nothing rarer to become)
     check(`a fully grown CORE: the core makes you tougher instead (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && !game.pendingEvolutions.length);
     newRun(); game.depth = 2; startFloor(); p = game.player;
     enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
     const w = game.enemies.find(e => e.warden);
     check('floors without a boss have a warden in the exit room', !!w);
-    if (w) { w.spawnT = 0; damageEnemy(w, 9999, 0, 0, true); check('the warden drops its core', game.room.pickups.some(k => k.kind === 'core')); }
+    if (w) { w.spawnT = 0; w.affixes = []; damageEnemy(w, 9999, 0, 0, true); check('the warden drops its core', game.room.pickups.some(k => k.kind === 'core')); } // (no affixes: a shielded one can block the test hit)
   }
   { // 0c) Sets.
     const untagged = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && !setOf(id));
@@ -543,7 +587,7 @@ try {
   for (let i = 0; i < 3000 && (evolveReady(game.player) || game.menu); i++) step(1, true);
   p = game.player;
   log.push(`after 150 evolutions: ${SLOTS.map(s => s + '=' + (p.slots[s] ? p.slots[s].path.join('>') : '-')).join(' ')}`);
-  check(`every slot grew a full path (menus=${menus})`, SLOTS.every(s => p.slots[s] && p.slots[s].path.length === 3));
+  check(`every slot grew, and nothing is stuck (menus=${menus})`, SLOTS.every(s => p.slots[s] && !p.slots[s].starter) && !evolveReady(p) && !game.menu);
 
   // 4) Full god-mode runs.
   for (let run = 0; run < 3; run++) {

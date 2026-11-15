@@ -135,6 +135,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   const ps = game.player && game.player.stats;
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
   if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
+  if (e.corrodeUntil > game.time) dmg *= 1.5;                // Corrode
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
@@ -164,10 +165,17 @@ function killEnemy(e) {
     burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
   }
   onSetKill(e, p, s);
+  if (e.infest) hostBurst(e); // the brood inside bursts out
+  if (s.gasDeathCloud && Math.hypot(e.x - p.x, e.y - p.y) < (p.gasR || 0) + e.r) game.clouds.push({ x: e.x, y: e.y, r: 16, life: 3.5, toxic: true }); // Rot Halo
+  if (s.webBrood && e.webT > 0) { for (let i = 0; i < s.webBrood; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); floatText(e.x, e.y - 10, 'WRAPPED', '#e0d8d0'); } // Cocoon Wrap
   // Stalker: kills out in the dark can heal you.
   if (s.darkHeal && p.hp < p.maxHp && Math.hypot(e.x - p.x, e.y - p.y) > 45 && Math.random() < s.darkHeal) {
     p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red);
   }
+  if (e.swallowed) { // Frog Tongue: gone in one gulp, DNA and all
+    const n = Math.round((T.dna || 0) * s.dnaMul);
+    if (n) gainDna(n);
+  } else {
   bloodSpray(e.x, e.y, 0, 0, e.elite ? 40 : 22, T.fluid, 130);
   gibs(e.x, e.y, e.elite ? 10 : randInt(3, 6), T.gib, T.fluid);
   if (T.robot) {
@@ -180,6 +188,7 @@ function killEnemy(e) {
     // Torn apart: just a smear, nothing worth harvesting.
     stain(e.x, e.y + 1, e.r + 2, T.fluid);
     gibs(e.x, e.y, 3, T.gib, T.fluid);
+  }
   }
   Sfx.play('kill');
   game.shake = Math.max(game.shake, e.elite ? 5 : 2);
@@ -314,6 +323,7 @@ function updateEnemies(dt) {
 
     if (e.blindT > 0 && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
     // Stuck in your slime blob: half speed, dripping.
+    if (e.webT > 0) { e.webT -= dt; mx *= 0.12; my *= 0.12; } // stuck in silk
     if (e.slowT > 0) {
       e.slowT -= dt; mx *= 0.5; my *= 0.5;
       if (Math.random() < dt * 6) stainPx(e.x + rand(-2, 2), e.y + rand(1, 3), ['#3c4238', '#5a6a52'], 1);
@@ -349,7 +359,7 @@ function updateEnemies(dt) {
       if (e.dead) continue;
     }
 
-    if (pd < e.r + p.r - 1 && p.burrowT <= 0 && !ENEMY_TYPES[e.type].harmless) {
+    if (pd < e.r + p.r - 1 && p.burrowT <= 0 && !ENEMY_TYPES[e.type].harmless && !(e.infest && p.stats.oviCharm)) {
       // Pustule Field: touching you pops a pustule of burning bile.
       if (p.stats.pustules && !(e.pusT > 0)) {
         e.pusT = 0.8; e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, p.stats.pustules);
@@ -446,6 +456,10 @@ function drawEnemyGlow(ctx) {
     }
     if (e.stunT > 0 && Math.floor(game.time * 8) % 2) drawText(ctx, '*', e.x, e.y - 12, PAL.yellow, 1, 'center');
     if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
+    if (e.infest && !e.dead) { // something writhing under its skin
+      const wx = e.x + Math.sin(game.time * 14 + e.infest.wriggle) * 2, wy = e.y - 1 + Math.cos(game.time * 11) * 1.5;
+      pxCircle(ctx, wx, wy, 1.6, '#3a2a20'); pxCircle(ctx, wx, wy, 1, '#e8dcc0');
+    }
     if (e.spawnT > 0) {
       // Something is crawling out: a warning so spawns are never unfair.
       if (Math.floor(e.spawnT * 14) % 2 === 0) pxRing(ctx, e.x, e.y, 2 + e.spawnT * 9, PAL.red);

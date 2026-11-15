@@ -556,6 +556,17 @@ function paintHazmat(horiz, dmg) {
   return P.outline().toCanvas();
 }
 
+// A planted polyp: a fleshy bulb on a stalk with a toothed mouth on top.
+function paintPolypAlly() {
+  const P = new Painter(12, 14, 83);
+  P.blob(6, 12.6, 3.4, 1.2, R.flesh, { shift: -0.3 });
+  P.tube([[6, 12.4], [5.6, 9.5], [6, 7.6]], 1.4, 1.1, R.flesh, { spec: 1 });
+  P.blob(6, 5.4, 3.6, 3.2, R.cyst, { spec: 1, noise: 0.15 });
+  P.blob(6, 4, 1.7, 1.2, R.socket, { noise: 0 });
+  for (let x = 4.5; x <= 7.5; x++) P.dot(x, 3.2, '#e0d4b8');
+  return P.outline().toCanvas();
+}
+
 // A boss's core: a dark, veined heart, still beating. `big` = mid-beat.
 function paintBossCore(big) {
   const P = new Painter(16, 16, 81);
@@ -586,6 +597,45 @@ const ICON_PAINT = {
     P.blob(8, 9.5, 4.8, 2.7, R.socket, { noise: 0 });
     for (const x of [5, 7, 9, 11]) P.tube([[x, 7], [x + 0.2, 9.8]], 0.8, 0.3, R.bone);
     for (const x of [6, 10]) P.tube([[x, 12.5], [x, 10]], 0.7, 0.3, R.bone);
+  },
+  ovipositor: P => {
+    P.tube([[2.5, 14], [6, 10], [10, 6.5], [12.5, 4.5]], 2.4, 1.2, R.flesh, { spec: 1 });
+    for (let k = 0; k < 4; k++) P.scratch([[3 + k * 2.4, 11.6 - k * 2.4], [5 + k * 2.4, 13.4 - k * 2.4]], '#5e2229');
+    for (const [x, y, r] of [[13.5, 3, 1.5], [11.6, 2, 1.1], [14.6, 5.4, 1]]) P.blob(x, y, r, r * 0.9, R.pus, { spec: 1 });
+  },
+  miasma: P => {
+    const G = ['#141a0c', '#2e3a18', '#4e6428', '#7a9a3a', '#b8d070'];
+    P.blob(6, 9.5, 4.2, 3.4, G, { spec: 1, noise: 0.25 }).blob(10.5, 7, 3.8, 3.2, G, { spec: 1, noise: 0.25 }).blob(9.5, 11.6, 3.2, 2.4, G, { noise: 0.25 });
+    P.blob(5, 9, 0.9, 1, R.socket, { noise: 0 }).blob(7.4, 9, 0.9, 1, R.socket, { noise: 0 }); // a face in the fumes
+    P.scratch([[5, 11], [7.6, 11]], '#141a0c');
+  },
+  howl: P => {
+    P.blob(5.5, 8, 4.6, 4.4, R.flesh, { spec: 1 });
+    P.blob(6.6, 8.4, 2.6, 3.2, R.socket, { noise: 0 });
+    for (const y of [5.4, 11.4]) for (let x = 5; x <= 8; x++) P.dot(x, y, '#e0d4b8');
+    for (const r of [3, 5.5]) P.scratch([[10 + r * 0.3, 8 - r], [11 + r * 0.6, 8], [10 + r * 0.3, 8 + r]], '#e8dcc8');
+  },
+  polyp: P => {
+    P.tube([[8, 15.5], [7.6, 12], [8, 9.5]], 1.6, 1.2, R.flesh, { spec: 1 });
+    P.blob(8, 7, 4.6, 4.2, R.cyst, { spec: 1, noise: 0.15 });
+    P.blob(8, 5.4, 2, 1.5, R.socket, { noise: 0 });
+    for (let x = 6.5; x <= 9.5; x++) P.dot(x, 4.4, '#e0d4b8');
+    P.vein(5, 8, 3, '#7a1420', 1);
+  },
+  tongue: P => {
+    P.blob(4, 8.5, 3.6, 3.2, R.flesh, { spec: 1 });
+    P.blob(5, 9, 1.6, 1.8, R.socket, { noise: 0 });
+    P.tube([[5.5, 9.4], [9, 10], [12.5, 8.4], [13.6, 5.4]], 1.3, 1.1, R.pink, { spec: 1 });
+    P.blob(13.4, 4.6, 1.8, 1.6, R.pink, { spec: 1 });
+  },
+  silk: P => {
+    const c = '#d8d0c8';
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; P.scratch([[8, 8], [8 + Math.cos(a) * 7, 8 + Math.sin(a) * 7]], c); }
+    for (const r of [2.6, 5]) for (let k = 0; k < 8; k++) {
+      const a1 = k * Math.PI / 4, a2 = (k + 1) * Math.PI / 4;
+      P.scratch([[8 + Math.cos(a1) * r, 8 + Math.sin(a1) * r], [8 + Math.cos(a2) * r, 8 + Math.sin(a2) * r]], '#a8a098');
+    }
+    P.blob(10.5, 5.5, 1.4, 1.3, R.chitin, { spec: 1 });
   },
   slime: P => {
     P.blob(8, 9.5, 5.4, 4.6, R.murk, { spec: 1, noise: 0.25 });
@@ -1034,7 +1084,7 @@ function withFlash(name, img) {
   for (const id in ICON_PAINT) SPR.icons[id] = paintIcon(id);
 
   // Allies & body parts for the extra mutations.
-  for (const [name, img] of [['spiderling', paintSpiderling()], ['maggot', paintMaggot()], ['twin', paintPureSpecimen(0, 0, 0.42)]]) { SPR[name] = img; SPR[name + '_L'] = flipH(img); }
+  for (const [name, img] of [['spiderling', paintSpiderling()], ['maggot', paintMaggot()], ['twin', paintPureSpecimen(0, 0, 0.42)], ['polyp', paintPolypAlly()]]) { SPR[name] = img; SPR[name + '_L'] = flipH(img); }
   SPR.segment = paintSegment();
 
   // (HUD art is baked on first use by bakeHud(), since it needs the room size from world.js.)

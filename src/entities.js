@@ -25,12 +25,23 @@ function nearestEnemy(x, y, maxDist) {
   return best;
 }
 
+// Larvae look for a fresh host: not one that's already infested, nor the one they just left.
+function nearestHost(b) {
+  let best = null, bd = 160;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0 || e.infest || (b.hitSet && b.hitSet.has(e))) continue;
+    const d = Math.hypot(e.x - b.x, e.y - b.y);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
 function updateBullets(dt) {
   const room = game.room;
   for (const b of game.bullets) {
     // Homing: rotate velocity toward the nearest enemy.
     if (b.homing && b.team === 'player') {
-      const t = nearestEnemy(b.x, b.y, 140);
+      const t = b.larva ? nearestHost(b) : nearestEnemy(b.x, b.y, 140);
       if (t) {
         const cur = Math.atan2(b.vy, b.vx);
         const want = Math.atan2(t.y - b.y, t.x - b.x);
@@ -46,6 +57,7 @@ function updateBullets(dt) {
     // Compound Eyes: enemy shots crawl when they get close to you.
     let bdt = dt;
     if (b.team === 'enemy' && game.player.stats.compound && Math.hypot(b.x - game.player.x, b.y - game.player.y) < 42) bdt *= game.player.stats.compound;
+    if (b.team === 'enemy' && game.player.stats.gasChoke && Math.hypot(b.x - game.player.x, b.y - game.player.y) < (game.player.gasR || 0)) bdt *= 0.4; // Choke
     b.x += b.vx * bdt;
     b.y += b.vy * bdt;
     b.life -= dt;
@@ -142,6 +154,8 @@ function endPlayerBullet(b) {
 function onPlayerBulletHit(b, enemy) {
   const p = game.player, s = p.stats;
   if (b.acid) spawnPuddle(b.x, b.y, b.acid, 2.2, 'player');
+  if (b.larva && !enemy.dead) infest(enemy);                 // Ovipositor
+  if (b.polyp && enemy.dead && s.polypFeed) polypFed(p);     // Feeding Polyps
   // Clutch: whatever your fragments kill hatches a maggot.
   if (b.kind === 'frag' && enemy.dead && s.clutch) { spawnAlly('maggot', enemy.x, enemy.y); Sfx.play('hatch'); }
   if (!enemy.dead) {

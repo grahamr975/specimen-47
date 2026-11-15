@@ -89,6 +89,14 @@ function finalizeStats(s) {
     g.dmg *= m; g.delay *= s.rateMul; g.range += s.rangeAdd; g.speed += s.speedAdd;
     g.acid = Math.max(g.acid, s.acid);
   }
+  // Playstyle attacks.
+  for (const k of ['ovi', 'howl', 'polyp', 'tongue', 'silk']) if (s[k]) s[k].delay *= s.rateMul;
+  if (s.ovi) { s.ovi.dps *= m; s.ovi.burstDmg *= m; }
+  if (s.howl) { s.howl.dmg *= m; s.howl.slam *= m; s.howl.range += s.reach; }
+  if (s.polyp) s.polyp.dmg *= m;
+  if (s.tongue) { s.tongue.dmg *= m; s.tongue.spit *= m; s.tongue.range += s.reach * 2; }
+  if (s.silk) s.silk.dmg *= m;
+  if (s.miasma) s.miasma.dps *= m;
   s.speed *= s.speedMul;
   // Hind legs only hop if they're your only limbs; with others you walk and still pounce.
   if (s.hop && s.limbCount > 1) s.hop = 0;
@@ -102,6 +110,7 @@ function finalizeStats(s) {
     for (const g of s.guns) if (!g.native) { g.delay *= 0.35; g.dmg *= 0.45; g.spread += 0.16; g.range *= 0.8; g.cloud *= 0.6; }
     s.biteDelay *= 0.35; s.lashDelay *= 0.35; s.lungeDelay *= 0.4; s.vomitDelay *= 0.35;
     s.biteDmg *= 0.55; s.lashDmg *= 0.55; s.lungeDmg *= 0.55; s.vomitDmg *= 0.5;
+    for (const k of ['ovi', 'howl', 'polyp', 'tongue', 'silk']) if (s[k]) s[k].delay *= 0.5;
   }
   s.biteReach += s.reach;
   s.lashRange += s.reach * 2;
@@ -285,6 +294,7 @@ const MUTATIONS = {
   },
 
   proboscis: {
+    requires: { set: 'PREDATOR', label: 'A PREDATOR PART' },
     name: 'Proboscis', slot: 'MOUTH', rarity: 'rare', overlay: ['proboscis'],
     desc: 'Hold fire to latch a draining beam onto prey. Drained blood heals you.',
     apply(s, l) { s.beam += 0.25 + 0.1 * l; },
@@ -318,6 +328,224 @@ const MUTATIONS = {
     name: 'Gorging Tube', from: 'bloat', rarity: 'rare', icon: ['proboscis', 'eyes'],
     desc: 'A longer, hungrier proboscis: much more reach and drain.',
     apply(s) { s.beamRange += 40; s.beam *= 1.5; },
+  },
+  // ---- Playstyle roots: they replace shooting with something else entirely ----
+  ovipositor: {
+    requires: { any: ['eggsac', 'brood'], label: 'EGG SAC OR BROOD' },
+    name: 'Ovipositor', slot: 'MOUTH', rarity: 'rare', overlay: ['proboscis'],
+    desc: 'Slowly launch a larva. It burrows into a host, eats it from inside, then bursts out to find new hosts.',
+    apply(s, l) { s.ovi = { delay: 1.5 - 0.15 * (l - 1), dps: 0.5 + 0.25 * l, brood: l >= 3 ? 3 : 2, burstDmg: 2 + l, time: 4 }; },
+  },
+  broodhost: {
+    name: 'Brood Host', from: 'ovipositor', rarity: 'uncommon', icon: ['ovipositor', 'spider'],
+    desc: 'Half of what bursts out of a host hatches as spiderlings that fight for you.',
+    apply(s) { s.oviSpider = true; },
+  },
+  swarmqueen: {
+    name: 'Swarm Queen', from: 'broodhost', rarity: 'legendary', icon: ['ovipositor', 'parasite'],
+    desc: 'Infested hosts turn on their own kind until they burst.',
+    apply(s) { s.oviCharm = true; },
+  },
+  gestation: {
+    name: 'Gestation', from: 'broodhost', rarity: 'rare', icon: ['ovipositor', 'hide'],
+    desc: 'Hosts carry the larva longer, and the longer they carry it, the bigger the brood.',
+    apply(s) { s.ovi.time = 6; s.oviGrow = true; },
+  },
+  bloodworm: {
+    name: 'Bloodworm', from: 'ovipositor', rarity: 'uncommon', icon: ['ovipositor', 'hemophage'],
+    desc: 'The larva feeds far harder, and hosts burst sooner.',
+    apply(s) { s.ovi.dps *= 2.5; s.ovi.time = 3; },
+  },
+  chestburster: {
+    name: 'Chestburster', from: 'bloodworm', rarity: 'rare', icon: ['ovipositor', 'overgrown'],
+    desc: 'The brood tears its host apart, hurting everything near it.',
+    apply(s, l) { s.oviBurst = 4 + l; },
+  },
+  puppetlarva: {
+    name: 'Puppet Larva', from: 'bloodworm', rarity: 'rare', icon: ['ovipositor', 'echo'],
+    desc: 'Hosts stagger around blind and slow while it eats them.',
+    apply(s) { s.oviConfuse = true; },
+  },
+
+  miasma: {
+    requires: { any: ['toxic', 'bacteria', 'fins'], label: 'TOXIC BLOOD, BACTERIA OR PSEUDOPODS' },
+    name: 'Miasma', slot: 'MOUTH', rarity: 'rare',
+    desc: 'No attack. You leak a toxic cloud that eats everything near you. Hold fire to vent it wider, but you slow down.',
+    apply(s, l) { s.miasma = { r: 30 + 4 * (l - 1), dps: 1.6 + 0.6 * (l - 1) }; },
+  },
+  shroud: {
+    name: 'Spore Shroud', from: 'miasma', rarity: 'uncommon', icon: ['miasma', 'eyes'],
+    desc: 'Enemies inside your gas lose track of you.',
+    apply(s) { s.gasHide = true; },
+  },
+  rothalo: {
+    name: 'Rot Halo', from: 'shroud', rarity: 'rare', icon: ['miasma', 'mitosis'],
+    desc: 'Anything that dies in your gas leaves a lingering toxic cloud of its own.',
+    apply(s) { s.gasDeathCloud = true; },
+  },
+  phantom: {
+    name: 'Phantom', from: 'shroud', rarity: 'rare', icon: ['miasma', 'nighteyes'],
+    desc: 'While you vent, you vanish: nothing can find you.',
+    apply(s) { s.gasInvis = true; },
+  },
+  causticlungs: {
+    name: 'Caustic Lungs', from: 'miasma', rarity: 'uncommon', icon: ['miasma', 'toxic'],
+    desc: 'The longer something stays in your gas, the faster it dissolves.',
+    apply(s) { s.gasRamp = true; },
+  },
+  corrode: {
+    name: 'Corrode', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'bile'],
+    desc: 'Anything in your gas takes 50% more damage from everything.',
+    apply(s) { s.gasCorrode = true; },
+  },
+  choke: {
+    name: 'Choke', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'twitch'],
+    desc: 'Your gas slows enemies, and their shots crawl through it.',
+    apply(s) { s.gasChoke = true; },
+  },
+
+  howl: {
+    name: 'Howl', slot: 'MOUTH', rarity: 'uncommon',
+    desc: 'A sonic cone that barely hurts but hurls enemies into walls and each other.',
+    apply(s, l) { s.howl = { delay: 0.8 - 0.05 * (l - 1), dmg: 0.3 * l, force: 300 + 40 * l, range: 62, cone: 0.55, slam: 2 + 1.2 * l }; },
+  },
+  shockwave: {
+    name: 'Shockwave', from: 'howl', rarity: 'uncommon', icon: ['howl', 'slam'],
+    desc: 'The howl bursts out all around you instead of ahead.',
+    apply(s) { s.howl.cone = -1; s.howl.range *= 0.85; },
+  },
+  concussion: {
+    name: 'Concussion', from: 'shockwave', rarity: 'rare', icon: ['howl', 'echo'],
+    desc: 'Whatever the howl hits is stunned.',
+    apply(s) { s.howlStun = 0.8; },
+  },
+  avalanche: {
+    name: 'Avalanche', from: 'shockwave', rarity: 'rare', icon: ['howl', 'skull'],
+    desc: 'Anything flung into another enemy flings that one too.',
+    apply(s) { s.howlChain = true; },
+  },
+  soniclance: {
+    name: 'Sonic Lance', from: 'howl', rarity: 'uncommon', icon: ['howl', 'spike'],
+    desc: 'A narrow, long howl that hits far harder.',
+    apply(s) { s.howl.cone = 0.9; s.howl.range *= 1.8; s.howl.force += 150; },
+  },
+  wallbreaker: {
+    name: 'Wallbreaker', from: 'soniclance', rarity: 'rare', icon: ['howl', 'marrow'],
+    desc: 'Enemies you slam into walls take far more and burst into bone shards.',
+    apply(s) { s.wallSlamMul = 2.5; },
+  },
+  rupture: {
+    name: 'Rupture', from: 'soniclance', rarity: 'rare', icon: ['howl', 'horns'],
+    desc: 'The howl ruptures them inside: they bleed.',
+    apply(s) { s.howlBleed = 2.5; },
+  },
+
+  polyp: {
+    name: 'Polyp Seeder', slot: 'MOUTH', rarity: 'uncommon',
+    desc: 'Fire plants a fleshy polyp that spits at anything nearby. Only a few can grow at once.',
+    apply(s, l) { s.polyp = { delay: 1.1, max: 1 + l, dmg: 0.7 + 0.25 * l, rate: 0.9, life: 14 }; },
+  },
+  sporepolyp: {
+    name: 'Spore Polyp', from: 'polyp', rarity: 'uncommon', icon: ['polyp', 'mitosis'],
+    desc: 'Polyps spit spores that burst into blinding clouds.',
+    apply(s) { s.polypCloud = true; },
+  },
+  fruiting: {
+    name: 'Fruiting Bodies', from: 'sporepolyp', rarity: 'rare', icon: ['polyp', 'overgrown'],
+    desc: 'Polyps burst in burning bile when something touches them, or when they wither.',
+    apply(s) { s.polypBurst = true; },
+  },
+  mycelialweb: {
+    name: 'Mycelial Web', from: 'sporepolyp', rarity: 'rare', icon: ['polyp', 'silk'],
+    desc: 'Your polyps are joined by threads that eat whatever crosses them.',
+    apply(s) { s.polypLink = true; },
+  },
+  tendrilpolyp: {
+    name: 'Tendril Polyp', from: 'polyp', rarity: 'uncommon', icon: ['polyp', 'tentacles'],
+    desc: 'Polyps lash whatever comes close instead of spitting, much harder.',
+    apply(s) { s.polypLash = true; },
+  },
+  graspingbed: {
+    name: 'Grasping Bed', from: 'tendrilpolyp', rarity: 'rare', icon: ['polyp', 'grapple'],
+    desc: 'Polyp tendrils drag prey in and hold it.',
+    apply(s) { s.polypGrab = true; },
+  },
+  feedingpolyps: {
+    name: 'Feeding Polyps', from: 'tendrilpolyp', rarity: 'rare', icon: ['polyp', 'hemophage'],
+    desc: 'More polyps, living longer, and what they kill feeds you.',
+    apply(s) { s.polyp.max += 1; s.polyp.life *= 1.5; s.polypFeed = 5; },
+  },
+
+  tongue: {
+    name: 'Frog Tongue', slot: 'MOUTH', rarity: 'uncommon',
+    desc: 'Lash out a long tongue. Small prey is swallowed whole; fire again to spit it back out.',
+    apply(s, l) { s.tongue = { delay: 0.55, range: 70 + 10 * l, dmg: 1.5 + 0.8 * l, spit: 3 + 1.5 * l, max: 3, size: 6 }; },
+  },
+  bottomlessgut: {
+    name: 'Bottomless Gut', from: 'tongue', rarity: 'uncommon', icon: ['tongue', 'starving'],
+    desc: 'Swallow bigger prey, and hold far more of it.',
+    apply(s) { s.tongue.max = 6; s.tongue.size = 7.5; },
+  },
+  acidgut: {
+    name: 'Acid Gut', from: 'bottomlessgut', rarity: 'rare', icon: ['tongue', 'bile'],
+    desc: 'What you spit back is half-digested and bursts into burning bile.',
+    apply(s) { s.spitAcid = 16; },
+  },
+  regurgitate: {
+    name: 'Regurgitate', from: 'bottomlessgut', rarity: 'rare', icon: ['tongue', 'spike'],
+    desc: 'What you spit back shatters into bone shards on impact.',
+    apply(s) { s.spitSplit = 5; },
+  },
+  barbedtongue: {
+    name: 'Barbed Tongue', from: 'tongue', rarity: 'uncommon', icon: ['tongue', 'barbs'],
+    desc: 'The tongue tears through everything along its length.',
+    apply(s) { s.tongue.dmg *= 1.6; s.tonguePierce = true; },
+  },
+  grappletongue: {
+    name: 'Grapple Tongue', from: 'barbedtongue', rarity: 'rare', icon: ['tongue', 'grapple'],
+    desc: 'Lash anything too big to swallow, or a wall, and the tongue reels YOU in.',
+    apply(s) { s.tongueYank = true; },
+  },
+  venomtongue: {
+    name: 'Venom Tongue', from: 'barbedtongue', rarity: 'rare', icon: ['tongue', 'toxic'],
+    desc: 'The tongue leaves venom: what it touches bleeds and slows.',
+    apply(s) { s.tongueVenom = true; },
+  },
+
+  silk: {
+    name: 'Silk Spinner', slot: 'MOUTH', rarity: 'uncommon',
+    desc: 'Fire spins a line of sticky web across the floor. Anything caught in it is stuck, and the silk cuts.',
+    apply(s, l) { s.silk = { delay: 0.8, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.2 + 0.6 * l }; },
+  },
+  stickyweb: {
+    name: 'Sticky Web', from: 'silk', rarity: 'uncommon', icon: ['silk', 'hide'],
+    desc: 'The first time something touches a web, it is held completely.',
+    apply(s) { s.webHold = 1.4; },
+  },
+  webbrood: {
+    name: 'Cocoon Wrap', from: 'stickyweb', rarity: 'rare', icon: ['silk', 'spider'],
+    desc: 'Anything that dies in your web is wrapped up, and spiderlings hatch from it.',
+    apply(s) { s.webBrood = 2; },
+  },
+  tripwire: {
+    name: 'Tripwire', from: 'stickyweb', rarity: 'rare', icon: ['silk', 'spines'],
+    desc: 'A web snaps when something hits it, firing bone shards all along its length.',
+    apply(s) { s.webSnap = true; },
+  },
+  razorsilk: {
+    name: 'Razor Silk', from: 'silk', rarity: 'uncommon', icon: ['silk', 'horns'],
+    desc: 'The silk is sharp: it cuts three times as deep.',
+    apply(s) { s.silk.dmg *= 3; },
+  },
+  acidsilk: {
+    name: 'Acid Silk', from: 'razorsilk', rarity: 'rare', icon: ['silk', 'bile'],
+    desc: 'Whatever touches your web leaks burning bile as it crawls.',
+    apply(s) { s.webAcid = true; },
+  },
+  lair: {
+    name: "Spider's Lair", from: 'razorsilk', rarity: 'rare', icon: ['silk', 'chitin'],
+    desc: 'More webs that last far longer, and you run faster along your own silk.',
+    apply(s) { s.silk.max += 3; s.silk.life *= 2; s.webLair = true; },
   },
   // Not offered on its own: Spore Fire grows it.
   spores: {
@@ -439,6 +667,7 @@ const MUTATIONS = {
   },
 
   parasite: {
+    requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
     name: 'Parasite Brain', slot: 'HEAD', rarity: 'rare', malignant: true, overlay: ['parasite'],
     desc: '+60% damage with everything.',
     cost: 'Sometimes it takes control of your body.',
@@ -698,6 +927,7 @@ const MUTATIONS = {
   },
 
   grapple: {
+    requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
     name: 'Tentacles', slot: 'LIMBS', rarity: 'rare', overlay: ['tentlimbs'],
     desc: 'Right-click (or E) to lash a tentacle at a wall or enemy and yank yourself to it.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 60); s.grapple = 1.0 - 0.15 * (l - 1); s.grappleRange = 110 + 15 * l; s.pullDmg += 2 + l; },
@@ -734,6 +964,7 @@ const MUTATIONS = {
   },
 
   burrow: {
+    requires: { any: ['skull'], label: 'BATTERING SKULL' },
     name: 'Burrowing Claws', slot: 'LIMBS', rarity: 'rare', overlay: ['claws'], icon: ['spider', 'skull'],
     desc: 'Dash dives underground. Untouchable while buried; erupt with damage.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 64); s.burrow = Math.max(s.burrow, 0.5 + 0.1 * l); s.burrowDmg += 3 + l; },
@@ -893,6 +1124,7 @@ const MUTATIONS = {
   },
 
   mitosis: {
+    requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
     name: 'Mitosis', slot: 'CORE', rarity: 'rare', overlay: ['mitosis'],
     desc: 'Anything you hit bursts into fragments of you, shot or bite.',
     apply(s, l) { s.split += 1 + l; },
@@ -1136,6 +1368,48 @@ const HINTS = {
   cancer: 'It grows every time you win. It takes something every third time.',
   benignmass: 'The growth calms. It still grows, but takes nothing.',
   metastasis: 'It spreads faster now.',
+  ovipositor: 'Something in you is ready to lay. Pick a host.',
+  broodhost: 'Some of them hatch hungry for you, and some hatch hungry for them.',
+  swarmqueen: 'What carries your young belongs to you.',
+  gestation: 'Let them carry it longer. It grows.',
+  bloodworm: 'Your young are ravenous.',
+  chestburster: 'They do not leave quietly.',
+  puppetlarva: 'It eats the part that thinks first.',
+  miasma: 'You stop spitting. You start leaking.',
+  shroud: 'Inside your breath, they cannot see.',
+  rothalo: 'What dies in your breath keeps rotting.',
+  phantom: 'Breathe out, and you are gone.',
+  causticlungs: 'The longer they breathe you, the less of them there is.',
+  corrode: 'Your breath softens them for everything else.',
+  choke: 'The air around you is thick as tar.',
+  howl: 'A sound builds in your chest. It does not hurt them. The walls do.',
+  shockwave: 'The howl leaves you from every side at once.',
+  concussion: 'They hear it, and stop.',
+  avalanche: 'Throw one, and it throws the next.',
+  soniclance: 'Narrow the howl to a point.',
+  wallbreaker: 'The walls are your teeth.',
+  rupture: 'It shakes them apart inside.',
+  polyp: 'Something wants to take root. Plant it, and let it hunt for you.',
+  sporepolyp: 'Your polyps cough spores.',
+  fruiting: 'They are ripe. Anything that brushes them, bursts them.',
+  mycelialweb: 'Threads join everything you plant.',
+  tendrilpolyp: 'Your polyps grow arms.',
+  graspingbed: 'What they catch, they keep.',
+  feedingpolyps: 'Your garden feeds you back.',
+  tongue: 'Your tongue is long now, and sticky. Whatever is small enough, swallow.',
+  bottomlessgut: 'There is always more room.',
+  acidgut: 'What comes back up is burning.',
+  regurgitate: 'Spit it back in pieces.',
+  barbedtongue: 'The tongue is barbed. It tears all the way.',
+  grappletongue: 'If it will not come to you, go to it.',
+  venomtongue: 'Your tongue is wet with venom.',
+  silk: 'Silk in your mouth. Lay it down, and let them walk into it.',
+  stickyweb: 'Nothing pulls free of the first touch.',
+  webbrood: 'What dies in your web becomes a nest.',
+  tripwire: 'Touch it, and it snaps.',
+  razorsilk: 'The silk is sharp as glass.',
+  acidsilk: 'Your silk is wet with bile.',
+  lair: 'This is your nest. You know every thread.',
   // Parts other nodes grow
   spores: 'Something grows in your lungs. Cough it high, over their heads.',
   hindlegs: 'Coiled legs. Leap, and the ground will feel it.',
@@ -1150,7 +1424,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow'],
+    tags: ['spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -1159,7 +1433,7 @@ const SETS = {
   },
   FUNGAL: {
     name: 'FUNGAL', color: '#9aae50',
-    tags: ['bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria'],
+    tags: ['bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a blinding spore cloud.', apply(s) { s.setKillCloud = 18; } },
       { name: 'Fruiting Body', desc: 'Kills burst into clouds, you release spores every few seconds, and your clouds eat flesh.', apply(s) { s.setKillCloud = 22; s.setSporeAura = 4; s.cloudDps = Math.max(s.cloudDps || 0, 1.5); } },
@@ -1168,7 +1442,7 @@ const SETS = {
   },
   HIVE: {
     name: 'HIVE', color: '#e0a830',
-    tags: ['mandibles', 'chitin', 'eggsac', 'spider', 'wings', 'longtube', 'compound', 'antennae', 'silktendril', 'jitter', 'tunnelbrood', 'brood'],
+    tags: ['mandibles', 'chitin', 'eggsac', 'spider', 'wings', 'longtube', 'compound', 'antennae', 'silktendril', 'jitter', 'tunnelbrood', 'brood', 'ovipositor', 'silk'],
     bonus: [
       { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling.', apply(s) { s.setKillBrood = 0.35; } },
       { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, and your brood lives twice as long.', apply(s) { s.setKillBrood = 1; s.allyLife = 2; } },
@@ -1177,7 +1451,7 @@ const SETS = {
   },
   PREDATOR: {
     name: 'PREDATOR', color: '#d04848',
-    tags: ['proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage'],
+    tags: ['proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
     bonus: [
       { name: 'Blood Scent', desc: '+35% damage to wounded prey.', apply(s) { s.setWounded = 0.35; } },
       { name: 'Apex', desc: 'Wounded prey takes +50%, every kill sends you into a frenzy, and every 8th kill heals you.', apply(s) { s.setWounded = 0.5; s.setKillFrenzy = true; s.setKillHeal = 8; } },
@@ -1186,7 +1460,7 @@ const SETS = {
   },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8',
-    tags: ['tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer'],
+    tags: ['tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'polyp', 'bloodworm'],
     bonus: [
       { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
       { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },
@@ -1250,6 +1524,12 @@ const SPLICES = {
     desc: 'Anything that touches you bursts into bile when it dies.', whisper: 'Your skin bites too. What it bites, it rots.' },
   nightmarelure:  { name: 'Nightmare Lure',  parts: [['nighteyes'], ['lure']],            apply(s) { s.nightLure = true; },
     desc: 'Your lure is a dark eye that blinds whatever comes close.', whisper: 'The light on your back has learned to look back.' },
+  plaguebearer:   { name: 'Plaguebearer',    parts: [['ovipositor'], ['brood']],          apply(s) { s.oviMaggots = true; },
+    desc: 'Your hosts burst into maggots too.', whisper: 'Everything you lay in, breeds.' },
+  toxicwings:     { name: 'Toxic Wings',     parts: [['miasma'], ['wings']],              apply(s) { s.gasTrail = true; },
+    desc: 'Flying, you leave a trail of your toxic gas behind you.', whisper: 'Your wings stir the poison into the air.' },
+  resonance:      { name: 'Resonance',       parts: [['howl'], ['echo']],                 apply(s) { s.dashHowl = true; },
+    desc: 'Your dash scream howls too, hurling everything near you away.', whisper: 'Your skull and your throat sing together.' },
   wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
     desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
 };
@@ -1324,10 +1604,35 @@ function slotMalignant(m) {
 //   empty slot  -> its roots
 //   your starter Slime Blob -> any MOUTH root (replacing it)
 //   anything else -> the two branches of where you are now (none when complete)
+//   a FULLY GROWN slot -> METAMORPHOSIS: any root of a higher rarity than yours.
+//     Taking it sheds the old path and starts the slot over at level 1.
 function slotOffers(p, slot) {
   const m = p.slots[slot];
   if (!m || m.starter) return rootsOf(slot);
-  return childrenOf(m.id);
+  const kids = childrenOf(m.id);
+  if (kids.length) return kids;
+  const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
+  return rootsOf(slot).filter(r => RARITY_ORDER.indexOf(MUTATIONS[r].rarity) > rank && meetsRequirement(p, r));
+}
+
+// Some rarer roots only grow as a metamorphosis if the right part grows
+// ELSEWHERE on the body (`requires: { any: [ids] }` or `{ set }`).
+function meetsRequirement(p, id) {
+  const req = MUTATIONS[id].requires;
+  if (!req) return true;
+  const slot = slotOf(id);
+  return SLOTS.some(sl => {
+    const m = sl !== slot && p.slots[sl];
+    if (!m || m.starter) return false;
+    if (req.any && req.any.some(x => m.path.includes(x))) return true;
+    return !!(req.set && setOf(m.id) === req.set);
+  });
+}
+
+// Is this card a metamorphosis (a new root for a slot that's already grown)?
+function isMetamorph(p, id) {
+  const m = p.slots[slotOf(id)];
+  return !MUTATIONS[id].from && !!m && !m.starter;
 }
 
 // Roll `n` cards. Usually one slot shows BOTH of its next branches side by
@@ -1358,6 +1663,7 @@ function rollChoices(p, n, minRarity, onlySlot) {
     const out = [];
     if (ids.includes('hide')) out.push({ id: ids.splice(ids.indexOf('hide'), 1)[0] }); // health is always on the table
     while (out.length < n && ids.length) out.push({ id: ids.splice(ids.indexOf(pickWeighted(ids)), 1)[0] });
+    if (out.every(c => isMetamorph(p, c.id))) out.push({ id: '_gorge' }); // you can always decline
     return out.sort(() => Math.random() - 0.5);
   }
   const offers = {};
@@ -1376,15 +1682,19 @@ function rollChoices(p, n, minRarity, onlySlot) {
     for (const id of childrenOf(p.slots[sl].id)) out.push({ id });
     slots.splice(slots.indexOf(sl), 1);
   }
-  // Fill the rest with one card per other slot.
+  // Fill the rest with one card per other slot. At most one metamorphosis per
+  // roll, and only sometimes: it's a tempting option, never the whole offer.
+  let metas = 0;
   for (const sl of slots) {
     if (out.length >= n) break;
-    out.push({ id: pickWeighted(offers[sl]) });
+    const id = pickWeighted(offers[sl]);
+    if (isMetamorph(p, id)) { if (metas || Math.random() < 0.5) continue; metas++; }
+    out.push({ id });
   }
   // Still short (few slots left)? Take more from what's on offer.
-  const left = Object.values(offers).flat().filter(id => !out.some(c => c.id === id));
+  const left = Object.values(offers).flat().filter(id => !out.some(c => c.id === id) && !isMetamorph(p, id));
   while (out.length < n && left.length) out.push({ id: left.splice(Math.floor(Math.random() * left.length), 1)[0] });
-  if (!out.length) out.push({ id: '_gorge' });
+  if (!out.length || out.every(c => isMetamorph(p, c.id))) out.push({ id: '_gorge' }); // you can always decline
   return out.sort(() => Math.random() - 0.5);
 }
 
@@ -1396,8 +1706,9 @@ function choiceInfo(p, c) {
   const d = MUTATIONS[c.id], slot = slotOf(c.id), m = p.slots[slot];
   let status, note = null, noteColor = PAL.slate;
   if (!d.from) {
-    status = 'TAKES ROOT';
-    if (m) { note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR; }
+    status = m && !m.starter ? 'METAMORPHOSIS' : 'TAKES ROOT';
+    if (m) { note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = m.starter ? COST_COLOR : PAL.slate; }
+    if (m && !m.starter && d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
     else note = 'NO OTHER ' + slot + ' ROOTS';
   } else {
     status = (m ? MUTATIONS[m.id].name : '') + ' >';
@@ -1416,7 +1727,12 @@ function applyChoice(p, c) {
   p.evolutions++;
   const d = MUTATIONS[c.id], slot = slotOf(c.id), m = p.slots[slot];
   if (!d.from) {
-    if (m) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the starter tears out
+    if (m) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the old part tears out
+    if (m && !m.starter) { // Metamorphosis: the grown path sloughs off; something rarer takes root
+      game.banner = { text: 'METAMORPHOSIS', sub: MUTATIONS[m.id].name + ' > ' + d.name, color: RARITY[d.rarity].color, t: 2.6 };
+      gibs(p.x, p.y, 6, ['#a8534f', '#5e2229', '#d9cfa0'], FLUID.blood);
+      game.shake = Math.max(game.shake, 4);
+    }
     p.slots[slot] = { id: c.id, path: [c.id] };
   } else {
     m.path.push(c.id);

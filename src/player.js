@@ -21,7 +21,7 @@ function makePlayer() {
     aimX: 1, aimY: 0, trailT: 0, ghostT: 0, t: 0, moving: false,
     regenT: 0, adrenalT: 0, dripT: 0, chompT: 0,
     lungeT: 0, lungeX: 1, lungeY: 0, hungerT: 0, cancerRooms: 0,
-    chargeT: 0, dmgBoost: 1, evolveT: 0, form: null, lastSet: null,
+    chargeT: 0, dmgBoost: 1, evolveT: 0, form: null, lastSet: null, gullet: 0, polypKills: 0, venting: false, gasR: 0,
     mvx: 0, mvy: 0, hopT: 0, hopAir: 0, hopX: 0, hopY: 0, slimeT: 0, flying: false,
     grappleCd: 0, pullT: 0, pull: null,
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
@@ -158,6 +158,7 @@ function updatePlayer(dt) {
     if (l > 1) { p.aimX = dx / l; p.aimY = dy / l; }
     firing = Input.mouse.down;
   }
+  p.venting = !!(s.miasma && firing && !p.withdrawn); // Miasma: hold fire to vent
   // Berserker Host: while the parasite drives, it hunts the nearest enemy for you.
   if (s.parasiteFrenzy && p.controlT > 0) {
     const prey = nearestEnemy(p.x, p.y, 200);
@@ -239,6 +240,8 @@ function updatePlayer(dt) {
   } else if (!p.withdrawn) {
     const boost = p.adrenalT > 0 ? 1.5 : 1;
     let top = mv.speed * boost;
+    if (p.venting) top *= 0.6;                          // venting Miasma slows you
+    if (s.webLair && game.webs.length && onWeb(p.x, p.y)) top *= 1.4; // Spider's Lair
     // Pseudopods: fast on your own slime and bile, sluggish elsewhere.
     if (mv.fins && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) top = mv.fins * s.speedMul * boost;
     // Sticky culture spills (Floor 1) drag at you, unless you fly or walk on stilts.
@@ -418,6 +421,11 @@ function fireWeapons(p, only) {
   if (!s.lunge) p.dmgBoost = 1;
   if (s.beam && ready('beam', 0.1)) drainBeam(p);
   if (s.vomit && ready('vomit', s.vomitDelay)) { boost(); vomit(p); }
+  if (s.ovi && ready('ovi', s.ovi.delay)) { boost(); fireLarva(p, mul); }
+  if (s.howl && ready('howl', s.howl.delay)) { boost(); howl(p, mul); }
+  if (s.polyp && ready('polyp', s.polyp.delay)) { boost(); plantPolyp(p); }
+  if (s.tongue && ready('tongue', s.tongue.delay)) { boost(); tongueAttack(p, mul); }
+  if (s.silk && ready('silk', s.silk.delay)) { boost(); spinWeb(p); }
   if (fired) twinCopy(p);
 }
 
@@ -440,6 +448,11 @@ function releaseCharge(p, frac) {
   if (!s.lunge) p.dmgBoost = 1;
   for (const g of s.guns) blast(p, frac, g, mul);
   if (s.vomit) blast(p, frac, { id: 'vomit', dmg: s.vomitDmg, speed: 160, range: 0.3, r: 1.5, round: true, color: '#9aae50', acid: 0, bleed: 0 }, mul);
+  if (s.ovi) for (let i = 0; i < 1 + Math.round(2 * frac); i++) fireLarva(p, mul, 0.3 * i);
+  if (s.howl) howl(p, mul * (1 + frac));
+  if (s.polyp) plantPolyp(p);
+  if (s.tongue) tongueAttack(p, mul * (1 + frac));
+  if (s.silk) spinWeb(p);
   // Overcharge: a full charge bursts out of you as a shard ring too.
   if (s.chargeRing && frac > 0.95) fireRing(p, s.chargeRing);
   if (frac > 0.95) game.shake = Math.max(game.shake, 4);
@@ -951,7 +964,7 @@ function hurtPlayer(dmg) {
 function updateFx(dt) {
   for (const f of game.fx) {
     f.t -= dt;
-    if (f.kind === 'ring') f.r += (f.max - f.r) * Math.min(1, dt * 18);
+    if (f.kind === 'ring' || f.kind === 'howl') f.r += (f.max - f.r) * Math.min(1, dt * 18);
   }
   game.fx = game.fx.filter(f => f.t > 0);
 }
@@ -983,6 +996,17 @@ function drawFx(ctx) {
     } else if (f.kind === 'beam') {
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#3a0a14', 2);
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, Math.random() < 0.5 ? '#e05070' : '#b01e30', 1);
+    } else if (f.kind === 'tongue') {
+      pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#3a0a14', 3, 0);
+      pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#d86a7a', 1, 0);
+      pxCircle(ctx, f.x2, f.y2, 2, '#e88a9a');
+    } else if (f.kind === 'howl') {
+      // Sound waves rippling out across the cone.
+      const span = f.cone <= -1 ? Math.PI : Math.acos(Math.max(-1, Math.min(1, f.cone)));
+      for (const rr of [f.r, f.r * 0.7]) {
+        ctx.fillStyle = rr === f.r ? '#e8dcc8' : '#8a8070';
+        for (let k = -14; k <= 14; k++) { const a = f.a + span * k / 14; ctx.fillRect(Math.round(f.x + Math.cos(a) * rr), Math.round(f.y + Math.sin(a) * rr), 1, 1); }
+      }
     } else if (f.kind === 'bite') {
       // Two rows of teeth snapping shut.
       const gap = Math.round(f.t * 30);
@@ -1050,6 +1074,7 @@ function drawPlayer(ctx) {
   if (mvNow.stilts) { // long bone legs down to the floor
     for (const lx of [-5, -1, 3, 6]) { pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#2e2618', 2, 0); pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#c4b898', 1, 0); }
   }
+  if (p.venting && s.gasInvis) ctx.globalAlpha = 0.4; // Phantom
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
   if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
@@ -1062,6 +1087,7 @@ function drawPlayer(ctx) {
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && p.slots.LIMBS) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed
 
+  ctx.globalAlpha = 1;
   // Whatever you're holding in your hands.
   if (p.held) {
     const h = p.held, img = h.kind === 'corpse' ? SPR[h.ref.sprite + '_dead'] : SPR[enemySpriteName(h.ref)];
@@ -1197,6 +1223,10 @@ function drawPlayerGlow(ctx) {
     pxLine(ctx, p.x, p.y - 2, tx, ty, '#a8534f', 1);
   }
   if (p.shieldUp) pxRing(ctx, p.x, p.y, 9, Math.floor(p.t * 3) % 2 ? '#8a7a5a' : '#5a4a3a');
+  for (let i = 0; i < p.gullet; i++) { // Frog Tongue: what's in your gut, ready to spit
+    ctx.fillStyle = '#3a0a14'; ctx.fillRect(Math.round(p.x - p.gullet * 2 + i * 4) - 1, Math.round(p.y - 20) - 1, 3, 3);
+    ctx.fillStyle = '#d86a7a'; ctx.fillRect(Math.round(p.x - p.gullet * 2 + i * 4), Math.round(p.y - 20), 1, 1);
+  }
   if (p.chargeT > 0) {
     // Charging: a ring tightens around you, and flashes when full.
     const k = p.chargeT / CHARGE_TIME;

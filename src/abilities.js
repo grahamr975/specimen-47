@@ -25,7 +25,13 @@ function inOwnPool(x, y) {
 // --- Where enemies think you are -----------------------------------------------------
 function enemyTarget(e) {
   const p = game.player;
-  if (e.blindT > 0) { // blinded by spores: wander toward a random point
+  // Swarm Queen: an infested host hunts its own kind.
+  if (e.infest && p.stats.oviCharm) {
+    let best = null, bd = 999;
+    for (const o of game.enemies) { if (o === e || o.dead || o.infest) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bd) { bd = d; best = o; } }
+    if (best) return best;
+  }
+  if (e.blindT > 0 || (p.stats.gasInvis && p.venting)) { // blinded (or you vanished in your gas): wander
     if (!e.wander || Math.hypot(e.wander.x - e.x, e.wander.y - e.y) < 6) e.wander = randomFloorSpot(game.room, null, 0);
     return e.wander;
   }
@@ -43,6 +49,7 @@ function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
   a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
+  if (kind === 'polyp') { a.r = 4; a.life = game.player.stats.polyp ? game.player.stats.polyp.life : 10; }
   game.allies.push(a);
   return a;
 }
@@ -59,8 +66,10 @@ function updateAllies(dt) {
     if (a.life <= 0) {
       a.dead = true; burst(a.x, a.y, '#5a3a28', 4, 30);
       if (a.kind === 'maggot' && p.stats.maggotBurst) { spawnPuddle(a.x, a.y, 14, 3, 'player'); Sfx.play('splat'); }
+      if (a.kind === 'polyp' && p.stats.polypBurst) polypPop(a);
       continue;
     }
+    if (a.kind === 'polyp') { updatePolyp(a, dt); continue; } // rooted in place
     let tx, ty, speed;
     if (a.kind === 'twin') {
       // Hover just behind you, mirroring your aim.
@@ -107,6 +116,11 @@ function hurtTwin(twin) {
 }
 
 function drawAllies(ctx) {
+  // Mycelial Web: threads joining your polyps.
+  if (game.player.stats.polypLink) {
+    const ps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);
+    for (let i = 0; i < ps.length - 1; i++) pxLine(ctx, ps[i].x, ps[i].y, ps[i + 1].x, ps[i + 1].y, '#c8c0a0', 1, 1);
+  }
   for (const a of game.allies) {
     if (a.inv > 0 && Math.floor(a.inv * 16) % 2) continue;
     const left = a.kind === 'twin' ? game.player.aimX < 0 : (nearestEnemy(a.x, a.y, 200) || game.player).x < a.x;
@@ -131,6 +145,7 @@ function updateClouds(dt) {
         e.blindT = Math.max(e.blindT || 0, 2);
         if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
         if (c.fire) damageEnemy(e, 3 * s.damage * dt, 0, 0, true);               // Firestorm
+        if (c.toxic) damageEnemy(e, 1.5 * s.damage * dt, 0, 0, true);            // Rot Halo, Toxic Wings
       }
     }
   }
@@ -159,10 +174,11 @@ function drawClouds(ctx) {
     ctx.globalAlpha = 0.5 * fade;
     for (let i = 0; i < 26; i++) {
       const a = hash2(i, 1, 9) * Math.PI * 2 + c.life * 0.4, d = Math.sqrt(hash2(i, 2, 9)) * c.r;
-      pxCircle(ctx, c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, 2 + hash2(i, 3, 9) * 2, c.fire ? (i % 3 ? '#a04018' : '#e8a020') : i % 3 ? '#5a6a3a' : '#7a8a52');
+      pxCircle(ctx, c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, 2 + hash2(i, 3, 9) * 2, c.fire ? (i % 3 ? '#a04018' : '#e8a020') : c.toxic ? (i % 3 ? '#3e5a1e' : '#8aaa3a') : i % 3 ? '#5a6a3a' : '#7a8a52');
     }
     ctx.globalAlpha = 1;
   }
+  drawMiasma(ctx);
 }
 
 // --- Decoy husk (Exoskeleton Molt) ----------------------------------------------------
@@ -327,10 +343,13 @@ function updateThrownEnemy(e, dt) {
   const t = e.thrown;
   t.t -= dt;
   const bumped = moveEntity(game.room, e, t.vx * dt, t.vy * dt);
+  const s = game.player.stats;
   for (const o of game.enemies) {
     if (o.dead || t.hit.has(o) || Math.hypot(o.x - e.x, o.y - e.y) > o.r + e.r) continue;
     t.hit.add(o);
     damageEnemy(o, t.dmg, t.vx, t.vy, true);
+    // Avalanche: what a howled body hits gets flung too.
+    if (t.howled && s.howlChain && !o.dead && !o.thrown && !ENEMY_TYPES[o.type].boss) o.thrown = { vx: t.vx * 0.8, vy: t.vy * 0.8, t: 0.3, dmg: t.dmg * 0.8, hit: new Set([o, e]), howled: true };
     bloodSpray(o.x, o.y, t.vx, t.vy, 8, ENEMY_TYPES[o.type].fluid, 100);
     Sfx.play('ram');
   }
@@ -338,7 +357,10 @@ function updateThrownEnemy(e, dt) {
     e.thrown = null;
     if (bumped) strikeSeal(e.x, e.y, 8); // thrown into the seal
     if (t.bomb) bileBombAt(e.x, e.y);
-    damageEnemy(e, t.dmg * (bumped ? 1 : 0.5), t.vx, t.vy, true);
+    // A howled body only hurts when it hits something (Wallbreaker: walls hurt far more).
+    const mul = t.howled ? (bumped ? s.wallSlamMul || 1 : 0) : bumped ? 1 : 0.5;
+    if (mul) damageEnemy(e, t.dmg * mul, t.vx, t.vy, true);
+    if (bumped && t.howled && s.wallSlamMul) ringFrom(e.x, e.y, 4);
     game.shake = Math.max(game.shake, 3);
   }
 }
@@ -420,7 +442,308 @@ function scream(p) {
     for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(b.x - p.x, b.y - p.y) < 60) { b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); }
   }
   if (p.stats.screamRing) fireRing(p, p.stats.screamRing); // Echo Chamber
+  if (p.stats.dashHowl && p.stats.howl) howl(p, 1, true);   // Resonance
   Sfx.play('scream');
+}
+
+// --- Playstyle attacks: MOUTH roots that replace shooting ---------------------------------
+
+// Ovipositor: a slow larva that burrows into a host, eats it, and bursts out.
+function fireLarva(p, mul = 1, spread = 0) {
+  const s = p.stats, a = Math.atan2(p.aimY, p.aimX) + rand(-spread, spread);
+  spawnBullet({ x: p.x + Math.cos(a) * 5, y: p.y + Math.sin(a) * 5, vx: Math.cos(a) * 105, vy: Math.sin(a) * 105, r: 3, dmg: 0.4 * mul, life: 1.6, kind: 'shot', larva: true, homing: Math.max(s.homing, 1.5), round: true, color: '#e8dcc0' });
+  Sfx.play('splat');
+}
+
+function infest(e) {
+  const s = game.player.stats;
+  if (!s.ovi || e.dead) return;
+  if (e.infest) { e.infest.t = Math.max(e.infest.t, s.ovi.time * 0.5); return; }
+  e.infest = { t: s.ovi.time, carried: 0, wriggle: rand(0, 6) };
+  floatText(e.x, e.y - 10, 'INFESTED', '#e8dcc0');
+}
+
+function updateInfested(dt) {
+  const s = game.player.stats;
+  for (const e of game.enemies) {
+    if (!e.infest || e.dead) continue;
+    if (!s.ovi) { e.infest = null; continue; }
+    const inf = e.infest;
+    inf.t -= dt; inf.carried += dt;
+    damageEnemy(e, s.ovi.dps * dt, 0, 0, true);
+    if (e.dead || !e.infest) continue; // its death already burst it
+    if (s.oviConfuse) { e.blindT = Math.max(e.blindT || 0, 0.4); e.slowT = Math.max(e.slowT || 0, 0.3); }
+    if (s.oviCharm) { // Swarm Queen: it savages its own kind
+      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < o.r + e.r + 3) damageEnemy(o, 3 * s.damage * dt, 0, 0, true);
+    }
+    if (Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + rand(1, 3), ENEMY_TYPES[e.type].fluid, 1);
+    if (inf.t <= 0) hostBurst(e);
+  }
+}
+
+// The brood bursts out of its host and goes looking for more.
+function hostBurst(e) {
+  const s = game.player.stats, inf = e.infest;
+  e.infest = null;
+  if (!s.ovi || !inf) return;
+  const n = s.ovi.brood + (s.oviGrow ? Math.min(4, Math.floor(inf.carried / 1.5)) : 0);
+  bloodSpray(e.x, e.y, 0, 0, 18, ENEMY_TYPES[e.type].fluid, 130);
+  Sfx.play('hatch');
+  if (s.oviBurst) { // Chestburster
+    for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, s.oviBurst * s.damage, o.x - e.x, o.y - e.y, true);
+    game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 });
+    game.shake = Math.max(game.shake, 3);
+  }
+  if (!e.dead) damageEnemy(e, s.ovi.burstDmg + (s.oviBurst ? s.oviBurst * s.damage : 0), 0, 0, true); // tearing its way out
+  if (s.oviMaggots) spawnAlly('maggot', e.x, e.y); // Plaguebearer
+  const spiders = s.oviSpider ? Math.ceil(n / 2) : 0;
+  for (let i = 0; i < spiders; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3));
+  for (let i = 0; i < n - spiders; i++) {
+    const a = rand(0, Math.PI * 2);
+    spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, r: 2, dmg: 0.2 * s.damage, life: 1.4, kind: 'shot', larva: true, homing: 6, round: true, color: '#e8dcc0', hitSet: new Set([e]) });
+  }
+}
+
+// Miasma: a toxic cloud that always surrounds you. Hold fire to vent it wider.
+function updateMiasma(p, dt) {
+  const s = p.stats;
+  if (!s.miasma) { p.gasR = 0; return; }
+  const r = s.miasma.r * (p.venting ? 1.6 : 1) * (STAGE_SCALE[p.stage] + 0.1);
+  p.gasR = r;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    if (Math.hypot(e.x - p.x, e.y - p.y) > r + e.r) { if (e.gasT) e.gasT = Math.max(0, e.gasT - dt * 2); continue; }
+    e.gasT = (e.gasT || 0) + dt;
+    const ramp = s.gasRamp ? 1 + Math.min(3, e.gasT * 0.6) : 1; // Caustic Lungs
+    damageEnemy(e, s.miasma.dps * ramp * dt, 0, 0, true);
+    if (s.gasHide) e.blindT = Math.max(e.blindT || 0, 0.4);
+    if (s.gasCorrode) e.corrodeUntil = game.time + 0.3;
+    if (s.gasChoke) e.slowT = Math.max(e.slowT || 0, 0.3);
+  }
+  strikeSeal(p.x, p.y, r); // the gas eats through hazmat seals (one hit at a time)
+  for (const c of game.room.corpses) { // corpses dissolve in it too (that's your DNA)
+    if (c.dead || Math.hypot(c.x - p.x, c.y - p.y) > r + c.r) continue;
+    c.hp -= s.miasma.dps * dt; c.shake = 0.1;
+    if (c.hp <= 0) burstCorpse(c);
+  }
+  if (s.gasTrail && p.flying && p.moving && (p.gasTrailT = (p.gasTrailT || 0) - dt) <= 0) { // Toxic Wings
+    p.gasTrailT = 0.4; game.clouds.push({ x: p.x, y: p.y, r: 12, life: 2.5, toxic: true });
+  }
+}
+
+function drawMiasma(ctx) {
+  const p = game.player;
+  if (!p || !p.gasR || game.state !== 'play') return;
+  ctx.globalAlpha = p.venting ? 0.32 : 0.22;
+  for (let i = 0; i < 34; i++) {
+    const a = hash2(i, 4, 7) * Math.PI * 2 + game.time * (0.4 + hash2(i, 5, 7) * 0.6) * (i % 2 ? 1 : -1);
+    const d = Math.sqrt(hash2(i, 6, 7)) * p.gasR;
+    pxCircle(ctx, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * 0.8, 2 + hash2(i, 8, 7) * 3, i % 3 ? '#4a6a2a' : '#7a9a3a');
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Howl: barely hurts, but hurls things into walls and into each other.
+function howl(p, mul = 1, around = false) {
+  const s = p.stats, h = s.howl;
+  const cone = around ? -1 : h.cone, range = h.range;
+  game.fx.push({ kind: 'howl', x: p.x, y: p.y - 2, a: Math.atan2(p.aimY, p.aimX), cone, r: 6, max: range, t: 0.22 });
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d > range + e.r || (d > 10 && (dx * p.aimX + dy * p.aimY) / d < cone)) continue;
+    damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
+    if (e.dead) continue;
+    if (s.howlStun) e.stunT = Math.max(e.stunT || 0, s.howlStun);
+    if (s.howlBleed) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.howlBleed); }
+    if (ENEMY_TYPES[e.type].boss) continue;
+    const sp = Math.min(380, h.force * mul / enemyMass(e));
+    e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
+  }
+  for (const c of corpsesNear(p.x, p.y, range, p.aimX, p.aimY, cone)) damageCorpse(c, 1.5 + h.dmg * 3, c.x - p.x, c.y - p.y);
+  strikeSeal(p.x + p.aimX * 20, p.y + p.aimY * 20, around ? range : 20);
+  game.shake = Math.max(game.shake, 3);
+  Sfx.play('scream');
+}
+
+// Polyp Seeder: plant fleshy turrets.
+function plantPolyp(p) {
+  const s = p.stats;
+  const polyps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);
+  if (polyps.length >= s.polyp.max) witherPolyp(polyps[0]);
+  let x = p.x + p.aimX * 14, y = p.y + p.aimY * 14;
+  if (pointSolid(game.room, x, y)) { x = p.x; y = p.y; }
+  strikeSeal(x, y, 8);
+  const a = spawnAlly('polyp', x, y);
+  a.shootT = 0.4;
+  burst(x, y, '#a8534f', 6, 40);
+  Sfx.play('splat');
+}
+
+function witherPolyp(a) {
+  a.dead = true;
+  burst(a.x, a.y, '#5e2229', 6, 40);
+  if (game.player.stats.polypBurst) polypPop(a);
+}
+
+// Fruiting Bodies: a polyp bursts in burning bile.
+function polypPop(a) {
+  const s = game.player.stats;
+  a.dead = true;
+  spawnPuddle(a.x, a.y, 14, 3, 'player');
+  for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < 26 + e.r) damageEnemy(e, 4 * s.damage, e.x - a.x, e.y - a.y, true);
+  game.fx.push({ kind: 'ring', x: a.x, y: a.y, r: 3, max: 26, t: 0.2 });
+  Sfx.play('splat');
+}
+
+function updatePolyp(a, dt) {
+  const p = game.player, s = p.stats;
+  if (!s.polyp) { a.dead = true; return; }
+  a.shootT -= dt;
+  if (s.polypBurst) for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1) { polypPop(a); return; }
+  let e = nearestEnemy(a.x, a.y, s.polypLash ? 34 : 95);
+  if (a.shootT > 0) return;
+  if (!e) { // nothing alive in reach: spit at meat instead (that's your DNA)
+    const c = corpsesNear(a.x, a.y, s.polypLash ? 34 : 95)[0];
+    if (!c) return;
+    a.shootT = s.polyp.rate;
+    if (s.polypLash) { game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: c.x, y2: c.y, t: 0.12 }); damageCorpse(c, s.polyp.dmg * 1.8); }
+    else { const d = Math.hypot(c.x - a.x, c.y - a.y) || 1; spawnBullet({ x: a.x, y: a.y - 3, vx: (c.x - a.x) / d * 140, vy: (c.y - a.y) / d * 140, r: 1.5, dmg: s.polyp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', polyp: true }); }
+    return;
+  }
+  if (s.polypLash) { // Tendril Polyp
+    a.shootT = 0.6;
+    game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: e.x, y2: e.y, t: 0.12 });
+    damageEnemy(e, s.polyp.dmg * 1.8, e.x - a.x, e.y - a.y, true);
+    if (s.polypGrab && !e.dead) { e.slowT = Math.max(e.slowT || 0, 1); knock(e, a.x - e.x, a.y - e.y, 120); }
+    if (e.dead && s.polypFeed) polypFed(p);
+    Sfx.play('whip');
+  } else {
+    a.shootT = s.polyp.rate;
+    const d = Math.hypot(e.x - a.x, e.y - a.y) || 1;
+    spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: s.polyp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true });
+  }
+}
+
+// Feeding Polyps: their kills feed you.
+function polypFed(p) {
+  if (++p.polypKills % p.stats.polypFeed === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+}
+
+// Frog Tongue: lash out; swallow what's small, spit it back next time.
+function tongueAttack(p, mul = 1) {
+  const s = p.stats, t = s.tongue;
+  if (p.gullet > 0) { // spit something back out
+    p.gullet--;
+    spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0 });
+    bloodSpray(p.x, p.y, p.aimX, p.aimY, 6, FLUID.blood, 90);
+    Sfx.play('splat');
+    return;
+  }
+  let x = p.x, y = p.y, end = null;
+  const hits = [];
+  for (let d = 6; d <= t.range; d += 3) {
+    x = p.x + p.aimX * d; y = p.y + p.aimY * d;
+    if (pointSolid(game.room, x, y)) { end = 'wall'; break; }
+    const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && !hits.includes(o) && Math.hypot(o.x - x, o.y - y) < o.r + 2);
+    if (e) { hits.push(e); if (!s.tonguePierce) break; }
+    if (!hits.length) { const c = game.room.corpses.find(c => !c.dead && Math.hypot(c.x - x, c.y - y) < c.r + 2); if (c) { end = c; break; } }
+  }
+  game.fx.push({ kind: 'tongue', x1: p.x, y1: p.y - 2, x2: x, y2: y, t: 0.14 });
+  Sfx.play('whip');
+  strikeSeal(x, y, 6);
+  if (end && end !== 'wall') { // a corpse: gulp it down
+    burstCorpse(end);
+    if (p.gullet < t.max) p.gullet++;
+    return;
+  }
+  hits.forEach((e, i) => {
+    if (e.dead) return;
+    if (i === 0 && !ENEMY_TYPES[e.type].boss && !e.elite && e.r <= t.size && p.gullet < t.max) { // swallow it whole
+      e.swallowed = true;
+      damageEnemy(e, e.hp + 1, 0, 0, true);
+      p.gullet++;
+      floatText(p.x, p.y - 14, 'GULP', PAL.red);
+      if (p.hp < p.maxHp && Math.random() < 0.15) { p.hp++; floatText(p.x, p.y - 20, '+1 HP', PAL.red); }
+      Sfx.play('gulp');
+      return;
+    }
+    damageEnemy(e, t.dmg * mul, p.x - e.x, p.y - e.y, true, 160); // yanked toward you
+    if (s.tongueVenom && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 2); e.slowT = Math.max(e.slowT || 0, 1.5); }
+  });
+  // Grapple Tongue: anything too big (or a wall) reels YOU in.
+  const big = hits.find(e => !e.dead);
+  if (s.tongueYank && (big || end === 'wall')) {
+    p.pull = { x: big ? big.x : x - p.aimX * 6, y: big ? big.y : y - p.aimY * 6, enemy: big || null, hit: new Set() };
+    p.pullT = 0.5; p.dashT = 0; p.inv = Math.max(p.inv, 0.15);
+  }
+}
+
+// Silk Spinner: lay sticky web lines on the floor.
+function spinWeb(p) {
+  const s = p.stats, w = s.silk;
+  let len = 8;
+  for (; len < w.len; len += 3) if (pointSolid(game.room, p.x + p.aimX * len, p.y + p.aimY * len)) break;
+  game.webs.push({ x1: p.x, y1: p.y + 2, x2: p.x + p.aimX * len, y2: p.y + 2 + p.aimY * len, t: w.life, touched: new Set() });
+  strikeSeal(p.x + p.aimX * len, p.y + p.aimY * len, 8);
+  while (game.webs.length > w.max) game.webs.shift();
+  Sfx.play('whip');
+}
+
+function onWeb(x, y) {
+  return game.webs.some(w => distToSegment(x, y, w.x1, w.y1, w.x2, w.y2) < 4);
+}
+
+function updateWebs(dt) {
+  const s = game.player.stats;
+  for (const w of game.webs) {
+    w.t -= dt;
+    if (!s.silk) { w.t = 0; continue; }
+    for (const e of game.enemies) {
+      if (w.t <= 0) break;
+      if (e.dead || e.spawnT > 0 || ENEMY_TYPES[e.type].boss) continue;
+      if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
+      e.webT = 0.25;
+      damageEnemy(e, s.silk.dmg * dt, 0, 0, true);
+      if (w.touched.has(e)) continue;
+      w.touched.add(e);
+      if (s.webHold) { e.stunT = Math.max(e.stunT || 0, s.webHold); floatText(e.x, e.y - 10, 'STUCK', '#e0d8d0'); } // Sticky Web
+      if (s.webAcid) e.leakT = 3;  // Acid Silk
+      if (s.webSnap) snapWeb(w);   // Tripwire
+    }
+  }
+  // The silk cuts through meat lying across it, too.
+  if (s.silk) for (const w of game.webs) for (const c of game.room.corpses) {
+    if (c.dead || w.t <= 0 || distToSegment(c.x, c.y, w.x1, w.y1, w.x2, w.y2) > c.r + 2) continue;
+    c.hp -= s.silk.dmg * 2 * dt; c.shake = 0.1;
+    if (c.hp <= 0) burstCorpse(c);
+  }
+  game.webs = game.webs.filter(w => w.t > 0);
+}
+
+// Tripwire: the web snaps, firing bone shards all along it.
+function snapWeb(w) {
+  w.t = 0;
+  const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) || 1, nx = -(w.y2 - w.y1) / len, ny = (w.x2 - w.x1) / len;
+  for (let k = 0; k <= len; k += 8) for (const side of [-1, 1]) {
+    const x = w.x1 + (w.x2 - w.x1) * k / len, y = w.y1 + (w.y2 - w.y1) * k / len;
+    spawnBullet({ x, y, vx: nx * side * 160, vy: ny * side * 160, r: 1.5, kind: 'spine', dmg: 1.2 * game.player.stats.damage, life: 0.4, color: PAL.white });
+  }
+  Sfx.play('spine');
+}
+
+function drawWebs(ctx) {
+  for (const w of game.webs) {
+    ctx.globalAlpha = Math.min(1, w.t) * 0.85;
+    pxLine(ctx, w.x1, w.y1, w.x2, w.y2, '#d8d0c8', 1, 0.6);
+    const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) || 1;
+    ctx.fillStyle = '#a8a098';
+    for (let k = 6; k < len; k += 7) { // cross threads
+      const x = Math.round(w.x1 + (w.x2 - w.x1) * k / len), y = Math.round(w.y1 + (w.y2 - w.y1) * k / len);
+      ctx.fillRect(x - 1, y - 1, 1, 1); ctx.fillRect(x + 1, y + 1, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 // --- Branch upkeep: things that tick along while you play --------------------------------
@@ -480,6 +803,14 @@ function updateBranchUpkeep(p, dt) {
     const lp = lurePoint(p);
     for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !(e.blindT > 0)) { e.blindT = 1.5; floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
   }
+  updateMiasma(p, dt);
+  // Mycelial Web: threads between polyps eat what crosses them.
+  if (s.polypLink) {
+    const ps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);
+    for (let i = 0; i < ps.length - 1; i++) for (const e of game.enemies) {
+      if (!e.dead && e.spawnT <= 0 && distToSegment(e.x, e.y, ps[i].x, ps[i].y, ps[i + 1].x, ps[i + 1].y) < e.r + 2) damageEnemy(e, 2 * s.damage * dt, 0, 0, true);
+    }
+  }
   updateSegments(p, dt);
 }
 
@@ -490,5 +821,7 @@ function updateExtras(dt) {
   updateAllies(dt);
   updateClouds(dt);
   updateDecoy(dt);
+  updateInfested(dt);
+  updateWebs(dt);
   updateHeld(game.player);
 }
