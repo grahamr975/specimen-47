@@ -182,7 +182,7 @@ function updatePlayer(dt) {
   p.t += dt; p.inv -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
   for (const k in p.cd) p.cd[k] -= dt;
   if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
-  if (p.chillT > 0) p.chillT -= dt; if (p.netT > 0) p.netT -= dt;
+  updateStatuses(p, dt); // chill, net
   if (s.setSporeAura && game.room.locked && (p.sporeT = (p.sporeT || s.setSporeAura) - dt) <= 0) { p.sporeT = s.setSporeAura; spawnCloud(p.x, p.y, 24); } // Fruiting Body
   const mv = movement(p);
 
@@ -297,7 +297,7 @@ function updatePlayer(dt) {
       if (s.slamDmg > 0) slam(p);
       if (s.diveBomb) diveBomb(p);
       if (s.dashJelly) { // Culture Jelly
-        for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && !isBoss(e) && Math.hypot(e.x - p.x, e.y - p.y) < 22 + e.r) e.webT = Math.max(e.webT || 0, s.dashJelly);
+        for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && !isBoss(e) && Math.hypot(e.x - p.x, e.y - p.y) < 22 + e.r) inflict(e, 'web', { t: s.dashJelly });
         for (let i = 0; i < 10; i++) stainPx(p.x + rand(-10, 10), p.y + rand(-6, 8), ['#38503f', '#4a6a5a', '#223028'], 2);
         burst(p.x, p.y + 3, '#7a9a7a', 10, 60, 0.3); Sfx.play('splat');
       }
@@ -326,7 +326,7 @@ function updatePlayer(dt) {
     if (mv.fins && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) top = mv.fins * s.speedMul * boost;
     // Sticky culture spills (Floor 1) drag at you, unless you fly or walk on stilts.
     if (!mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'sticky')) top *= 0.55;
-    if (p.chillT > 0) top *= 0.6; // chilled by frost
+    top *= statusMoveMul(p); // chilled by frost
     const icy = !mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'ice'); // Cryo Wing: you slide on ice
     if (mv.accel || icy) {
       // Wings / cilia (and ice): momentum. You accelerate, drift and overshoot.
@@ -352,7 +352,7 @@ function updatePlayer(dt) {
       vx = ix * spd; vy = iy * spd;
     }
   }
-  if (p.netT > 0 && p.dashT <= 0) { vx = vy = 0; p.mvx = p.mvy = 0; } // pinned under a net
+  if (hasStatus(p, 'net') && p.dashT <= 0) { vx = vy = 0; p.mvx = p.mvy = 0; } // pinned under a net
   if (p.pullT <= 0 && moveEntity(game.room, p, vx * dt, vy * dt) && mv.accel) { p.mvx *= 0.3; p.mvy *= 0.3; }
   updateCentipede(p);
 
@@ -669,7 +669,7 @@ function drainBeam(p) {
 function drainOne(p, target, dmg, fromX, fromY) {
   const s = p.stats;
   damageEnemy(target, dmg, 0, 0, true);
-  if (s.beamBleed) { target.bleedT = 2; target.bleedDps = Math.max(target.bleedDps || 0, s.beamBleed); }
+  if (s.beamBleed) { inflict(target, 'bleed', { t: 2, dps: s.beamBleed }); }
   if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
@@ -721,8 +721,8 @@ function meleeHit(p, e, dmg, dx, dy) {
   // Melee shoves much harder than shots, but keeps prey just inside your reach.
   damageEnemy(e, dmg, dx, dy, true, 50 + dmg * 12);
   hitstop(0.02 + Math.min(0.04, dmg * 0.003));
-  if (s.gnaw && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.gnaw); } // Rat Incisors
-  if (s.stunChance && !e.dead && Math.random() < s.stunChance) e.stunT = Math.max(e.stunT || 0, 0.8);
+  if (s.gnaw && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.gnaw }); } // Rat Incisors
+  if (s.stunChance && !e.dead && Math.random() < s.stunChance) inflict(e, 'stun', { t: 0.8 });
   bloodSpray(e.x, e.y, dx, dy, 8, ENEMY_TYPES[e.type].fluid, 110);
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
 }
@@ -771,7 +771,7 @@ function bite(p, dmg, arrived = false, prey = null) {
     return;
   }
   if (s.meltBite && inOwnPool(target.x, target.y)) { dmg *= 3; floatText(target.x, target.y - 10, 'MELT', '#b0c040'); }
-  const bleeding = target.bleedT > 0;
+  const bleeding = hasStatus(target, 'bleed');
   // Devour: a badly wounded enemy is swallowed whole.
   if (s.devour && !ENEMY_TYPES[target.type].boss && target.hp <= target.maxHp * s.devour) {
     floatText(target.x, target.y - 10, 'DEVOURED', PAL.red);
@@ -785,7 +785,7 @@ function bite(p, dmg, arrived = false, prey = null) {
     const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;
     spawnBullet({ x: target.x + ux * 4, y: target.y + uy * 4, vx: ux * 190, vy: uy * 190, r: 2, dmg: dmg * 0.8, life: 0.5, pierce: 1, kind: 'shot', color: '#cfc4a4', hitSet: new Set([target]) });
   }
-  if (s.acidMaw) target.acidMarked = true; // Acid Maw: it bursts into bile when it dies
+  if (s.acidMaw) inflict(target, 'acidMark', { t: Infinity }); // Acid Maw: it bursts into bile when it dies
   if (s.bleedFeed && bleeding && p.hp < p.maxHp && Math.random() < s.bleedFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
   if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
@@ -858,15 +858,15 @@ function drawWhips(ctx) {
 function lashHit(p, e) {
   const s = p.stats;
   {
-    const wasBleeding = e.bleedT > 0;
+    const wasBleeding = hasStatus(e, 'bleed');
     meleeHit(p, e, s.lashDmg, e.x - p.x, e.y - p.y);
     if (s.flay && wasBleeding) { // Flay: open wounds tear into a spray of shards
       spawnFragments(e.x, e.y, Math.atan2(e.y - p.y, e.x - p.x), 5, s.lashDmg * 0.4, 0, 0, e);
       bloodSpray(e.x, e.y, e.x - p.x, e.y - p.y, 12, ENEMY_TYPES[e.type].fluid, 140);
     }
-    if (s.lashBleed) { e.bleedT = 3; e.bleedDps = s.lashBleed; }
-    if (s.caustic) e.leakT = 3; // Caustic Tendrils: it leaks burning bile as it crawls
-    if (s.lashStun && !e.dead) e.stunT = Math.max(e.stunT || 0, s.lashStun);
+    if (s.lashBleed) { inflict(e, 'bleed', { t: 3, dps: s.lashBleed }); }
+    if (s.caustic) inflict(e, 'leak', { t: 3 }); // Caustic Tendrils: it leaks burning bile as it crawls
+    if (s.lashStun && !e.dead) inflict(e, 'stun', { t: s.lashStun });
     if (s.lashDrain) {
       p.drained = (p.drained || 0) + s.lashDmg * 0.35;
       if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
@@ -899,7 +899,7 @@ function lungeBite(p) {
     if (d > 20 + e.r + s.reach) continue;
     if (d > 6 && (dx * p.lungeX + dy * p.lungeY) / d < 0.3) continue;
     for (let k = 0; k < (s.doubleBite ? 2 : 1); k++) if (!e.dead) meleeHit(p, e, s.lungeDmg, dx, dy);
-    if (s.lungeBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.lungeBleed); }
+    if (s.lungeBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.lungeBleed }); }
     if (e.dead && s.lungeChain) { p.cd.lunge = 0; floatText(p.x, p.y - 14, 'AGAIN', '#e8a020'); }
     knock(e, p.lungeX, p.lungeY, 120);
     if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
@@ -954,7 +954,7 @@ function resolveGrapple(p, g, anchor, enemy) {
   }
   if (s.webLine) { // Silk Tendril: everything the line crosses is stuck fast
     for (const e of game.enemies) {
-      if (!e.dead && e.spawnT <= 0 && distToSegment(e.x, e.y, p.x, p.y, anchor[0], anchor[1]) < e.r + 4) { e.stunT = 1.5; floatText(e.x, e.y - 10, 'WEBBED', '#e0d8d0'); }
+      if (!e.dead && e.spawnT <= 0 && distToSegment(e.x, e.y, p.x, p.y, anchor[0], anchor[1]) < e.r + 4) { inflict(e, 'stun', { t: 1.5 }); floatText(e.x, e.y - 10, 'WEBBED', '#e0d8d0'); }
     }
   }
   if (s.bileLine) { // Bile Line: burning bile along the whole length
@@ -1001,7 +1001,7 @@ function chargeHits(p) {
     if (e.dead || e.spawnT > 0 || p.dashHit.has(e)) continue;
     if (Math.hypot(e.x - p.x, e.y - p.y) > e.r + p.r + 3) continue;
     p.dashHit.add(e);
-    if (s.bleedBurst && e.bleedT > 0) { // Bloodletter: the bleeding ones burst
+    if (s.bleedBurst && hasStatus(e, 'bleed')) { // Bloodletter: the bleeding ones burst
       bloodSpray(e.x, e.y, p.dashX, p.dashY, 24, ENEMY_TYPES[e.type].fluid, 160);
       for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 28 + o.r) damageEnemy(o, s.dashDmg * 0.7, o.x - e.x, o.y - e.y, true);
       floatText(e.x, e.y - 10, 'BURST', PAL.red);
@@ -1009,10 +1009,10 @@ function chargeHits(p) {
     const ram = s.batteringRam && p.shieldUp; // Battering Ram
     damageEnemy(e, s.dashDmg * (ram ? 3 : 1), p.dashX * 3, p.dashY * 3, true);
     knock(e, p.dashX, p.dashY, ram ? 320 : 200);
-    if (ram && !e.dead) { e.stunT = Math.max(e.stunT || 0, ENEMY_TYPES[e.type].boss ? 0.3 : 1.2); burst(e.x, e.y, '#8a7a5a', 8, 90); }
+    if (ram && !e.dead) { inflict(e, 'stun', { t: 1.2 }); burst(e.x, e.y, '#8a7a5a', 8, 90); }
     if (ram) burst(e.x, e.y, '#ffd070', 6, 120, 0.2); // sparks off the shell
     hitstop(0.045);
-    if (s.bleed > 0) { e.bleedT = 3; e.bleedDps = s.bleed; }
+    if (s.bleed > 0) { inflict(e, 'bleed', { t: 3, dps: s.bleed }); }
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('ram');
@@ -1032,8 +1032,8 @@ function slam(p) {
     const d = Math.hypot(e.x - p.x, e.y - p.y);
     if (d < s.slamR + e.r) {
       damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, 260); // shockwave flings them outward
-      if (s.slamStun && !e.dead) e.stunT = s.slamStun;
-      if (s.slamBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.slamBleed); } // Impaler
+      if (s.slamStun && !e.dead) inflict(e, 'stun', { t: s.slamStun });
+      if (s.slamBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.slamBleed }); } // Impaler
     }
   }
   for (const c of corpsesNear(p.x, p.y, s.slamR)) damageCorpse(c, s.slamDmg, c.x - p.x, c.y - p.y);
@@ -1079,7 +1079,7 @@ function hurtPlayer(dmg) {
       game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 44, t: 0.25 });
       for (const e of game.enemies) {
         const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-        if (!e.dead && e.spawnT <= 0 && d < 44 + e.r) { e.kx += (e.x - p.x) / d * 320; e.ky += (e.y - p.y) / d * 320; e.stunT = Math.max(e.stunT || 0, 0.5); }
+        if (!e.dead && e.spawnT <= 0 && d < 44 + e.r) { e.kx += (e.x - p.x) / d * 320; e.ky += (e.y - p.y) / d * 320; inflict(e, 'stun', { t: 0.5 }); }
       }
     }
     floatText(p.x, p.y - 14, 'BLOCKED', '#8a7a5a');

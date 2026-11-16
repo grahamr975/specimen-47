@@ -227,11 +227,11 @@ function drawBodyMarks(ctx, p, x, y) {
     ctx.fillStyle = '#1a0a10'; ctx.fillRect(ex - 1, ey - (open ? 1 : 0), 3, open ? 3 : 1);
     if (open) { ctx.fillStyle = '#e8dcc8'; ctx.fillRect(ex, ey, 1, 1); ctx.fillStyle = '#100808'; ctx.fillRect(ex + (p.aimX < 0 ? -1 : 1) * 0, ey, 1, 1); ctx.fillStyle = '#e8dcc8'; ctx.fillRect(ex + (p.aimX < 0 ? 1 : -1), ey, 1, 1); }
   }
-  if (p.netT > 0) { // pinned under a containment net
+  if (hasStatus(p, 'net')) { // pinned under a containment net
     ctx.fillStyle = '#e8e0c8';
     for (let n = -8; n <= 8; n += 4) { for (let k = -8; k <= 8; k++) { if ((k + n) % 2) continue; ctx.fillRect(Math.round(x + n + k * 0.3), Math.round(y + k * 0.6), 1, 1); ctx.fillRect(Math.round(x + k), Math.round(y + n * 0.6), 1, 1); } }
   }
-  if (p.chillT > 0 && Math.random() < 0.3) game.particles.push({ x: x + rand(-6, 6), y: y + rand(-6, 4), vx: 0, vy: -8, life: 0.3, color: '#d8f0ff', size: 1 }); // frost
+  if (hasStatus(p, 'chill') && Math.random() < 0.3) game.particles.push({ x: x + rand(-6, 6), y: y + rand(-6, 4), vx: 0, vy: -8, life: 0.3, color: '#d8f0ff', size: 1 }); // frost
   // Splices: a stitched seam across the body for each fusion.
   p.splices.slice(0, 3).forEach((k, i) => {
     const y0 = y - 3 + i * 3;

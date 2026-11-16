@@ -31,7 +31,7 @@ function enemyTarget(e) {
     for (const o of game.enemies) { if (o === e || o.dead || o.infest) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bd) { bd = d; best = o; } }
     if (best) return best;
   }
-  if (e.blindT > 0 || (p.stats.gasInvis && p.venting)) { // blinded (or you vanished in your gas): wander
+  if (hasStatus(e, 'blind') || (p.stats.gasInvis && p.venting)) { // blinded (or you vanished in your gas): wander
     if (!e.wander || Math.hypot(e.wander.x - e.x, e.wander.y - e.y) < 6) e.wander = randomFloorSpot(game.room, null, 0);
     return e.wander;
   }
@@ -141,8 +141,8 @@ function updateClouds(dt) {
     c.life -= dt;
     for (const e of game.enemies) {
       if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
-        if (!(e.blindT > 0)) floatText(e.x, e.y - 10, '?', '#9aae50');
-        e.blindT = Math.max(e.blindT || 0, 2);
+        if (!hasStatus(e, 'blind')) floatText(e.x, e.y - 10, '?', '#9aae50');
+        inflict(e, 'blind', { t: 2 });
         if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
         if (c.fire) damageEnemy(e, 3 * s.damage * dt, 0, 0, true);               // Firestorm
         if (c.toxic) damageEnemy(e, 1.5 * s.damage * dt, 0, 0, true);            // Rot Halo, Toxic Wings
@@ -397,11 +397,11 @@ function updateBurrow(p, dt, ix, iy) {
     for (const e of game.enemies) {
       if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) >= 24 + e.r) continue;
       damageEnemy(e, s.burrowDmg, (e.x - p.x) || 1, e.y - p.y, true);
-      if (s.burrowBleed && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.burrowBleed); }
+      if (s.burrowBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.burrowBleed }); }
     }
     if (s.eruptStun) { // Quake
       game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 56, t: 0.35 });
-      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) e.stunT = Math.max(e.stunT || 0, s.eruptStun);
+      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) inflict(e, 'stun', { t: s.eruptStun });
     }
     if (s.eruptRing) fireRing(p, s.eruptRing);
     if (s.seismicHowl && s.howl) { howl(p, 1.5, true); groundCracks(p.x, p.y + 4); } // Seismic Howl
@@ -469,7 +469,7 @@ function scream(p) {
     if (e.dead || e.spawnT > 0) continue;
     const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
     if (d >= 50 + e.r) continue;
-    e.stunT = p.stats.echo;
+    inflict(e, 'stun', { t: p.stats.echo });
     if (p.stats.banshee && !ENEMY_TYPES[e.type].boss) { e.kx += (e.x - p.x) / d * 300; e.ky += (e.y - p.y) / d * 300; }
   }
   if (p.stats.banshee) { // Banshee: shreds enemy shots out of the air
@@ -506,7 +506,7 @@ function updateInfested(dt) {
     inf.t -= dt; inf.carried += dt;
     damageEnemy(e, s.ovi.dps * dt, 0, 0, true);
     if (e.dead || !e.infest) continue; // its death already burst it
-    if (s.oviConfuse) { e.blindT = Math.max(e.blindT || 0, 0.4); e.slowT = Math.max(e.slowT || 0, 0.3); }
+    if (s.oviConfuse) { inflict(e, 'blind', { t: 0.4 }); inflict(e, 'slow', { t: 0.3 }); }
     if (s.oviCharm) { // Swarm Queen: it savages its own kind
       for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < o.r + e.r + 3) damageEnemy(o, 3 * s.damage * dt, 0, 0, true);
     }
@@ -550,9 +550,9 @@ function updateMiasma(p, dt) {
     e.gasT = (e.gasT || 0) + dt;
     const ramp = s.gasRamp ? 1 + Math.min(3, e.gasT * 0.6) : 1; // Caustic Lungs
     damageEnemy(e, s.miasma.dps * ramp * dt, 0, 0, true);
-    if (s.gasHide) e.blindT = Math.max(e.blindT || 0, 0.4);
-    if (s.gasCorrode) e.corrodeUntil = game.time + 0.3;
-    if (s.gasChoke) e.slowT = Math.max(e.slowT || 0, 0.3);
+    if (s.gasHide) inflict(e, 'blind', { t: 0.4 });
+    if (s.gasCorrode) inflict(e, 'corrode', { t: 0.3 });
+    if (s.gasChoke) inflict(e, 'slow', { t: 0.3 });
     if (s.toxicBloom) pollinate(e, s); // Toxic Bloom: the gas carries pollen
   }
   strikeSeal(p.x, p.y, r); // the gas eats through hazmat seals (one hit at a time)
@@ -590,8 +590,8 @@ function howl(p, mul = 1, around = false) {
     if (s.broodHowl) e.eggs = s.broodHowl; // Brood Howl: laid with eggs
     damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
     if (e.dead) continue;
-    if (s.howlStun) e.stunT = Math.max(e.stunT || 0, s.howlStun);
-    if (s.howlBleed) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.howlBleed); }
+    if (s.howlStun) inflict(e, 'stun', { t: s.howlStun });
+    if (s.howlBleed) { inflict(e, 'bleed', { t: 3, dps: s.howlBleed }); }
     if (ENEMY_TYPES[e.type].boss) continue;
     const sp = Math.min(380, h.force * mul / enemyMass(e));
     e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
@@ -652,7 +652,7 @@ function updatePolyp(a, dt) {
     a.shootT = 0.6;
     game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: e.x, y2: e.y, t: 0.12 });
     damageEnemy(e, pp.dmg * 1.8, e.x - a.x, e.y - a.y, true);
-    if (s.polypGrab && !e.dead) { e.slowT = Math.max(e.slowT || 0, 1); knock(e, a.x - e.x, a.y - e.y, 120); }
+    if (s.polypGrab && !e.dead) { inflict(e, 'slow', { t: 1 }); knock(e, a.x - e.x, a.y - e.y, 120); }
     if (e.dead && s.polypFeed) polypFed(p);
     Sfx.play('whip');
   } else {
@@ -738,7 +738,7 @@ function updateTongue(p, dt) {
           if (!s.tonguePierce) T.out = false;
         } else {
           damageEnemy(e, t.dmg * T.mul, p.x - e.x, p.y - e.y, true, 160); // yanked toward you
-          if (s.tongueVenom && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 2); e.slowT = Math.max(e.slowT || 0, 1.5); }
+          if (s.tongueVenom && !e.dead) { inflict(e, 'bleed', { t: 3, dps: 2 }); inflict(e, 'slow', { t: 1.5 }); }
           if (!s.tonguePierce) {
             T.out = false;
             if (s.tongueYank && !e.dead && !T.carry) { reelIn(p, e.x, e.y, e); return; } // too big: it reels YOU in
@@ -826,11 +826,11 @@ function updateWebs(dt) {
       if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
       damageEnemy(e, s.silk.dmg * dt, 0, 0, true);
       if (ENEMY_TYPES[e.type].boss) continue; // the silk cuts a boss, but can't hold one
-      e.webT = 0.25;
+      inflict(e, 'web', { t: 0.25 });
       if (w.touched.has(e)) continue;
       w.touched.add(e);
-      if (s.webHold) { e.stunT = Math.max(e.stunT || 0, s.webHold); floatText(e.x, e.y - 10, 'STUCK', '#e0d8d0'); } // Sticky Web
-      if (s.webAcid) e.leakT = 3;  // Acid Silk
+      if (s.webHold) { inflict(e, 'stun', { t: s.webHold }); floatText(e.x, e.y - 10, 'STUCK', '#e0d8d0'); } // Sticky Web
+      if (s.webAcid) inflict(e, 'leak', { t: 3 });  // Acid Silk
       if (s.webSnap) snapWeb(w);   // Tripwire
     }
   }
@@ -870,9 +870,9 @@ function drawWebs(ctx) {
 
 // --- The Plant path ------------------------------------------------------------------------
 function pollinate(e, s) {
-  e.pollenUntil = game.time + 4;
-  if (s.pollenBlind) e.blindT = Math.max(e.blindT || 0, s.pollenBlind); // Spore Bloom
-  if (s.pollenSlow) e.slowT = Math.max(e.slowT || 0, s.pollenSlow);    // Hay Fever
+  inflict(e, 'pollen', { t: 4 });
+  if (s.pollenBlind) inflict(e, 'blind', { t: s.pollenBlind }); // Spore Bloom
+  if (s.pollenSlow) inflict(e, 'slow', { t: s.pollenSlow });    // Hay Fever
 }
 
 // A polyp sprouting from the ground around you (Grove, Seedfall, Overgrowth).
@@ -907,7 +907,7 @@ function updatePlant(p, dt) {
   p.rootZone = p.rooted ? s.rootLegs.zone * Math.min(1, p.rootedFor / 0.35) : 0;
   if (p.rootZone > 0) for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > p.rootZone + e.r) continue;
-    if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 0.15);
+    inflict(e, 'web', { t: 0.15 });
     damageEnemy(e, s.rootLegs.dps * s.damage * dt, 0, 0, true);
   }
   let rate = p.rooted ? s.rootLegs.heal : 0;
@@ -1004,7 +1004,7 @@ function updateBranchUpkeep(p, dt) {
       for (const e of game.enemies) {
         if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > r + e.r) continue;
         damageEnemy(e, 0.6 * s.damage, 0, 0, true);
-        if (s.flySwarm > 1 && !e.dead) { e.bleedT = 2; e.bleedDps = Math.max(e.bleedDps || 0, 1); }
+        if (s.flySwarm > 1 && !e.dead) { inflict(e, 'bleed', { t: 2, dps: 1 }); }
       }
     }
   }
@@ -1026,7 +1026,7 @@ function updateBranchUpkeep(p, dt) {
       let hit = false;
       for (const e of game.enemies) {
         if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 48 + e.r) continue;
-        e.blindT = Math.max(e.blindT || 0, 1.8); hit = true;
+        inflict(e, 'blind', { t: 1.8 }); hit = true;
       }
       if (hit) { game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 6, max: 48, t: 0.2 }); burst(p.x, p.y - 4, '#fff0c0', 10, 90, 0.25); Sfx.play('flicker'); }
     }
@@ -1045,7 +1045,7 @@ function updateBranchUpkeep(p, dt) {
   }
   if (s.nightLure && s.lure) { // Nightmare Lure
     const lp = lurePoint(p);
-    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !(e.blindT > 0)) { e.blindT = 1.5; floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !hasStatus(e, 'blind')) { inflict(e, 'blind', { t: 1.5 }); floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
   }
   updateMiasma(p, dt);
   updatePlant(p, dt);
@@ -1164,7 +1164,7 @@ function useActive(p, a) {
         if (e.dead || e.spawnT > 0) continue;
         const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
         if (d > R + e.r) continue;
-        e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.3 : 1 + 0.25 * l);
+        inflict(e, 'stun', { t: 1 + 0.25 * l });
         damageEnemy(e, (1.5 + l) * dmg, dx / d, dy / d, true, 90);
       }
       game.fx.push({ kind: 'ring', x: p.x, y: p.y + 3, r: 4, max: R, t: 0.3 });
@@ -1177,7 +1177,7 @@ function useActive(p, a) {
       const pt = aimPoint(p, 110), R = 22 + 2 * l;
       for (const e of game.enemies) {
         if (e.dead || e.spawnT > 0 || Math.hypot(e.x - pt.x, e.y - pt.y) > R + e.r) continue;
-        if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 1.4 + 0.3 * l);
+        if (!isBoss(e)) inflict(e, 'web', { t: 1.4 + 0.3 * l });
         damageEnemy(e, (2 + l) * dmg, 0, 0, true);
       }
       game.fx.push({ kind: 'act', what: 'roots', x: pt.x, y: pt.y, r: R, t: 1.2, max: 1.2 });
@@ -1188,7 +1188,7 @@ function useActive(p, a) {
     case 'mark': { // Extra Eyes: mark one victim; everything hits it harder
       const e = pointedEnemy(p, 170);
       if (!e) return false;
-      e.markUntil = game.time + 6; e.markMul = 0.4 + 0.15 * l;
+      inflict(e, 'mark', { t: 6, mul: 0.4 + 0.15 * l });
       floatText(e.x, e.y - 12, 'MARKED', PAL.red);
       Sfx.play('flicker');
       return true;
@@ -1200,7 +1200,7 @@ function useActive(p, a) {
         if (e.dead || e.spawnT > 0) continue;
         const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
         if (d > 18 + e.r || (dx * p.aimX + dy * p.aimY) / d < 0.2) continue;
-        e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : 0.6 + 0.2 * l);
+        inflict(e, 'stun', { t: 0.6 + 0.2 * l });
         damageEnemy(e, (3 + 2 * l) * dmg + s.dashDmg * 0.5, p.aimX, p.aimY, false, isBoss(e) ? 60 : 280);
         hit = true;
       }
@@ -1215,7 +1215,7 @@ function useActive(p, a) {
     }
     case 'blackout': { // Night Eyes: snuff your own light; it's all dark out there now
       p.blackoutT = 3 + 0.5 * l;
-      for (const e of game.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < 90) e.blindT = Math.max(e.blindT || 0, 1.5 + 0.25 * l);
+      for (const e of game.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < 90) inflict(e, 'blind', { t: 1.5 + 0.25 * l });
       floatText(p.x, p.y - 18, 'BLACKOUT', '#6a6aa0');
       Sfx.play('flicker');
       return true;
@@ -1223,7 +1223,7 @@ function useActive(p, a) {
     case 'mindspike': { // Parasite Brain: it lashes out with your mind
       const e = pointedEnemy(p, 170);
       if (!e) return false;
-      e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.4 : 1.2 + 0.2 * l);
+      inflict(e, 'stun', { t: 1.2 + 0.2 * l });
       damageEnemy(e, (4 + 2 * l) * dmg, 0, 0, false);
       game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 6, x2: e.x, y2: e.y, t: 0.15 });
       burst(e.x, e.y, '#b464c8', 8, 60, 0.3);
@@ -1239,7 +1239,7 @@ function useActive(p, a) {
         const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
         if (d > reach + e.r || (dx * p.aimX + dy * p.aimY) / d < cone) continue;
         damageEnemy(e, (4 + 2 * l) * dmg * (s.pincerMul || 1), dx / d, dy / d, false, isBoss(e) ? 40 : 220);
-        if (!e.dead) e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : (s.pincerStun || 0.8));
+        if (!e.dead) inflict(e, 'stun', { t: s.pincerStun || 0.8 });
         else if (s.pincerReset) p.pincerRefresh = true;
         game.fx.push({ kind: 'bite', x: e.x, y: e.y, t: 0.12 });
         hit = true;
@@ -1295,7 +1295,7 @@ function updateActives(p, dt) {
       for (const e of game.enemies) {
         if (e.dead || e.spawnT > 0 || b.hit.has(e) || Math.hypot(e.x - b.x, e.y - b.y) > e.r + b.r) continue;
         b.hit.add(e);
-        e.slowT = Math.max(e.slowT || 0, 2 + 0.5 * b.l);
+        inflict(e, 'slow', { t: 2 + 0.5 * b.l });
         damageEnemy(e, (0.6 + 0.3 * b.l) * p.stats.damage, b.vx, b.vy, true, isBoss(e) ? 0 : 160);
       }
       if (wall || b.life <= 0) b.dead = true;
@@ -1308,7 +1308,7 @@ function webBurst(b) {
   const R = 18 + 3 * b.l;
   for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0 || Math.hypot(e.x - b.x, e.y - b.y) > R + e.r) continue;
-    if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 1.6 + 0.35 * b.l);
+    if (!isBoss(e)) inflict(e, 'web', { t: 1.6 + 0.35 * b.l });
     damageEnemy(e, (0.8 + 0.3 * b.l) * game.player.stats.damage, 0, 0, true);
   }
   game.fx.push({ kind: 'act', what: 'web', x: b.x, y: b.y, r: R, t: 0.6, max: 0.6 });
@@ -1355,7 +1355,7 @@ function diveBomb(p) {
   for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 22 + e.r) continue;
     damageEnemy(e, s.biteDmg * 1.5 + 3 * s.damage, e.x - p.x, e.y - p.y, false, 200);
-    if (!e.dead) e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : 0.7);
+    if (!e.dead) inflict(e, 'stun', { t: 0.7 });
     game.fx.push({ kind: 'bite', x: e.x, y: e.y, t: 0.12 });
   }
   for (const c of corpsesNear(p.x, p.y, 22)) damageCorpse(c, s.biteDmg * 1.5);
@@ -1370,7 +1370,7 @@ function updateNursery(p, dt) {
   if (!every) return;
   const kids = game.allies.filter(a => a.kind === 'spiderling' && !a.dead).length;
   for (const e of game.enemies) {
-    if (e.dead || !(e.webT > 0)) continue;
+    if (e.dead || !hasStatus(e, 'web')) continue;
     if ((e.nurseryT = (e.nurseryT ?? every * 0.5) - dt) > 0) continue;
     e.nurseryT = every;
     if (kids < 10) { spawnAlly('spiderling', e.x + rand(-4, 4), e.y + rand(-3, 3)); Sfx.play('hatch'); }
@@ -1481,7 +1481,7 @@ function ripBarbs(e) {
   damageEnemy(e, per * n, -dx / d, -dy / d, false, 120);
   bloodSpray(e.x, e.y, dx / d, dy / d, 8 + 4 * n, ENEMY_TYPES[e.type].fluid, 140);
   if (!e.dead && s.barbPull && !isBoss(e)) knock(e, dx / d, dy / d, 260);                         // Fishhooks
-  if (!e.dead && s.barbBleed) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.barbBleed); } // Gut Hooks
+  if (!e.dead && s.barbBleed) { inflict(e, 'bleed', { t: 3, dps: s.barbBleed }); } // Gut Hooks
   if (s.barbChain) { // Chain Hooks: on into the next one
     let o = null, bd = 80;
     for (const q of game.enemies) { if (q === e || q.dead || q.spawnT > 0) continue; const qd = Math.hypot(q.x - e.x, q.y - e.y); if (qd < bd) { bd = qd; o = q; } }

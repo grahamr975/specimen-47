@@ -141,9 +141,9 @@ function updateBullets(dt) {
       if (twin && Math.hypot(twin.x - b.x, twin.y - b.y) < twin.r + b.r) { hurtTwin(twin); b.dead = true; continue; }
       if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1) {
         if (b.net) { // a containment net: it pins you, no damage
-          if (!(p.inv > 0) && p.dashT <= 0) { p.netT = 1.1; floatText(p.x, p.y - 14, 'NETTED', '#e8e0c8'); Sfx.play('whip'); }
+          if (!(p.inv > 0) && p.dashT <= 0) { inflict(p, 'net', { t: 1.1 }); floatText(p.x, p.y - 14, 'NETTED', '#e8e0c8'); Sfx.play('whip'); }
           b.dead = true;
-        } else if (hurtPlayer(1)) { b.dead = true; if (b.chill) { p.chillT = 2.5; floatText(p.x, p.y - 14, 'CHILLED', '#a0e0ff'); } }
+        } else if (hurtPlayer(1)) { b.dead = true; if (b.chill) { inflict(p, 'chill', { t: 2.5 }); floatText(p.x, p.y - 14, 'CHILLED', '#a0e0ff'); } }
       }
     }
   }
@@ -172,14 +172,14 @@ function onPlayerBulletHit(b, enemy) {
   // Clutch: whatever your fragments kill hatches a maggot.
   if (b.kind === 'frag' && enemy.dead && s.clutch) { spawnAlly('maggot', enemy.x, enemy.y); Sfx.play('hatch'); }
   if (!enemy.dead) {
-    if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) enemy.stunT = Math.max(enemy.stunT || 0, s.darkStun); // Abyss Stare
-    if (s.stunChance && Math.random() < s.stunChance) enemy.stunT = Math.max(enemy.stunT || 0, 0.8);    // Brain Worm
+    if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) inflict(enemy, 'stun', { t: s.darkStun }); // Abyss Stare
+    if (s.stunChance && Math.random() < s.stunChance) inflict(enemy, 'stun', { t: 0.8 });    // Brain Worm
   }
   if (b.barb && !enemy.dead) { enemy.barbs = (enemy.barbs || 0) + 1; enemy.barbDmg = b.barb; enemy.barbT = 0.8; } // a barb sticks
-  if (b.blind && !enemy.dead) enemy.blindT = Math.max(enemy.blindT || 0, b.blind);                              // Spore Sneeze
-  if (b.mirrorStun && !enemy.dead) enemy.stunT = Math.max(enemy.stunT || 0, b.mirrorStun); // Blinding Lens
-  if (b.bleed) { enemy.bleedT = 3; enemy.bleedDps = b.bleed; }
-  if (b.slow && !enemy.dead) enemy.slowT = Math.max(enemy.slowT || 0, b.slow); // sticky slime
+  if (b.blind && !enemy.dead) inflict(enemy, 'blind', { t: b.blind });                              // Spore Sneeze
+  if (b.mirrorStun && !enemy.dead) inflict(enemy, 'stun', { t: b.mirrorStun }); // Blinding Lens
+  if (b.bleed) { inflict(enemy, 'bleed', { t: 3, dps: b.bleed }); }
+  if (b.slow && !enemy.dead) inflict(enemy, 'slow', { t: b.slow }); // sticky slime
   if (b.split > 0) spawnFragments(b.x, b.y, Math.atan2(b.vy, b.vx), b.split, b.dmg * 0.5, b.homing, b.acid ? b.acid * 0.6 : 0, enemy);
 }
 

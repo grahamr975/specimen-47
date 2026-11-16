@@ -163,13 +163,8 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.dead) return;
   // Predator set: wounded prey takes more.
   const ps = game.player && game.player.stats;
-  if (ps && ps.pollen && e.pollenUntil > game.time) dmg *= 1 + (ps.pollenMul || 0.25); // Bloom
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
-  if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
-  if (e.corrodeUntil > game.time) dmg *= 1.5;                // Corrode
-  if (e.markUntil > game.time) dmg *= 1 + (e.markMul || 0.4);  // Mark Prey
-  if (ps && ps.allergen && e.blindT > 0) dmg *= 1 + ps.allergen;  // Allergen
-  if (ps && ps.anticoag && e.bleedT > 0) dmg *= 1 + ps.anticoag;  // Anticoagulant
+  dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
   if (e.type === 'enforcer' && (vx || vy) && e.fx !== undefined && (vx * e.fx + vy * e.fy) / (Math.hypot(vx, vy) || 1) < -0.35) { // hit on its riot plate
     dmg *= 0.25;
     if (!(e.clankT > game.time)) { e.clankT = game.time + 0.15; burst(e.x + e.fx * 6, e.y + e.fy * 6, '#ffd070', 4, 80, 0.2); Sfx.play('clank'); }
@@ -200,15 +195,9 @@ function killEnemy(e) {
   game.kills++;
   const T = ENEMY_TYPES[e.type];
   const p = game.player, s = p.stats;
-  // Acid Maw: what you bit bursts into bile.
-  if (e.acidMarked) {
-    spawnPuddle(e.x, e.y, 16, 3, 'player');
-    for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 22 + o.r) damageEnemy(o, 2 * s.damage, o.x - e.x, o.y - e.y, true);
-    burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
-  }
+  statusOnKill(e, p, s); // Acid Maw bursts, Leech Spitter feeds, Hives, Cocoon Wrap...
   onSetKill(e, p, s);
   apexKill(p);
-  if (s.hivesCloud && e.blindT > 0) spawnCloud(e.x, e.y, 14);   // Hives
   if (e.type === 'frostbitten') { // it shatters into chilling shards
     for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 95, vy: Math.sin(a) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 0.7, color: '#d8f0ff', chill: true }); }
     burst(e.x, e.y, '#d8f0ff', 14, 110, 0.4); Sfx.play('clank');
@@ -221,10 +210,6 @@ function killEnemy(e) {
     for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, 4, o.x - e.x, o.y - e.y, true);
   }
   if (e.type === 'clone') for (const o of game.enemies) if (o !== e && !o.dead && o.type === 'clone') { o.rage = Math.min(1.2, (o.rage || 0) + 0.25); burst(o.x, o.y, '#e05050', 3, 40, 0.2); } // the others get faster
-  if (e.bleedT > 0) { // Leech Spitter: bled-out kills feed you
-    if (s.leechFeed && p.hp < p.maxHp && Math.random() < s.leechFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
-    for (let i = 0; i < (s.leechBrood || 0); i++) spawnAlly('maggot', e.x + rand(-3, 3), e.y + rand(-3, 3));
-  }
   if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
     p.armorKills = 0;
     if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
@@ -233,7 +218,6 @@ function killEnemy(e) {
   if (e.eggs) { for (let i = 0; i < e.eggs; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); Sfx.play('hatch'); } // Brood Howl
   if (e.infest) hostBurst(e); // the brood inside bursts out
   if (s.gasDeathCloud && Math.hypot(e.x - p.x, e.y - p.y) < (p.gasR || 0) + e.r) game.clouds.push({ x: e.x, y: e.y, r: 16, life: 3.5, toxic: true }); // Rot Halo
-  if (s.webBrood && e.webT > 0) { for (let i = 0; i < s.webBrood; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); floatText(e.x, e.y - 10, 'WRAPPED', '#e0d8d0'); } // Cocoon Wrap
   // Stalker: kills out in the dark can heal you.
   if (s.darkHeal && p.hp < p.maxHp && Math.hypot(e.x - p.x, e.y - p.y) > 45 && Math.random() < s.darkHeal) {
     p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red);
@@ -299,7 +283,7 @@ function updateEnemies(dt) {
   for (const e of game.enemies) {
     if (e.dead) continue;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
-    e.t += dt; e.flash -= dt; e.timer -= dt * threatRate(); e.blindT -= dt; // deeper floors: they attack more often
+    e.t += dt; e.flash -= dt; e.timer -= dt * threatRate(); // deeper floors: they attack more often
     if (e.barbT > 0 && (e.barbT -= dt) <= 0) ripBarbs(e); // barbs tear out
     if (e.hp < e.maxHp * 0.5 && !ENEMY_TYPES[e.type].robot && Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + e.r * 0.6, ENEMY_TYPES[e.type].fluid, 1); // badly hurt: it drips
     // Held in your hands, flying through the air, or stunned: no thinking.
@@ -309,8 +293,10 @@ function updateEnemies(dt) {
       if (!p.held && Math.hypot(p.x - e.x, p.y - e.y) < e.r + 12) { e.grabOnArrive = false; grab(p, { kind: 'enemy', ref: e }); continue; }
       if (Math.hypot(e.kx, e.ky) < 30) e.grabOnArrive = false;
     }
-    if (e.stunT > 0 || e.staggerT > 0) { // stunned, or staggered by a heavy hit
-      e.stunT -= dt; e.staggerT -= dt;
+    updateStatuses(e, dt); // bleeding, stuns, webs... (see status.js)
+    if (e.dead) continue;
+    if (statusFlag(e, 'blocksAI') || e.staggerT > 0) { // stunned, or staggered by a heavy hit
+      e.staggerT -= dt;
       moveKnocked(e, e.kx, e.ky, dt); e.kx *= 0.85; e.ky *= 0.85;
       continue;
     }
@@ -509,13 +495,8 @@ function updateEnemies(dt) {
       }
     }
 
-    if (e.blindT > 0 && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
-    // Stuck in your slime blob: half speed, dripping.
-    if (e.webT > 0) { e.webT -= dt; mx *= 0.12; my *= 0.12; } // stuck in silk
-    if (e.slowT > 0) {
-      e.slowT -= dt; mx *= 0.5; my *= 0.5;
-      if (Math.random() < dt * 6) stainPx(e.x + rand(-2, 2), e.y + rand(1, 3), ['#3c4238', '#5a6a52'], 1);
-    }
+    if (statusFlag(e, 'noShoot') && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
+    { const m = statusMoveMul(e); mx *= m; my *= m; } // webbed, slowed
     // Your slime is slippery: things crawling through it slow and slide.
     if (!e.flying && game.room.slime.length && onSlime(e.x, e.y + 2, 5)) {
       const slow = p.stats.slimeSlow || 0.55; // Slime Glands: much stickier
@@ -523,12 +504,6 @@ function updateEnemies(dt) {
       if (p.stats.toxicBlood > 0) damageEnemy(e, 0.8 * dt, 0, 0, true); // toxic slime
       if (p.stats.slimeBurn) damageEnemy(e, p.stats.slimeBurn * dt, 0, 0, true); // Acid Slime
       if (e.dead) continue;
-    }
-    // Caustic Tendrils: it leaks burning bile as it crawls.
-    if (e.leakT > 0) {
-      e.leakT -= dt;
-      e.leakDrip = (e.leakDrip || 0) - dt;
-      if (e.leakDrip <= 0) { e.leakDrip = 0.25; spawnPuddle(e.x, e.y + 2, 6, 1.8, 'player'); }
     }
     const bumped = moveKnocked(e, mx + e.kx, my + e.ky, dt);
     e.kx *= 0.85; e.ky *= 0.85;
@@ -539,23 +514,15 @@ function updateEnemies(dt) {
     }
     if (Math.abs(mx) > 1) e.face = mx > 0 ? 1 : -1;
 
-    // Bleeding from Gore Horns.
-    if (e.bleedT > 0) {
-      e.bleedT -= dt;
-      damageEnemy(e, e.bleedDps * dt, 0, 0, true);
-      if (Math.random() < dt * 8) stainPx(e.x + rand(-3, 3), e.y + rand(0, 4), ENEMY_TYPES[e.type].fluid);
-      if (e.dead) continue;
-    }
-
     if (pd < e.r + p.r - 1 && p.burrowT <= 0 && !ENEMY_TYPES[e.type].harmless && !(e.infest && p.stats.oviCharm) && e.state !== 'dormant' && e.state !== 'disguise') {
       // Pustule Field: touching you pops a pustule of burning bile.
       if (p.stats.pustules && !(e.pusT > 0)) {
-        e.pusT = 0.8; e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, p.stats.pustules);
+        e.pusT = 0.8; inflict(e, 'bleed', { t: 3, dps: p.stats.pustules });
         spawnPuddle(e.x, e.y, 8, 1.5, 'player');
         if (p.stats.eggPods) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Egg Pods
         Sfx.play('splat');
       }
-      if (p.stats.contactMark) e.acidMarked = true; // Acid Skin
+      if (p.stats.contactMark) inflict(e, 'acidMark', { t: Infinity }); // Acid Skin
       // Venus Maw: the flower on your head bites.
       if (p.stats.flowerBite && !(e.flowerT > game.time)) {
         e.flowerT = game.time + 0.6;
@@ -563,16 +530,16 @@ function updateEnemies(dt) {
         game.fx.push({ kind: 'bite', x: (e.x + p.x) / 2, y: (e.y + p.y) / 2 - 4, t: 0.12 });
         Sfx.play('bite');
         if (e.dead) { if (p.stats.flowerHeal && p.hp < p.maxHp && Math.random() < p.stats.flowerHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } continue; }
-        if (p.stats.flowerStun) e.stunT = Math.max(e.stunT || 0, p.stats.flowerStun);
+        if (p.stats.flowerStun) inflict(e, 'stun', { t: p.stats.flowerStun });
       }
       // Briar: hooked thorns fling it back, bleeding (Strangling Briar: and hold it).
       if (p.stats.briar && !(e.briarT > game.time)) {
         e.briarT = game.time + 0.5;
         knock(e, e.x - p.x, e.y - p.y, 260);
-        e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, 1.5);
-        if (p.stats.briarHold) e.stunT = Math.max(e.stunT || 0, p.stats.briarHold);
+        inflict(e, 'bleed', { t: 3, dps: 1.5 });
+        if (p.stats.briarHold) inflict(e, 'stun', { t: p.stats.briarHold });
       }
-      if (p.stats.sapSlow) e.slowT = Math.max(e.slowT || 0, p.stats.sapSlow); // Sap
+      if (p.stats.sapSlow) inflict(e, 'slow', { t: p.stats.sapSlow }); // Sap
       // Urchin Hide: touching you sets off your shard ring.
       if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
       // Thorned Plate: your shell shreds whatever touches it.
@@ -670,17 +637,8 @@ function drawEnemyGlow(ctx) {
       drawCentered(ctx, SPR[enemySpriteName(e) + '_flash'], e.x, e.y);
       ctx.globalAlpha = 1;
     }
-    if (e.stunT > 0 && Math.floor(game.time * 8) % 2) drawText(ctx, '*', e.x, e.y - 12, PAL.yellow, 1, 'center');
-    if (e.markUntil > game.time && !e.dead) { // marked: a red reticle
-      const r = e.r + 3 + (Math.floor(game.time * 6) % 2);
-      ctx.fillStyle = PAL.red;
-      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(Math.round(e.x + sx * r) - (sx > 0 ? 1 : 0), Math.round(e.y + sy * r), 2, 1); ctx.fillRect(Math.round(e.x + sx * r), Math.round(e.y + sy * r) - (sy > 0 ? 1 : 0), 1, 2); }
-    }
+    drawStatuses(ctx, e); // stun stars, mark reticles, pollen (status.js)
     if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
-    if (e.pollenUntil > game.time && !e.dead) { // dusted with pollen
-      ctx.fillStyle = '#e8d040';
-      for (let k = 0; k < 3; k++) if ((Math.floor(game.time * 5) + k) % 2) ctx.fillRect(Math.round(e.x - e.r + hash2(k, 1, 3) * e.r * 2), Math.round(e.y - e.r - 1 + hash2(k, 2, 3) * e.r), 1, 1);
-    }
     if (e.infest && !e.dead) { // something writhing under its skin
       const wx = e.x + Math.sin(game.time * 14 + e.infest.wriggle) * 2, wy = e.y - 1 + Math.cos(game.time * 11) * 1.5;
       pxCircle(ctx, wx, wy, 1.6, '#3a2a20'); pxCircle(ctx, wx, wy, 1, '#e8dcc0');

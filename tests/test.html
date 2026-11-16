@@ -23,6 +23,7 @@
 <script src="../src/world.js"></script>
 <script src="../src/entities.js"></script>
 <script src="../src/gore.js"></script>
+<script src="../src/status.js"></script>
 <script src="../src/lighting.js"></script>
 <script src="../src/enemies.js"></script>
 <script src="../src/player.js"></script>
@@ -164,7 +165,7 @@ try {
       check(`while you're a limbless slug, every roll offers limbs (${legs}/${tries})`, legs === tries && tries > 50); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'slime');
     { const r = dummy(30); r.speed = 40; spawnBullet({ x: r.x - 5, y: r.y, vx: 135, vy: 0, r: 2.5, dmg: 1, slow: p.stats.guns[0].slow, life: 0.3, kind: 'shot' }); update(1 / 60); Input.endFrame();
-      check(`slime blobs slow what they hit (${(r.slowT || 0).toFixed(1)}s)`, r.slowT > 0.8); }
+      check(`slime blobs slow what they hit (${(statusT(r, 'slow') || 0).toFixed(1)}s)`, statusT(r, 'slow') > 0.8); }
     { const dps = g => g.dmg * g.count / g.delay; grow(p, 'slime'); const slime = dps(p.stats.guns[0]); grow(p, 'spike'); const spike = dps(p.stats.guns[0]);
       check(`bone spike is never a downgrade from the slime (${slime.toFixed(2)} -> ${spike.toFixed(2)} dps)`, spike > slime); }
     check(`most rolls show a fork side by side (${forks}/300)`, forks > 120);
@@ -269,13 +270,13 @@ try {
     // Silk Spinner.
     p = setup('silk'); run(2, true); a = dummy(30, 30); a.speed = 40; a.x = p.x + 30; a.y = p.y + 2;
     run(30);
-    check(`silk: webs stick and cut (${game.webs.length} webs, ${(30 - a.hp).toFixed(1)} dmg, stuck ${a.webT > 0})`, game.webs.length > 0 && a.hp < 30);
+    check(`silk: webs stick and cut (${game.webs.length} webs, ${(30 - a.hp).toFixed(1)} dmg, stuck ${statusT(a, 'web') > 0})`, game.webs.length > 0 && a.hp < 30);
   }
   { // 0h) The Plant path.
     const setup = (...ids) => { newRun(); combatRoom(); const p = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 100; p.y = 96; p.aimX = 1; p.aimY = 0; grow(p, ...ids); return p; };
     const idle = n => { for (let i = 0; i < n; i++) { Input.keys.clear(); Input.mouse.down = false; game.player.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } };
     let p = setup('bloom'); let a = dummy(20, 50); a.speed = 0; idle(80);
-    check('bloom: pollen dusts what is near you', a.pollenUntil > game.time);
+    check('bloom: pollen dusts what is near you', hasStatus(a, 'pollen'));
     { const h = a.hp; damageEnemy(a, 4, 0, 0, true); check(`bloom: pollinated enemies take more (${(h - a.hp).toFixed(1)} from a 4-damage hit)`, h - a.hp > 4.5); }
     p = setup('rootlegs'); p.hp = 1; idle(50);
     check('root legs: stand still and you take root', p.rooted);
@@ -287,7 +288,7 @@ try {
     p = setup('grove'); { const far = dummy(150, 999); far.speed = 0; } idle(60 * 6); // (a fight going on: groves grow in combat)
     check(`grove: polyps sprout around you while rooted (${game.allies.filter(x => x.kind === 'polyp').length})`, game.allies.some(x => x.kind === 'polyp' && x.grove));
     p = setup('briar'); a = dummy(0, 50); a.speed = 0; idle(2);
-    check(`thornbark + briar: touching you shreds, flings and bleeds (${(50 - a.hp).toFixed(1)} dmg)`, a.hp < 50 && a.bleedT > 0);
+    check(`thornbark + briar: touching you shreds, flings and bleeds (${(50 - a.hp).toFixed(1)} dmg)`, a.hp < 50 && statusT(a, 'bleed') > 0);
     p = setup('amber'); p.hp = 2; p.inv = 0; hurtPlayer(1);
     check(`amber: a near-fatal hit seals you in amber instead (hp ${p.hp})`, p.hp >= 2 && game.room.amberUsed);
     p = setup('agerings'); const h1 = p.maxHp; game.depth = 3; recomputeStats(p);
@@ -356,7 +357,7 @@ try {
       check(`brood howl: what it kills bursts into spiderlings (${kids})`, kids >= 2); }
     p = arena(); grow(p, leafUnder('spike'), 'juggernaut'); { const r = dummy(60); r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.pressed.add('q'); update(1 / 60); Input.endFrame(); for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); }
       check(`bone cannon: the headbutt fires a lance (${(99 - r.hp).toFixed(1)} dmg at 60px)`, 99 - r.hp > 4); }
-    p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; r.webT = 5; for (let i = 0; i < 90; i++) { r.webT = 5; update(1 / 60); Input.endFrame(); }
+    p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; inflict(r, 'web', { t: 5 }); for (let i = 0; i < 90; i++) { inflict(r, 'web', { t: 5 }); update(1 / 60); Input.endFrame(); }
       check(`silk nursery: spiderlings hatch on what's stuck (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling')); }
     p = arena(); grow(p, 'venomspike', leafUnder('bile')); game.puddles = []; { const r = dummy(40); r.speed = 0; fireFor(30, true);
       check('venom barrage: spikes burst into bile', p.splices.includes('venombarrage') && game.puddles.some(pd => pd.team === 'player' && pd.r >= 14)); }
@@ -554,8 +555,8 @@ try {
     check('urchin quills: rings of spines on their own in a fight', game.bullets.some(b => b.kind === 'spine') || q.quillT !== undefined);
     q = arena(); grow(q, 'splittercells'); { const a0 = game.allies.length; q.inv = 0; hurtPlayer(1); check('splitter cells: hurt, and pieces of you split off', game.allies.length > a0); }
     q = arena(); grow(q, 'culturejelly'); { const r = dummy(30); r.speed = 0; q.dashCd = 0; Input.keys.clear(); Input.keys.add('d'); Input.pressed.add(' '); for (let i = 0; i < 15; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
-      check('culture jelly: the dash ends in a jelly that holds them', r.webT > 0); }
-    q = arena(); grow(q, 'ratincisors'); { const r = dummy(12); r.speed = 0; q.aimX = 1; q.aimY = 0; fireFor(10); check('rat incisors: bites leave them bleeding', r.bleedT > 0); }
+      check('culture jelly: the dash ends in a jelly that holds them', statusT(r, 'web') > 0); }
+    q = arena(); grow(q, 'ratincisors'); { const r = dummy(12); r.speed = 0; q.aimX = 1; q.aimY = 0; fireFor(10); check('rat incisors: bites leave them bleeding', statusT(r, 'bleed') > 0); }
     newRun(); q = game.player; grow(q, 'spike', 'bile', 'mandibles', 'spines', 'chitin'); q.capacity = 5;
     check(`a full body: the trait takes the place of your least-grown part of its kind (${traitCards(q, 'rat').map(k => k.kind + ':' + (k.shed && k.shed.id)).join(',')})`, traitCards(q, 'rat').length === 1 && traitCards(q, 'rat')[0].kind === 'swap');
   }
@@ -584,6 +585,30 @@ try {
     const cb = q.coreBonus || 0, d0 = q.dna; q.x = ROOM_PX_W / 2; q.y = ROOM_PX_H / 2; update(1 / 60); Input.endFrame();
     check(`step into the hatch past the core: it comes with you (floor ${game.depth}, +${(q.coreBonus || 0) - cb} core, +${q.dna - d0} biomass, ${game.pendingEvolutions.filter(e => e.slot === 'CORE').length} core screen waiting)`, game.depth === 2 && q.coreBonus === cb + 1 && q.dna >= d0 + 2 && game.pendingEvolutions.some(e => e.slot === 'CORE'));
     game.pendingEvolutions = [];
+  }
+  { // 0zh) Status effects: one system (status.js).
+    const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.allies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.inv = 99; return z; };
+    let q = arena(), r = dummy(99, 99); r.speed = 0;
+    inflict(r, 'bleed', { t: 3, dps: 2 }); inflict(r, 'bleed', { t: 1, dps: 0.5 });
+    check(`a weaker bleed never weakens a stronger one (dps ${statusOf(r, 'bleed').dps}, ${statusT(r, 'bleed').toFixed(1)}s)`, statusOf(r, 'bleed').dps === 2 && statusT(r, 'bleed') === 3);
+    for (let i = 0; i < 200; i++) { update(1 / 60); Input.endFrame(); }
+    check(`statuses wear off (bleeding after 3.3s: ${hasStatus(r, 'bleed')}; it bled ${(99 - r.hp).toFixed(1)})`, !hasStatus(r, 'bleed') && r.hp < 94);
+    inflict(r, 'web', { t: 2 }); inflict(r, 'slow', { t: 2 });
+    check(`webs and slows stack (move x${statusMoveMul(r).toFixed(2)})`, Math.abs(statusMoveMul(r) - 0.06) < 1e-9);
+    clearStatus(r, 'web'); clearStatus(r, 'slow');
+    const h0 = r.hp; damageEnemy(r, 1, 0, 0, true); const plain = h0 - r.hp;
+    q.stats.anticoag = 0.3; inflict(r, 'bleed', { t: 9, dps: 0 }); const h1 = r.hp; damageEnemy(r, 1, 0, 0, true);
+    check(`Anticoagulant: bleeding ones take more (${plain.toFixed(2)} -> ${(h1 - r.hp).toFixed(2)})`, Math.abs((h1 - r.hp) - plain * 1.3) < 1e-6);
+    q.stats.webBrood = 2; const k0 = game.allies.filter(a => a.kind === 'spiderling').length; inflict(r, 'web', { t: 5 }); damageEnemy(r, 999, 0, 0, true);
+    check('kill hooks fire from the status (Cocoon Wrap: webbed kills hatch spiderlings)', game.allies.filter(a => a.kind === 'spiderling').length === k0 + 2);
+    newRun(); game.depth = 1; startFloor(); enterRoom(game.floor.rooms.find(x => x.type === 'exit'), 'up');
+    const mom = livingBossParts()[0];
+    inflict(mom, 'stun', { t: 2 }); const webbed = inflict(mom, 'web', { t: 2 });
+    check(`bosses resist: a 2s stun lasts ${statusT(mom, 'stun').toFixed(2)}s, and webs don't hold (${webbed})`, Math.abs(statusT(mom, 'stun') - 0.6) < 1e-9 && !webbed && !hasStatus(mom, 'web'));
+    const bad = Object.entries(STATUS).filter(([id, d]) => Object.keys(d).some(k => !['boss', 'tick', 'moveMul', 'blocksAI', 'noShoot', 'dmgTaken', 'onKill', 'draw'].includes(k)));
+    check(`every status entry uses known fields (${bad.map(b => b[0]).join(',') || 'all good'})`, !bad.length);
+    let threw = null; try { inflict(r, 'bleeding', { t: 1 }); } catch (err) { threw = err.message; }
+    check(`a typo'd status is caught (${threw})`, !!threw);
   }
   { // 0zg) Floor bosses 2-5, and threat that rises floor by floor.
     for (const [d, id] of [[2, 'colossus'], [3, 'biotank'], [4, 'archive'], [5, 'director']]) {
@@ -616,9 +641,9 @@ try {
     let q = at(2), e = foe('frostbitten', 40, 0, 1); damageEnemy(e, 999, 0, 0, true);
     check(`frostbitten shatter into shards when they die (${game.bullets.filter(b => b.team === 'enemy' && b.chill).length})`, game.bullets.filter(b => b.team === 'enemy' && b.chill).length >= 8);
     q = at(2); e = foe('cryocrawler', 40); q.inv = 0; run(120, false); q.hp = q.maxHp;
-    check(`cryo crawlers spray frost that chills you (chill ${(q.chillT || 0).toFixed(1)}s, or it was dodged)`, q.chillT > 0 || game.bullets.some(b => b.chill) || true);
+    check(`cryo crawlers spray frost that chills you (chill ${(statusT(q, 'chill') || 0).toFixed(1)}s, or it was dodged)`, statusT(q, 'chill') > 0 || game.bullets.some(b => b.chill) || true);
     q = at(2); q.inv = 0; game.bullets = []; spawnBullet({ x: q.x + 3, y: q.y, vx: 0, vy: 0, r: 2, team: 'enemy', kind: 'enemy', life: 1, chill: true }); run(1, false);
-    check(`a frost hit chills you: slower for a while (${(q.chillT || 0).toFixed(1)}s)`, q.chillT > 1);
+    check(`a frost hit chills you: slower for a while (${(statusT(q, 'chill') || 0).toFixed(1)}s)`, statusT(q, 'chill') > 1);
     q = at(2); e = foe('jarthing', 100); run(30);
     check(`thawed specimens wait in their jars (${e.state})`, e.state === 'dormant' && Math.abs(e.x - (q.x + 100)) < 1);
     e.x = q.x + 40; run(40); check(`...until you come close: it bursts out (${e.state})`, e.state !== 'dormant');
@@ -649,7 +674,7 @@ try {
     q = at(5); e = foe('hunter', 90); let aimed = false, dashed = false; for (let i = 0; i < 300; i++) { run(1); if (e.state === 'aim') aimed = true; if (aimed && e.state === 'charge') dashed = true; render(); }
     check(`hunter-killers lock on, then dash (aimed ${aimed}, dashed ${dashed})`, aimed && dashed);
     q = at(5); q.inv = 0; spawnBullet({ x: q.x + 3, y: q.y, vx: 0, vy: 0, r: 3, team: 'enemy', kind: 'enemy', life: 1, net: true }); const hn = q.hp; run(1, false); const xn = q.x; Input.keys.add('d'); run(20, false); Input.keys.clear();
-    check(`a containment net pins you without hurting (moved ${(q.x - xn).toFixed(1)}px while netted, hp ${hn} -> ${q.hp})`, q.netT > 0 && q.x - xn < 1 && q.hp === hn);
+    check(`a containment net pins you without hurting (moved ${(q.x - xn).toFixed(1)}px while netted, hp ${hn} -> ${q.hp})`, statusT(q, 'net') > 0 && q.x - xn < 1 && q.hp === hn);
     q = at(5); game.room.hazards = [{ kind: 'laser', x1: TILE, y1: q.y, x2: ROOM_PX_W - TILE, y2: q.y, phase: 0 }]; game.room.locked = true; foe('rat', 200, 40); game.time = 0.1; q.inv = 0; const hl = q.hp; run(3, false);
     check(`security lasers burn you while they're on (hp ${hl} -> ${q.hp})`, q.hp < hl);
     // Every new enemy fights and draws, normal and elite, on its floor.
@@ -663,10 +688,10 @@ try {
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.quirk = null; recomputeStats(z); return z; };
     let q = arena(); grow(q, 'barbs'); let r = dummy(40, 99); r.speed = 0; fireFor(22); const h1 = r.hp; for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`barb flinger: barbs stick, then rip out for more (${(99 - h1).toFixed(1)} on hit, ${(99 - r.hp).toFixed(1)} after the rip)`, h1 < 99 && r.hp < h1 - 1);
-    q = arena(); grow(q, 'sneeze'); r = dummy(25, 99); r.speed = 0; fireFor(18); check(`spore sneeze blinds (blind ${(r.blindT || 0).toFixed(1)}s)`, r.blindT > 0.3);
-    q = arena(); grow(q, 'leechspit'); r = dummy(40, 99); r.speed = 0; fireFor(30); check('leech spitter: they bleed', r.bleedT > 0);
+    q = arena(); grow(q, 'sneeze'); r = dummy(25, 99); r.speed = 0; fireFor(18); check(`spore sneeze blinds (blind ${(statusT(r, 'blind') || 0).toFixed(1)}s)`, statusT(r, 'blind') > 0.3);
+    q = arena(); grow(q, 'leechspit'); r = dummy(40, 99); r.speed = 0; fireFor(30); check('leech spitter: they bleed', statusT(r, 'bleed') > 0);
     q = arena(); grow(q, 'crablegs'); r = dummy(16, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.mouse.rightClicked = true; update(1 / 60); Input.endFrame();
-    check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && r.stunT > 0);
+    check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
     q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
     // Birth defects.
@@ -691,7 +716,7 @@ try {
     for (let i = 0; i < 70; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`standing still: you take root and roots spread around you (zone ${(q.rootZone || 0).toFixed(0)}px)`, q.rooted && q.rootZone > 25);
     const r = dummy(28, 99); r.speed = 40; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); } render();
-    check(`whatever steps in is snared and worn down (web ${(r.webT || 0).toFixed(2)}, ${(99 - r.hp).toFixed(1)} dmg)`, r.webT > 0 && r.hp < 99);
+    check(`whatever steps in is snared and worn down (web ${(statusT(r, 'web') || 0).toFixed(2)}, ${(99 - r.hp).toFixed(1)} dmg)`, statusT(r, 'web') > 0 && r.hp < 99);
     { const b = spawnBullet({ x: q.x + 20, y: q.y, vx: -100, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); const x0 = b.x; q.inv = 1; update(1 / 60); Input.endFrame();
       check(`enemy shots wade through the roots (moved ${(x0 - b.x).toFixed(2)}px in a frame, not ${(100 / 60).toFixed(2)})`, x0 - b.x < 100 / 60 * 0.7); }
     game.enemies = []; game.bullets = []; const x1 = q.x; Input.keys.add('a'); update(1 / 60); Input.endFrame(); update(1 / 60); Input.endFrame();
@@ -826,30 +851,30 @@ try {
     const noAct = [...rootsOf('LIMBS'), ...rootsOf('HEAD')].filter(r => { const s = baseStats(); MUTATIONS[r].apply(s, 1, game.player); return !s.limbActive && !s.headActive && !s.grapple; });
     check('every LIMBS and HEAD root has an ability' + (noAct.length ? ' (' + noAct.join(',') + ')' : ''), !noAct.length);
     let p = arena(); grow(p, 'spider'); let r = dummy(45); r.speed = 0; aimAt(p, r.x, r.y); press('rmb'); run(20);
-    check(`spider legs: right-click webs an enemy (webT ${(r.webT || 0).toFixed(1)})`, r.webT > 0);
+    check(`spider legs: right-click webs an enemy (webT ${(statusT(r, 'web') || 0).toFixed(1)})`, statusT(r, 'web') > 0);
     const cd = p.limbCd; press('rmb'); check('...then it has to recover', p.limbCd > 0 && p.limbCd <= cd);
     p = arena(); grow(p, 'wings'); r = dummy(30); r.speed = 0; const x0 = r.x; aimAt(p, r.x, r.y);
     spawnBullet({ x: p.x + 40, y: p.y, vx: -60, vy: 0, team: 'enemy', kind: 'enemy', life: 3, dmg: 1 });
     press('rmb'); run(10);
     check(`wings: a gust blows enemies away (${(r.x - x0).toFixed(0)}px) and swats their shots`, r.x - x0 > 10 && !game.bullets.some(b => b.team === 'enemy'));
     p = arena(); grow(p, 'burrow', 'skull'); r = dummy(30); r.speed = 0; aimAt(p, r.x, r.y); press('rmb');
-    check('burrowing claws: a tremor stuns everything near', r.stunT > 0 && r.hp < 99);
+    check('burrowing claws: a tremor stuns everything near', statusT(r, 'stun') > 0 && r.hp < 99);
     p = arena(); grow(p, 'fins'); r = dummy(50); r.speed = 0; aimAt(p, r.x, r.y); const s0 = game.room.slime.length; press('rmb'); run(30);
-    check(`pseudopods: a slime wave lays slime (${game.room.slime.length - s0}) and slows what it hits`, game.room.slime.length - s0 > 5 && r.slowT > 0);
+    check(`pseudopods: a slime wave lays slime (${game.room.slime.length - s0}) and slows what it hits`, game.room.slime.length - s0 > 5 && statusT(r, 'slow') > 0);
     p = arena(); grow(p, 'rootlegs'); r = dummy(70); r.speed = 0; aimAt(p, r.x, r.y); press('rmb');
-    check('root legs: roots burst up where you point and hold', r.webT > 0 && r.hp < 99);
+    check('root legs: roots burst up where you point and hold', statusT(r, 'web') > 0 && r.hp < 99);
     p = arena(); grow(p, 'eyes'); r = dummy(60); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    { const h = r.hp; damageEnemy(r, 2, 0, 0, true); check(`extra eyes: Q marks prey; it takes more (${(h - r.hp).toFixed(1)} from 2)`, r.markUntil > game.time && h - r.hp > 2.5); }
+    { const h = r.hp; damageEnemy(r, 2, 0, 0, true); check(`extra eyes: Q marks prey; it takes more (${(h - r.hp).toFixed(1)} from 2)`, hasStatus(r, 'mark') && h - r.hp > 2.5); }
     p = arena(); grow(p, 'skull'); r = dummy(14); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('battering skull: Q headbutts (damage + stun)', r.hp < 99 && r.stunT > 0);
+    check('battering skull: Q headbutts (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
     p = arena(); grow(p, 'nighteyes'); r = dummy(20); r.speed = 0; aimAt(p, r.x, r.y); const before = nightEyesMul(r); press('q');
-    check(`night eyes: Q blacks out the light; even close prey is "in the dark" (x${before.toFixed(2)} -> x${nightEyesMul(r).toFixed(2)})`, p.blackoutT > 0 && nightEyesMul(r) > before && r.blindT > 0);
+    check(`night eyes: Q blacks out the light; even close prey is "in the dark" (x${before.toFixed(2)} -> x${nightEyesMul(r).toFixed(2)})`, p.blackoutT > 0 && nightEyesMul(r) > before && statusT(r, 'blind') > 0);
     render();
     p = arena(); grow(p, 'parasite'); r = dummy(60); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('parasite brain: Q mind-spikes one enemy', r.hp < 99 && r.stunT > 0);
+    check('parasite brain: Q mind-spikes one enemy', r.hp < 99 && statusT(r, 'stun') > 0);
     { const hc = p.headCd; press('q'); check('...and the Q ability has its own cooldown', p.headCd > 0 && Math.abs(p.headCd - hc) < 0.1); }
     p = arena(); grow(p, 'bloom'); r = dummy(50); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('bloom: Q bursts pollen over everything near', r.pollenUntil > game.time);
+    check('bloom: Q bursts pollen over everything near', hasStatus(r, 'pollen'));
     render();
     p = arena(); grow(p, 'grapple'); r = dummy(60); aimAt(p, r.x, r.y); press('rmb');
     check('tentacles keep their grapple on right-click', !!p.grappleShot || p.pullT > 0);
@@ -976,7 +1001,7 @@ try {
     grow(p, 'silk'); const mom = game.enemies.find(e => e.type === 'mother'); mom.spawnT = 0;
     game.webs.push({ x1: mom.x - 20, y1: mom.y, x2: mom.x + 20, y2: mom.y, t: 5, touched: new Set() });
     const h0 = mom.hp; for (let i = 0; i < 60; i++) { p.hp = p.maxHp; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
-    check(`silk cuts bosses (${(h0 - mom.hp).toFixed(1)} dmg)`, mom.hp < h0 && !(mom.webT > 0));
+    check(`silk cuts bosses (${(h0 - mom.hp).toFixed(1)} dmg)`, mom.hp < h0 && !(statusT(mom, 'web') > 0));
   }
   { // 0a) The Mutagen Vault: next to the start, behind a hazmat seal.
     let adj = 0, deadEnd = 0, exitOk = 0;
@@ -1166,10 +1191,10 @@ try {
   Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('burrow starts on dash', p.burrowT > 0);
   for (const e of game.enemies) { e.spawnT = 0; e.hp = e.maxHp = 999; }
   for (let i = 0; i < 60; i++) { for (const e of game.enemies) { e.x = p.x + 20; e.y = p.y; } update(1 / 60); Input.endFrame(); }
-  check('burrow erupts, and quake stuns', p.burrowT <= 0 && game.enemies.some(e => e.stunT > 0));
+  check('burrow erupts, and quake stuns', p.burrowT <= 0 && game.enemies.some(e => statusT(e, 'stun') > 0));
   newRun(); combatRoom(); p = game.player; grow(p, 'shatter');
   for (const e of game.enemies) { e.spawnT = 0; e.x = p.x + 20; e.y = p.y; } p.dashCd = 0;
-  Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('echo scream stuns', game.enemies.every(e => e.stunT > 0));
+  Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('echo scream stuns', game.enemies.every(e => statusT(e, 'stun') > 0));
   { const e = game.enemies[0], h = e.hp; damageEnemy(e, 0.5, 0, 0, true); check('shatter scream: stunned enemies take double', Math.abs(h - e.hp - 1) < 0.01 || e.dead); }
   newRun(); combatRoom(); p = game.player; grow(p, 'spider'); game.enemies = [];
   game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 80; p.y = 96;
@@ -1203,7 +1228,7 @@ try {
   // Acid Maw: what you bite bursts into bile when it dies.
   newRun(); combatRoom(); p = game.player; game.enemies = []; game.puddles = []; grow(p, 'acidmaw');
   r = dummy(12); p.aimX = 1; p.aimY = 0; fireFor(1); damageEnemy(r, 999, 0, 0, true);
-  check('acid maw: bitten victim bursts into bile', r.acidMarked && game.puddles.some(pd => pd.team === 'player' && pd.r >= 16));
+  check('acid maw: bitten victim bursts into bile', hasStatus(r, 'acidMark') && game.puddles.some(pd => pd.team === 'player' && pd.r >= 16));
   // Devour: a badly wounded enemy is swallowed whole.
   newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'devour');
   r = dummy(12, 99); r.hp = 30; p.aimX = 1; p.aimY = 0; fireFor(1);
