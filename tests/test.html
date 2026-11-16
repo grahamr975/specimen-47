@@ -610,8 +610,6 @@ try {
     p = arena(); grow(p, 'bloom'); r = dummy(50); r.speed = 0; aimAt(p, r.x, r.y); press('q');
     check('bloom: Q bursts pollen over everything near', r.pollenUntil > game.time);
     render();
-    p = arena(); grow(p, 'spider'); r = dummy(45); r.speed = 0; p.limbWear = 2; aimAt(p, r.x, r.y); press('rmb'); run(20);
-    check('torn limbs: no limb ability', !(r.webT > 0));
     p = arena(); grow(p, 'grapple'); r = dummy(60); aimAt(p, r.x, r.y); press('rmb');
     check('tentacles keep their grapple on right-click', !!p.grappleShot || p.pullT > 0);
   }
@@ -940,8 +938,14 @@ try {
       steps += p.legs.filter(f => f.t > 0).length; planted += p.legs.filter(f => f.t === 0).length; }
     Input.keys.clear();
     check(`spider legs walk: feet plant and step (${(planted / frames).toFixed(1)} planted on average, ${p.legs.filter((f, i) => f.x > f0[i] + 20).length}/8 feet carried forward)`, planted / frames >= 4 && p.legs.every((f, i) => f.x > f0[i] + 20)); }
-  p.inv = 0; hurtPlayer(1); check('limb wear after a hit', p.limbWear > 0 && movement(p).slug);
-  check('torn legs vanish (you are a slug again)', !p.legs || (update(1 / 60), Input.endFrame(), !p.legs));
+  p.inv = 0; hurtPlayer(1); check('a hit leaves your limbs alone', !(p.limbWear > 0) && !movement(p).slug);
+  check('...and the legs keep walking', (update(1 / 60), Input.endFrame(), !!p.legs));
+  // Wings carry you over enemy acid.
+  newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96;
+  grow(p, 'wings'); for (let i = 0; i < 5; i++) { update(1 / 60); Input.endFrame(); }
+  game.puddles = [{ x: p.x, y: p.y, r: 14, life: 99, team: 'enemy' }];
+  { const h = p.hp; for (let i = 0; i < 60; i++) { p.inv = 0; update(1 / 60); Input.endFrame(); } check(`wings: enemy acid can't touch you (hp ${h} -> ${p.hp})`, p.hp === h); }
+  grow(p, 'spider'); { const h = p.hp; for (let i = 0; i < 10; i++) { p.inv = 0; update(1 / 60); Input.endFrame(); } check('...but walking legs still get burned', p.hp < h); }
   newRun(); combatRoom(); p = game.player; grow(p, 'wings', 'secondheart'); p.evolutions = 8; recomputeStats(p);
   p.hp = 1; p.inv = 0; hurtPlayer(1); check('second heart: reborn limbless & pure (stage ' + p.stage + ')', game.state === 'play' && !partAt(p, 'LIMBS') && p.stage <= 1);
   newRun(); combatRoom(); p = game.player; grow(p);

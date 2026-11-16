@@ -449,7 +449,7 @@ function updateCocoon(p, dt) {
 
 // Never wrap up somewhere that hurts (enemy acid).
 function safeToCocoon(p) {
-  return p.stats.stilts || !game.puddles.some(pd => pd.team !== 'player' && Math.hypot(p.x - pd.x, p.y - pd.y) < pd.r + 4);
+  return p.stats.stilts || p.flying || !game.puddles.some(pd => pd.team !== 'player' && Math.hypot(p.x - pd.x, p.y - pd.y) < pd.r + 4);
 }
 
 // Out of the cocoon after the last card: shed the husk.
@@ -1074,8 +1074,6 @@ function hurtPlayer(dmg) {
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
-  // Limb wear: the hit tears your limbs; for a moment you're a slug again.
-  if (partAt(p, 'LIMBS') && p.hp > 0) { p.limbWear = 2.5; p.held && throwHeld(p); floatText(p.x, p.y - 22, 'LIMBS TORN', COST_COLOR); }
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
     for (const e of game.enemies) {

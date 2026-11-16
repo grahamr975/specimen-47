@@ -267,7 +267,7 @@ function updatePuddles(dt) {
       }
     } else {
       const pl = game.player;
-      if (!pl.stats.stilts && pl.burrowT <= 0 && Math.hypot(pl.x - p.x, pl.y - p.y) < p.r + 2) hurtPlayer(1);
+      if (!pl.stats.stilts && !pl.flying && pl.burrowT <= 0 && Math.hypot(pl.x - p.x, pl.y - p.y) < p.r + 2) hurtPlayer(1); // stilts and wings keep you out of it
     }
   }
   game.puddles = game.puddles.filter(p => p.life > 0);
