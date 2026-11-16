@@ -570,6 +570,18 @@ try {
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
   }
+  { // 0zb) Mandibles: the bite lunges onto prey, and bitten prey reels.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 100; q.y = 96;
+    grow(q, 'mandibles'); const r = dummy(48, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; const x0 = q.x;
+    bite(q, q.stats.biteDmg);
+    check(`a bite lunges onto prey just out of reach (moved ${(q.x - x0).toFixed(0)}px, ${(99 - r.hp).toFixed(1)} dmg)`, q.x - x0 > 15 && r.hp < 99 && q.inv > 0);
+    check(`bitten prey reels (stagger ${(r.staggerT || 0).toFixed(2)}s)`, r.staggerT > 0.3);
+    { const z = dummy(8, 99); z.speed = 60; bite(q, q.stats.biteDmg); q.inv = 0; const h = q.hp; z.x = q.x + 6; z.y = q.y;
+      for (let i = 0; i < 12; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
+      check(`...and can't hurt you while it reels (hp ${h} -> ${q.hp})`, q.hp === h); }
+    const far = dummy(90, 99); far.speed = 0; far.y = q.y; const x1 = q.x; game.enemies = [far]; bite(q, q.stats.biteDmg);
+    check('prey too far away: no lunge', q.x === x1 && far.hp === 99);
+  }
   { // 0y) Swallowing a Failed Specimen whole doesn't split it inside you.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
     grow(q, 'tongue'); q.stats.tongue.size = 9; const r = spawnEnemy('splitter', q.x + 30, q.y); r.spawnT = 0; r.speed = 0; r.affixes = [];
@@ -1093,7 +1105,7 @@ try {
   for (let run = 0; run < 3; run++) {
     newRun();
     let frames = 0, lockedFor = 0;
-    let lastKills = -1, still = 0, reported = false, traced = false;
+    let lastKills = -1, still = 0, reported = false, traced = false; const stallPath = [];
     while (frames < 40000 && game.depth < 5) {
       step(30, true); frames += 30;
       if (game.kills === lastKills) still += 30; else { still = 0; lastKills = game.kills; }
@@ -1125,6 +1137,7 @@ try {
       }
       const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);
       const dir = unv.length ? pick(unv) : pick(names);
+      if (reported && stallPath.length < 24) { stallPath.push(`${room.type}${game.floor.rooms.indexOf(room)}[${names.map(n => n[0] + ':' + room.doors[n].type[0] + game.floor.rooms.indexOf(room.doors[n]) + (room.doors[n].visited ? 'v' : '')).join(' ')}]>${dir[0]}`); if (stallPath.length === 24) log.push('STALL PATH ' + stallPath.join(' | ')); }
       const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
       game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');

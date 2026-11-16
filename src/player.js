@@ -708,7 +708,9 @@ function meleeHit(p, e, dmg, dx, dy) {
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
 }
 
-// Mandibles: bite the nearest enemy in front of you.
+// Mandibles: bite the nearest enemy in front of you (lunging onto it if it's
+// just out of reach), and it reels.
+const BITE_LUNGE = 40, BITE_STAGGER = 0.4;
 function bite(p, dmg) {
   const s = p.stats, reach = s.biteReach;
   let target = null, best = reach;
@@ -718,6 +720,23 @@ function bite(p, dmg) {
     if (d > best) continue;
     if (d > 4 && (dx * p.aimX + dy * p.aimY) / (d + e.r) < 0.3) continue; // must be in front
     best = d; target = e;
+  }
+  // The bite lunges: prey just out of reach in front of you pulls you onto
+  // it, untouchable for the instant of the snap.
+  if (!target && !p.withdrawn && !(p.pullT > 0)) {
+    let pd = reach + BITE_LUNGE;
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0) continue;
+      const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) - e.r;
+      if (d > pd || (dx * p.aimX + dy * p.aimY) / (d + e.r) < 0.5) continue;
+      pd = d; target = e;
+    }
+    if (target) {
+      const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy) || 1, step = Math.max(0, d - target.r - p.r - 2);
+      for (let i = 0; i < 3; i++) game.particles.push({ x: p.x + dx / d * step * i / 3, y: p.y + dy / d * step * i / 3 - 3, vx: 0, vy: 0, life: 0.1, color: '#5e2229', size: 5 });
+      moveEntity(game.room, p, dx / d * step, dy / d * step);
+      p.inv = Math.max(p.inv, 0.15);
+    }
   }
   const fx = p.x + p.aimX * 10, fy = p.y + p.aimY * 10;
   if (!target) {
@@ -736,6 +755,8 @@ function bite(p, dmg) {
     dmg = target.hp + 1;
   }
   meleeHit(p, target, dmg, target.x - p.x, target.y - p.y);
+  // Bitten prey reels: for a moment it can't move, shoot, or hurt you.
+  if (!target.dead && !ENEMY_TYPES[target.type].boss) target.staggerT = Math.max(target.staggerT || 0, BITE_STAGGER);
   if (s.boneJaws) {
     // Bone Jaws: a spike bursts out through the back of the victim.
     const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;

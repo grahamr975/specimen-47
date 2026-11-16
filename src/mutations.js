@@ -246,7 +246,7 @@ const MUTATIONS = {
 
   mandibles: {
     name: 'Mandibles', slot: 'MOUTH', rarity: 'common', overlay: ['mandibles'],
-    desc: 'Melee. Fire bites whatever is in front of you, hard and fast.',
+    desc: 'Melee. Fire bites whatever is in front of you, hard and fast; you lunge onto prey just out of reach, and what you bite reels.',
     apply(s, l) { s.bite = true; s.biteDmg += 2 + 1.2 * l; s.biteDelay = Math.min(s.biteDelay, 0.42 - 0.04 * l); },
   },
   feral: {
