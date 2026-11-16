@@ -1296,6 +1296,7 @@ function platePos(p, i, n) {
 function updateDefense(p, dt) {
   const s = p.stats;
   if (p.mirrorT > 0) p.mirrorT -= dt;
+  if (s.quillPulse && game.room.locked && (p.quillT = (p.quillT ?? s.quillPulse) - dt) <= 0) { p.quillT = s.quillPulse; fireRing(p, s.quillCount || 6); } // Urchin Quills
   if (!s.plates) { p.plates = 0; return; }
   p.plates = Math.min(p.plates, s.plates);
   if (s.plateRegrow && p.plates < s.plates && (p.plateT -= dt) <= 0) { p.plateT = s.plateRegrow; p.plates++; Sfx.play('clack'); } // Ossuary

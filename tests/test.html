@@ -104,7 +104,7 @@ try {
     check('every mutation has a whisper' + (missing.length ? ' (missing: ' + missing.join(',') + ')' : ''), !missing.length);
     const tooLong = Object.keys(HINTS).filter(id => HINTS[id].length > 140);
     check('whispers fit in two lines' + (tooLong.length ? ' (too long: ' + tooLong.join(',') + ')' : ''), !tooLong.length);
-    const bad = ids.filter(id => !MUTATIONS[id].part && pathTo(id).length < 3 && childrenOf(id).length !== 2);
+    const bad = ids.filter(id => !MUTATIONS[id].part && !MUTATIONS[id].graft && pathTo(id).length < 3 && childrenOf(id).length !== 2);
     check('every root and tier-1 branch splits in two' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
     const deep = ids.filter(id => pathTo(id).length > 3);
     check('paths are 3 deep at most', !deep.length);
@@ -322,7 +322,7 @@ try {
     grow(p, 'sporefire', 'carrionfly');
     check('a card that would complete a splice stirs', wouldSplice(p, 'cropduster') && choiceInfo(p, { id: 'cropduster' }).stirs && !choiceInfo(p, { id: 'plague' }).stirs);
     grow(p, 'sporefire', 'cropduster');
-    check('growing both halves splices them', p.splices.includes('firestorm') && p.stats.fireTrail && game.banner && game.banner.text === 'SPLICED');
+    check('growing both halves splices them', p.splices.includes('firestorm') && p.stats.fireTrail && game.banner && /SPLICE/.test(game.banner.text));
     check('a part keeps counting after its path branches on', (grow(p, 'bloodbattery', 'hemophage'), p.splices.includes('bloodpump')));
     // Run every splice in a fight.
     const leafUnder = id => leaves().find(l => pathTo(l).includes(id));
@@ -521,6 +521,49 @@ try {
     game.room.corpses = [{ x: q.x + 4, y: q.y, r: 5, sprite: 'rat', dna: 3, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }];
     for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
     check(`walking into a corpse devours it, biomass and all (${d0} -> ${q.dna})`, !game.room.corpses.length && q.dna >= d0 + 3);
+  }
+  { // 0v) You are what you eat: elites' corpses offer their traits.
+    check('every trait is a real part, offered by an elite type', Object.entries(GRAFT_OF).every(([type, id]) => ENEMY_TYPES[type] && MUTATIONS[id] && MUTATIONS[id].graft === type));
+    { let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 5; for (let k = 0; k < 6; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); } if (rollChoices(q, 3).concat(rollLevelUps(q, 3)).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].graft)) seen++; }
+      check(`traits never come from normal cards (${seen}/200)`, seen === 0); }
+    newRun(); combatRoom(); let q = game.player; game.enemies = []; game.room.orbs = []; game.pendingEvolutions = []; q.x = 120; q.y = 96; grow(q, 'spike');
+    const e = spawnEnemy('spitter', q.x + 40, q.y, true); e.spawnT = 0; e.affixes = []; damageEnemy(e, 9999, 0, 0, true);
+    const c = game.room.corpses.find(k => k.trait);
+    check(`an elite Bloat Toad leaves a corpse with something to take (${c && c.trait})`, c && c.trait === 'spitter');
+    if (c) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); }
+    check('devouring it offers its trait', game.pendingEvolutions.some(o => o.trait === 'spitter'));
+    openEvolution(game.pendingEvolutions.find(o => o.trait)); game.pendingEvolutions = [];
+    check(`the card: Toad Gullet, or decline (${game.menu.choices.map(k => k.id).join(',')})`, game.menu.choices[0].id === 'toadgullet' && game.menu.choices.some(k => k.id === '_gorge') && choiceInfo(q, game.menu.choices[0]).status === 'DEVOURED TRAIT');
+    game.menu.t = 2; render(); applyChoice(q, game.menu.choices[0]); game.menu = null;
+    check('...and it lobs bile globs', q.stats.guns.some(g => g.id === 'toad' && g.lob));
+    // The traits work.
+    const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; return z; };
+    q = arena(); grow(q, 'urchinquills'); game.room.locked = true; calm(); dummy(80); for (let i = 0; i < 200; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check('urchin quills: rings of spines on their own in a fight', game.bullets.some(b => b.kind === 'spine') || q.quillT !== undefined);
+    q = arena(); grow(q, 'splittercells'); { const a0 = game.allies.length; q.inv = 0; hurtPlayer(1); check('splitter cells: hurt, and pieces of you split off', game.allies.length > a0); }
+    q = arena(); grow(q, 'culturejelly'); { const r = dummy(30); r.speed = 0; q.dashCd = 0; Input.keys.clear(); Input.keys.add('d'); Input.pressed.add(' '); for (let i = 0; i < 15; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check('culture jelly: the dash ends in a jelly that holds them', r.webT > 0); }
+    q = arena(); grow(q, 'ratincisors'); { const r = dummy(12); r.speed = 0; q.aimX = 1; q.aimY = 0; fireFor(10); check('rat incisors: bites leave them bleeding', r.bleedT > 0); }
+    newRun(); q = game.player; grow(q, 'spike', 'bile', 'mandibles', 'spines', 'chitin'); q.capacity = 5;
+    check(`a full body: the trait takes the place of your least-grown part of its kind (${traitCards(q, 'rat').map(k => k.kind + ':' + (k.shed && k.shed.id)).join(',')})`, traitCards(q, 'rat').length === 1 && traitCards(q, 'rat')[0].kind === 'swap');
+  }
+  { // 0w) The splice journal.
+    try { localStorage.removeItem(Journal.key); } catch (e) {}
+    check('the journal starts empty', Journal.found().length === 0);
+    newRun(); combatRoom(); const q = game.player; grow(q, 'sporefire', 'cropduster');
+    check(`a new splice is recorded, and announced (${game.banner && game.banner.text})`, Journal.found().includes('firestorm') && game.banner && game.banner.text === 'NEW SPLICE');
+    grow(q, 'sporefire'); grow(q, 'sporefire', 'cropduster');
+    check('...only once', Journal.found().filter(k => k === 'firestorm').length === 1 && game.banner.text === 'SPLICED');
+    check(`undiscovered splices show a hint ("${spliceHint('hivemind')}")`, /\+/.test(spliceHint('hivemind')) && /FULLY GROWN/.test(spliceHint('divebomb')));
+    game.state = 'title'; Input.pressed.add('j'); update(1 / 60); Input.endFrame();
+    check('J opens it from the title screen', !!game.journal);
+    render(); Input.pressed.add('d'); update(1 / 60); Input.endFrame(); render();
+    check('pages turn', game.journal.page === 1);
+    Input.pressed.add('j'); update(1 / 60); Input.endFrame();
+    check('J closes it', !game.journal);
+    newRun(); combatRoom(); Input.pressed.add('p'); update(1 / 60); Input.endFrame(); Input.pressed.add('j'); update(1 / 60); Input.endFrame(); render();
+    check('it opens while paused too', game.paused && !!game.journal);
+    game.journal = null; game.paused = false;
   }
   { // 0t) Cards explain what each kind of part is for.
     check('every kind of part has a tag and a plain explanation', LOCS.every(l => LOC_TAG[l] && LOC_HELP[l]));
@@ -1007,7 +1050,7 @@ try {
   for (let run = 0; run < 3; run++) {
     newRun();
     let frames = 0, lockedFor = 0;
-    let lastKills = -1, still = 0, reported = false;
+    let lastKills = -1, still = 0, reported = false, traced = false;
     while (frames < 40000 && game.depth < 5) {
       step(30, true); frames += 30;
       if (game.kills === lastKills) still += 30; else { still = 0; lastKills = game.kills; }
@@ -1043,7 +1086,8 @@ try {
       game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
       Input.mouse.down = false; // walk through, don't lunge away from the door
-      { const from = game.room; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); } }
+      { const from = game.room, tr = []; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); if (reported && !traced && k % 5 === 0) tr.push(`${game.player.x.toFixed(0)},${game.player.y.toFixed(0)}${game.player.lungeT > 0 ? 'L' : ''}${game.player.evolveT > 0 ? 'C' : ''}${game.menu ? 'M' : ''}${game.hitstop > 0 ? 'H' : ''}`); }
+        if (reported && !traced) { traced = true; log.push(`STALL TRACE dir=${dir} keys=${[...Input.keys].join('')} mouseDown=${Input.mouse.down} left=${game.room !== from} :: ${tr.join(' ')}`); } }
       const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
       if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');
     }

@@ -23,6 +23,7 @@ function spawnCorpse(e, spriteName) {
     dna: T.dna * (e.elite ? 3 : 1) + game.player.stats.bacteria,
     hp: (e.elite ? 6 : 2.5) + game.player.stats.bacteria,
     fluid: T.fluid, gib: T.gib, t: Math.random() * 5, shake: 0,
+    trait: e.elite && GRAFT_OF[e.type] ? e.type : null, // an elite's body: something to take from it
   });
 }
 
@@ -61,6 +62,10 @@ function burstCorpse(c) {
     game.room.orbs.push({ x: c.x, y: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
   }
   p.hungerT = 0; // Starving Cells: the smell of it is enough
+  if (c.trait && traitCards(p, c.trait).length) { // you are what you eat
+    game.pendingEvolutions.push({ trait: c.trait, title: 'DEVOURED ' + ENEMY_TYPES[c.trait].name.toUpperCase(), color: '#e8a020' });
+    floatText(c.x, c.y - 12, 'SOMETHING TO TAKE', '#e8a020');
+  }
   if (s.feedFrenzy) { // Feeding Frenzy
     if (!(p.frenzyT > 0)) floatText(p.x, p.y - 22, 'FRENZY', PAL.red);
     p.frenzyT = 5;

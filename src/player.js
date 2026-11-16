@@ -61,7 +61,8 @@ function recomputeStats(p) {
     // The two parts fuse into one: the slot it frees is yours for good (up to the cap).
     if (!(p.splicedEver = p.splicedEver || []).includes(k)) { p.splicedEver.push(k); p.capacity = Math.min(MAX_SLOTS, Math.max(p.capacity, slotsUsed(p)) + 1); }
     if (p.splices.includes(k) || !game.room) continue;
-    game.banner = { text: 'SPLICED', sub: SPLICES[k].name + ' - A SLOT FREES UP', color: VIAL_COLOR, t: 2.8 };
+    const isNew = Journal.discover(k); // written into the splice journal (kept between runs)
+    game.banner = { text: isNew ? 'NEW SPLICE' : 'SPLICED', sub: SPLICES[k].name + (isNew ? ' - RECORDED IN THE JOURNAL' : ' - A SLOT FREES UP'), color: VIAL_COLOR, t: 2.8 };
     game.fx.push({ kind: 'act', what: 'stitch', x: p.x, y: p.y - 4, t: 0.8, max: 0.8 }); // threads of flesh stitch you together
     whisper(SPLICES[k].whisper);
     bloodSpray(p.x, p.y, 0, 0, 20, FLUID.blood, 120);
@@ -291,6 +292,11 @@ function updatePlayer(dt) {
       if (s.ring > 0) fireRing(p, s.ring);
       if (s.slamDmg > 0) slam(p);
       if (s.diveBomb) diveBomb(p);
+      if (s.dashJelly) { // Culture Jelly
+        for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && !isBoss(e) && Math.hypot(e.x - p.x, e.y - p.y) < 22 + e.r) e.webT = Math.max(e.webT || 0, s.dashJelly);
+        for (let i = 0; i < 10; i++) stainPx(p.x + rand(-10, 10), p.y + rand(-6, 8), ['#38503f', '#4a6a5a', '#223028'], 2);
+        burst(p.x, p.y + 3, '#7a9a7a', 10, 60, 0.3); Sfx.play('splat');
+      }
     }
   } else if (p.lungeT > 0) {
     // Feral lunge: a short, savage leap that bites at the end.
@@ -695,6 +701,7 @@ function meleeHit(p, e, dmg, dx, dy) {
   // Melee shoves much harder than shots, but keeps prey just inside your reach.
   damageEnemy(e, dmg, dx, dy, true, 50 + dmg * 12);
   hitstop(0.02 + Math.min(0.04, dmg * 0.003));
+  if (s.gnaw && !e.dead) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.gnaw); } // Rat Incisors
   if (s.stunChance && !e.dead && Math.random() < s.stunChance) e.stunT = Math.max(e.stunT || 0, 0.8);
   bloodSpray(e.x, e.y, dx, dy, 8, ENEMY_TYPES[e.type].fluid, 110);
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
@@ -1074,6 +1081,7 @@ function hurtPlayer(dmg) {
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
+  if (s.hurtBrood) { for (let i = 0; i < s.hurtBrood; i++) spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
     for (const e of game.enemies) {

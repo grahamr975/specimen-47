@@ -12,12 +12,12 @@ function openEvolution(opts) {
   if (opts.apex) { becomeApex(p); return; } // the ultimate metamorphosis has no cards
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
-      : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
+      : opts.trait ? traitCards(p, opts.trait).concat([{ id: '_gorge' }]) : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
     color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.trait ? 'YOU ARE WHAT YOU EAT' : opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -445,7 +445,7 @@ function drawTitle(ctx) {
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
     ['Q', 'HEAD ABILITY'],
     ['ESC ON CARDS', 'EVOLVE LATER (HOLD F)'],
-    ['M / P', 'MUTE / PAUSE'],
+    ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
   ];
   lines.forEach(([k, v], i) => {
     drawText(ctx, k, VIEW_W / 2 - 6, 188 + i * 10, PAL.red, 1, 'right');
@@ -473,4 +473,59 @@ function drawGameOver(ctx) {
   if (p.splices.length) drawText(ctx, 'SPLICED: ' + p.splices.map(k => SPLICES[k].name.toUpperCase()).join(', '), VIEW_W / 2, 182, VIAL_COLOR, 1, 'center');
 
   if (game.overT > 1 && Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK TO TRY AGAIN', VIEW_W / 2, 200, PAL.white, 1, 'center');
+}
+
+// --- The splice journal: what you've fused, kept between runs ------------------------
+// Press J on the title screen or while paused. Discovered splices show both
+// halves and what they do; the rest show a hint of what they're made from.
+const Journal = {
+  key: 'specimen47.journal',
+  load() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch (e) { return {}; } },
+  save(d) { try { localStorage.setItem(this.key, JSON.stringify(d)); } catch (e) { /* private mode: it just won't persist */ } },
+  found() { const d = this.load(); return Array.isArray(d.splices) ? d.splices : []; },
+  discover(k) {
+    const d = this.load(), list = Array.isArray(d.splices) ? d.splices : [];
+    if (list.includes(k)) return false;
+    list.push(k); d.splices = list; this.save(d);
+    return true;
+  },
+};
+const JOURNAL_PER_PAGE = 6;
+
+// A hint for an undiscovered splice: what kind of part each half is, and its set.
+function spliceHint(k) {
+  const S = SPLICES[k];
+  const half = ids => { const id = ids[0], set = setOf(id); return (set ? SETS[set].name + ' ' : '') + locOf(id); };
+  return 'A ' + half(S.parts[0]) + ' + A ' + half(S.parts[1]) + (S.grown === 3 ? ' (BOTH FULLY GROWN)' : '');
+}
+
+function openJournal() { game.journal = { page: 0 }; Sfx.play('flicker'); }
+
+function updateJournal() {
+  const j = game.journal, pages = Math.ceil(Object.keys(SPLICES).length / JOURNAL_PER_PAGE);
+  if (Input.hit('j', 'escape')) { game.journal = null; return; }
+  if (Input.hit('arrowright', 'd')) j.page = (j.page + 1) % pages;
+  if (Input.hit('arrowleft', 'a')) j.page = (j.page + pages - 1) % pages;
+}
+
+function drawJournal(ctx) {
+  const j = game.journal, keys = Object.keys(SPLICES), found = Journal.found();
+  const pages = Math.ceil(keys.length / JOURNAL_PER_PAGE);
+  ctx.fillStyle = '#060306'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawText(ctx, 'SPLICE JOURNAL', VIEW_W / 2, 8, VIAL_COLOR, 2, 'center');
+  drawText(ctx, `${keys.filter(k => found.includes(k)).length} / ${keys.length} DISCOVERED`, VIEW_W / 2, 26, PAL.slate, 1, 'center');
+  keys.slice(j.page * JOURNAL_PER_PAGE, (j.page + 1) * JOURNAL_PER_PAGE).forEach((k, i) => {
+    const S = SPLICES[k], y = 40 + i * 33, known = found.includes(k);
+    ctx.fillStyle = known ? '#1c1018' : '#120c10'; ctx.fillRect(8, y - 2, VIEW_W - 16, 30);
+    ctx.fillStyle = known ? VIAL_COLOR : '#3a2a32'; ctx.fillRect(8, y - 2, 2, 30);
+    if (known) {
+      drawText(ctx, S.name.toUpperCase() + (S.grown === 3 ? '  (BIG)' : ''), 14, y, VIAL_COLOR, 1, 'left');
+      drawText(ctx, S.parts.map(ids => ids.map(id => MUTATIONS[id].name).join(' OR ')).join(' + ').toUpperCase(), 14, y + 8, PAL.white, 1, 'left');
+      wrapText(S.desc.toUpperCase(), 72).slice(0, 2).forEach((line, n) => drawText(ctx, line, 14, y + 16 + n * 7, PAL.slate, 1, 'left', null));
+    } else {
+      drawText(ctx, '? ? ?', 14, y, '#5a4a52', 1, 'left');
+      drawText(ctx, spliceHint(k), 14, y + 9, '#8a7a82', 1, 'left', null);
+    }
+  });
+  drawText(ctx, `PAGE ${j.page + 1}/${pages}  -  A / D: TURN  -  J: CLOSE`, VIEW_W / 2, VIEW_H - 12, PAL.slate, 1, 'center');
 }

@@ -136,7 +136,9 @@ function update(dt) {
   if (Input.hit('m')) Sfx.setMuted(!Sfx.muted);
   updateMusicMood();
 
+  if (game.journal) { updateJournal(); return; }
   if (game.state === 'title') {
+    if (Input.hit('j')) { openJournal(); return; }
     if (Input.mouse.clicked || Input.hit(' ', 'enter')) newRun();
     return;
   }
@@ -156,7 +158,7 @@ function update(dt) {
     emergeFromCocoon(game.player);
   }
   if (Input.hit('p', 'escape')) game.paused = !game.paused;
-  if (game.paused) return;
+  if (game.paused) { if (Input.hit('j')) openJournal(); return; }
 
   // Hitstop: a heavy hit freezes everything for a beat.
   if (game.hitstop > 0) { game.hitstop -= dt; return; }
@@ -273,6 +275,7 @@ function render() {
 
   if (game.state === 'title') {
     drawTitle(ctx);
+    if (game.journal) drawJournal(ctx);
     drawCrosshair(ctx);
     return;
   }
@@ -326,8 +329,9 @@ function render() {
     ctx.fillStyle = 'rgba(10,10,20,0.6)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     drawText(ctx, 'PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, PAL.white, 3, 'center');
-    drawText(ctx, 'PRESS P TO RESUME', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
+    drawText(ctx, 'PRESS P TO RESUME  -  J: SPLICE JOURNAL', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
   }
+  if (game.journal) drawJournal(ctx);
   if (game.state === 'dead') drawGameOver(ctx);
   drawCrosshair(ctx);
 }

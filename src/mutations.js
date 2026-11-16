@@ -1445,7 +1445,39 @@ const MUTATIONS = {
     desc: 'Every 6th shot it throws back heals you.',
     apply(s) { s.mirror.heal = 6; },
   },
+
+  // ================= TRAITS: you are what you eat =================
+  // Torn from elites you devour (see GRAFT_OF). Never offered otherwise.
+  // Complete as they are: no branches, but they level like any part.
+  ratincisors: {
+    name: 'Rat Incisors', slot: 'MOUTH', graft: 'rat', rarity: 'uncommon', icon: ['mandibles', 'hemophage'],
+    desc: 'Gnawing teeth: quick little bites that leave whatever you bite bleeding.',
+    apply(s, l) { s.bite = true; s.biteDmg += 1 + 0.5 * l; s.biteDelay = Math.min(s.biteDelay, 0.24); s.gnaw = 2; },
+  },
+  urchinquills: {
+    name: 'Urchin Quills', slot: 'BACK', graft: 'urchin', rarity: 'uncommon', icon: ['spines', 'barbs'],
+    desc: 'In a fight, your quills fire a ring of spines every couple of seconds on their own.',
+    apply(s, l) { s.quillPulse = Math.min(s.quillPulse || 99, 2.6 - 0.2 * l); s.quillCount = Math.max(s.quillCount || 0, 6); },
+  },
+  toadgullet: {
+    name: 'Toad Gullet', slot: 'MOUTH', graft: 'spitter', rarity: 'uncommon', icon: ['bile', 'toxic'],
+    desc: 'Lob globs of bile that burst into burning puddles.',
+    apply(s, l) { gun(s, { id: 'toad', dmg: 1.8 + 0.4 * l, delay: 1.1, lob: true, acid: 12, r: 3, round: true, color: '#8a9a30', sound: 'splat' }); },
+  },
+  splittercells: {
+    name: 'Splitter Cells', slot: 'CORE', graft: 'splitter', rarity: 'uncommon', icon: ['mitosis', 'regrow'],
+    desc: 'When you are hurt, pieces of you split off and fight for you.',
+    apply(s, l) { s.hurtBrood = 1 + (l >= 2 ? 1 : 0); },
+  },
+  culturejelly: {
+    name: 'Culture Jelly', slot: 'BACK', graft: 'culture', rarity: 'uncommon', icon: ['regrow', 'bile'],
+    desc: 'Where your dash ends, a sticky jelly bursts out and holds everything near.',
+    apply(s, l) { s.dashJelly = 1.2 + 0.2 * l; },
+  },
 };
+
+// Which elite gives which trait.
+const GRAFT_OF = { rat: 'ratincisors', urchin: 'urchinquills', spitter: 'toadgullet', splitter: 'splittercells', culture: 'culturejelly' };
 
 // WHISPERS: the cryptic line that appears when something new grows in you.
 // Cards never explain mutations; these hint at what just changed.
@@ -1610,6 +1642,11 @@ const HINTS = {
   cancer: 'It grows every time you win. It takes something every third time.',
   benignmass: 'The growth calms. It still grows, but takes nothing.',
   metastasis: 'It spreads faster now.',
+  ratincisors: 'You took its teeth.',
+  urchinquills: 'Its quills grew back in your skin.',
+  toadgullet: 'Its gullet is yours now. It still wants to spit.',
+  splittercells: 'Its cells did not stop dividing inside you.',
+  culturejelly: 'You are a little bit culture now.',
   boneplates: 'Bone grows outside you now, circling, waiting for something to stop.',
   razorplates: 'Their edges are sharp.',
   bladestorm: 'More of them, swinging wider.',
@@ -1708,7 +1745,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
+    tags: ['urchinquills', 'boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -1717,7 +1754,7 @@ const SETS = {
   },
   FUNGAL: {
     name: 'FUNGAL', color: '#9aae50',
-    tags: ['bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
+    tags: ['toadgullet', 'culturejelly', 'bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a blinding spore cloud.', apply(s) { s.setKillCloud = 18; } },
       { name: 'Fruiting Body', desc: 'Kills burst into clouds, you release spores every few seconds, and your clouds eat flesh.', apply(s) { s.setKillCloud = 22; s.setSporeAura = 4; s.cloudDps = Math.max(s.cloudDps || 0, 1.5); } },
@@ -1735,7 +1772,7 @@ const SETS = {
   },
   PREDATOR: {
     name: 'PREDATOR', color: '#d04848',
-    tags: ['proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
+    tags: ['ratincisors', 'proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
     bonus: [
       { name: 'Blood Scent', desc: '+35% damage to wounded prey.', apply(s) { s.setWounded = 0.35; } },
       { name: 'Apex', desc: 'Wounded prey takes +50%, every kill sends you into a frenzy, and every 8th kill heals you.', apply(s) { s.setWounded = 0.5; s.setKillFrenzy = true; s.setKillHeal = 8; } },
@@ -1753,7 +1790,7 @@ const SETS = {
   },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8',
-    tags: ['mirrorcyst', 'tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
+    tags: ['splittercells', 'mirrorcyst', 'tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
     bonus: [
       { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
       { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },
@@ -1827,6 +1864,10 @@ const SPLICES = {
     desc: 'Your polyps spit pollen: whatever they hit is pollinated.', whisper: 'Your garden pollinates for you.' },
   strangler:      { name: 'Strangler',       parts: [['thornbark'], ['rootlegs']],        apply(s) { s.rootLash = 0.8; },
     desc: 'While you are rooted, your thorns lash everything around you.', whisper: 'Rooted, the thorns reach out on their own.' },
+  toadking:       { name: 'Toad King',       parts: [['toadgullet'], ['tongue']],         apply(s) { s.spitAcid = Math.max(s.spitAcid || 0, 14); },
+    desc: 'What you swallow and spit back bursts into burning bile.', whisper: 'Two gullets, one hunger.' },
+  quillstorm:     { name: 'Quill Storm',     parts: [['urchinquills'], ['spines']],       apply(s) { s.quillCount = 12; },
+    desc: 'Your quills fire twice as many spines.', whisper: 'Every spine in you wants out.' },
   wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
     desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
 
@@ -1919,7 +1960,7 @@ function rootOf(id) {
 }
 
 function rootsOf(loc) {
-  return Object.keys(MUTATIONS).filter(id => MUTATIONS[id].slot === loc && !MUTATIONS[id].part);
+  return Object.keys(MUTATIONS).filter(id => MUTATIONS[id].slot === loc && !MUTATIONS[id].part && !MUTATIONS[id].graft);
 }
 
 function childrenOf(id) {
@@ -2080,6 +2121,16 @@ function bossPicks(p) {
   return out;
 }
 
+// The trait an elite's corpse offers: in a free slot, or in place of your
+// least-grown part of the same kind. [] if you have it or there's no way in.
+function traitCards(p, type) {
+  const id = GRAFT_OF[type];
+  if (!id || hasMutation(p, id)) return [];
+  if (freeSlots(p) >= 1) return [{ id, kind: 'root' }];
+  const shed = partsAt(p, locOf(id)).sort((a, b) => a.path.length - b.path.length)[0];
+  return shed ? [{ id, kind: 'swap', shed }] : [];
+}
+
 // Is this card a metamorphosis (a new root shedding a grown part)?
 function isMetamorph(p, c) {
   if (typeof c === 'string') c = { id: c };
@@ -2217,14 +2268,14 @@ function choiceInfo(p, c) {
   } else if (c.kind === 'replace') {
     status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {
-    status = 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    status = d.graft ? 'DEVOURED TRAIT' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'meta') {
     status = 'METAMORPHOSIS';
     if (d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
     const size = rootSize(c.id);
-    status = d.boss ? 'BOSS PICK' : 'NEW PART';
+    status = d.boss ? 'BOSS PICK' : d.graft ? 'DEVOURED TRAIT' : 'NEW PART';
     note = size > 1 ? `TAKES ${size} SLOTS` : 'TAKES A SLOT';
     noteColor = size > 1 ? '#e8c020' : PAL.slate;
   }
