@@ -173,6 +173,20 @@ function drawCorpses(ctx) {
 // Drawn above the darkness: a faint glint on meat that still holds DNA,
 // and the glowing globules themselves.
 function drawCorpseGlow(ctx) {
+  // Once the room is clear, leftover meat pulses softly every few seconds
+  // (staggered, so they don't all blink at once), even out in the dark.
+  if (!game.room.locked) for (const c of game.room.corpses) {
+    if (c.dead || c.held) continue;
+    const ph = (game.time + c.x * 0.037 + c.y * 0.021) % 2.6;
+    if (ph > 0.35) continue;
+    const img = SPR[c.sprite + '_dead'];
+    if (!img) continue;
+    const key = c.sprite + '_pulse';
+    if (!SPR[key]) SPR[key] = silhouette(img, '#f0b0c8');
+    ctx.globalAlpha = 0.45 * Math.sin((ph / 0.35) * Math.PI);
+    drawCentered(ctx, SPR[key], c.x, c.y + 1);
+    ctx.globalAlpha = 1;
+  }
   for (const c of game.room.corpses) {
     if (Math.sin(c.t * 3) <= 0.2) continue;
     ctx.fillStyle = VIAL_COLOR;

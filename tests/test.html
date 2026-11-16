@@ -577,6 +577,13 @@ try {
     for (let i = 0; i < 60; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
     check(`a swallowed splitter leaves no spawnlings in your mouth (spawnlings ${game.enemies.filter(e => e.type === 'mini' && !e.dead).length}, hp ${h} -> ${q.hp})`, r.dead && r.swallowed && !game.enemies.some(e => e.type === 'mini' && !e.dead) && q.hp === h);
   }
+  { // 0z) Readability: leftover corpses pulse; enemy acid seethes and glows.
+    newRun(); combatRoom(); game.enemies = []; game.room.locked = false; const q = game.player;
+    game.room.corpses = [{ x: 100, y: 96, r: 5, sprite: 'rat', dna: 2, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }];
+    spawnPuddle(140, 96, 14, 5, 'enemy');
+    for (let i = 0; i < 200; i++) { game.time += 0.013; render(); }
+    check('corpses pulse and enemy acid seethes and glows (drew without errors)', !!SPR.rat_pulse);
+  }
   { // 0x) Gore escalation.
     newRun(); combatRoom(); game.enemies = []; game.particles = []; const q = game.player; q.x = 120; q.y = 96;
     let r = dummy(30, 10); damageEnemy(r, 0.5, 1, 0, true); const light = game.particles.filter(k => k.chunk).length;

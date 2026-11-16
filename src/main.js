@@ -305,6 +305,7 @@ function render() {
   // ...and everything that glows through it.
   drawPickups(ctx);
   drawCorpseGlow(ctx);
+  drawPuddleGlow(ctx);
   drawEnemyGlow(ctx);
   drawBossFx(ctx);
   if (game.state === 'play') drawPlayerGlow(ctx);

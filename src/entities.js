@@ -280,12 +280,37 @@ function drawPuddles(ctx) {
     const enemy = p.team === 'enemy'; // enemy pools are necrotic rot; yours are bile
     pxCircle(ctx, p.x, p.y, r, enemy ? '#2a0a1a' : '#3a4214');
     pxCircle(ctx, p.x, p.y, r - 2, enemy ? '#4a1030' : '#5e6a1e');
+    if (enemy) { // it's dangerous: a seething surface, bubbles swelling and popping
+      const seed = (p.x * 7 + p.y * 13) % 17;
+      for (let i = 0; i < 4; i++) {
+        const ph = (game.time * 1.3 + i * 0.27 + seed * 0.05) % 1, cyc = Math.floor(game.time * 1.3 + i * 0.27 + seed * 0.05);
+        const a = hash2(i, cyc, seed) * Math.PI * 2, d = hash2(cyc, i, 7) * r * 0.6;
+        const bx = p.x + Math.cos(a) * d, by = p.y + Math.sin(a) * d * 0.7;
+        if (ph < 0.8) pxRing(ctx, bx, by, 0.5 + ph * 1.6, '#c02040');
+        else { ctx.fillStyle = '#ff6080'; ctx.fillRect(Math.round(bx) - 1, Math.round(by), 3, 1); } // pop
+      }
+      ctx.fillStyle = '#7a1838'; // a slow sheen drifting across it
+      const sx = p.x - r * 0.6 + ((game.time * 6 + seed) % (r * 1.2));
+      ctx.fillRect(Math.round(sx), Math.round(p.y - r * 0.3), 2, 1);
+    }
     // Bubbles
     if (Math.random() < 0.15) {
       const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.7;
       ctx.fillStyle = enemy ? '#c02040' : '#b0c040';
       ctx.fillRect(Math.round(p.x + Math.cos(a) * d), Math.round(p.y + Math.sin(a) * d), 1, 1);
     }
+  }
+}
+
+// Drawn over the darkness: enemy acid has a pulsing, glowing rim so you can
+// see where not to step even outside your light.
+function drawPuddleGlow(ctx) {
+  for (const p of game.puddles) {
+    if (p.team !== 'enemy') continue;
+    const fade = Math.min(1, p.life / 0.6), r = p.r * (0.6 + 0.4 * Math.min(1, (p.maxLife - p.life) * 6)) * (0.5 + 0.5 * fade);
+    ctx.globalAlpha = (0.35 + 0.3 * Math.sin(game.time * 5 + p.x * 0.1)) * fade;
+    pxRing(ctx, p.x, p.y, r, '#ff3a5a');
+    ctx.globalAlpha = 1;
   }
 }
 
