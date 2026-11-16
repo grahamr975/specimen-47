@@ -94,6 +94,8 @@ powershell -ExecutionPolicy Bypass -File tests\run-tests.ps1
 
 It uses headless Microsoft Edge, takes a minute or two, and exits with code 1 if anything fails. You can also just open `tests/test.html` in a browser and read the page.
 
+**Parts explorer.** Open `tools/parts.html` in a browser to browse every body part's evolution tree (per location, plus splices), search them, and click one to see what it actually does: its stat changes, weapons, on-hit statuses and abilities at each growth level, computed live by the game's own code. Link straight to a part with its id, e.g. `tools/parts.html#venomspike`.
+
 ## Version control
 
 The project is a git repository. Commit after each working change (`git add -A`, then `git commit -m "what changed"`), so any mistake can be undone with `git restore <file>` or by checking out an earlier commit.

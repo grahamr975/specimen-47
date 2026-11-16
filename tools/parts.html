@@ -1,0 +1,375 @@
+<!doctype html>
+<!--
+  Specimen 47: parts explorer (a testing tool).
+  Loads the real game scripts and draws every body part's evolution tree straight
+  from MUTATIONS / SPLICES, so it never goes stale. Click a part to see what it
+  actually does: its stat changes at each growth level are computed by running
+  the game's own applyMutation() on a fresh body.
+  Open this file directly in a browser (no server needed).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Specimen 47 Parts</title>
+<style>
+  :root {
+    --bg: #0d0b0c; --panel: #161213; --card: #1d1819; --card-hi: #272021; --line: #3a3132;
+    --text: #e6dcd2; --dim: #9a8f86; --faint: #6a605a; --accent: #c0e040; --red: #e05a4a; --good: #8fd06a; --bad: #e07a6a;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
+  canvas#game { display: none; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(13, 11, 12, 0.96); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  h1 { margin: 0; font-size: 16px; letter-spacing: 0.04em; color: var(--accent); font-family: var(--mono); }
+  h1 span { color: var(--dim); font-weight: normal; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tabs button, .lvl button, .chip-btn { background: var(--card); color: var(--dim); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font: 12px var(--mono); cursor: pointer; }
+  .tabs button:hover, .lvl button:hover { color: var(--text); }
+  .tabs button.on, .lvl button.on { background: var(--card-hi); color: var(--text); border-color: var(--accent); }
+  .tabs button .n { color: var(--faint); margin-left: 4px; }
+  input[type=search] { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; font: 13px system-ui; width: 220px; }
+  input[type=search]:focus { outline: none; border-color: var(--accent); }
+  label.tog { font-size: 12px; color: var(--dim); display: inline-flex; gap: 4px; align-items: center; cursor: pointer; user-select: none; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } aside { position: static !important; max-height: none !important; } }
+  #trees { display: flex; flex-direction: column; gap: 18px; min-width: 0; overflow-x: auto; padding-bottom: 8px; }
+  .loc-title { font: bold 12px var(--mono); color: var(--dim); letter-spacing: 0.12em; margin: 6px 0 -6px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .loc-title small { font-weight: normal; color: var(--faint); letter-spacing: 0; margin-left: 8px; }
+
+  /* A horizontal tree: card, then its children stacked, joined by lines. */
+  .tree { display: flex; align-items: center; position: relative; }
+  .kids { display: flex; flex-direction: column; margin-left: 30px; position: relative; }
+  .kids::before { content: ''; position: absolute; left: -30px; top: 50%; width: 15px; border-top: 1px solid var(--line); }
+  .kids > .tree { padding: 3px 0; }
+  .kids > .tree::before { content: ''; position: absolute; left: -15px; top: 50%; width: 15px; border-top: 1px solid var(--line); }
+  .kids > .tree::after { content: ''; position: absolute; left: -15px; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+  .kids > .tree:first-child::after { top: 50%; }
+  .kids > .tree:last-child::after { bottom: 50%; }
+  .kids > .tree:only-child::after { display: none; }
+
+  .card { width: 210px; flex: none; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--rc, var(--line)); border-radius: 4px; padding: 6px 8px; cursor: pointer; display: grid; grid-template-columns: 30px 1fr; gap: 0 8px; align-items: center; transition: background 0.1s; }
+  .card:hover { background: var(--card-hi); }
+  .card.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .card.path { background: var(--card-hi); }
+  .card.dim { opacity: 0.28; }
+  .card.hit { box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card img, .ico { width: 30px; height: 30px; image-rendering: pixelated; grid-row: span 2; }
+  .ico { background: #0005; border-radius: 3px; }
+  .card .nm { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .ds { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag { display: inline-block; font: bold 9px var(--mono); padding: 0 4px; border-radius: 3px; margin-left: 4px; vertical-align: 1px; letter-spacing: 0.04em; }
+  .tag.boss { background: #5a1a1a; color: #ffb0a0; }
+  .tag.graft { background: #1a3a4a; color: #a0d8f0; }
+  .tag.hidden { background: #333; color: #bbb; }
+  .tag.size { background: #3a3010; color: #f0d070; }
+  .tag.splice { background: #2a1a40; color: #d0a8ff; }
+
+  /* Splices */
+  .splices { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .scard { background: var(--card); border: 1px solid var(--line); border-left: 3px solid #a070e0; border-radius: 4px; padding: 8px 10px; cursor: pointer; }
+  .scard:hover { background: var(--card-hi); }
+  .scard.sel { outline: 2px solid var(--accent); }
+  .scard.dim { opacity: 0.28; }
+  .scard .nm { font-weight: 600; }
+  .scard .ing { margin: 4px 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--dim); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: #0006; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px 1px 2px; font-size: 12px; color: var(--text); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip img { width: 18px; height: 18px; image-rendering: pixelated; }
+
+  /* Detail panel */
+  aside { position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
+  aside .empty { color: var(--faint); font-size: 13px; }
+  .d-head { display: grid; grid-template-columns: 48px 1fr; gap: 10px; align-items: center; }
+  .d-head img { width: 48px; height: 48px; image-rendering: pixelated; background: #0005; border-radius: 4px; }
+  .d-name { font-size: 18px; font-weight: 700; }
+  .d-meta { font: 11px var(--mono); color: var(--dim); }
+  .d-id { font: 12px var(--mono); color: var(--accent); cursor: pointer; }
+  .d-id:hover { text-decoration: underline; }
+  .crumbs { margin: 10px 0 6px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--faint); }
+  .desc { margin: 8px 0; }
+  .whisper { font-style: italic; color: var(--dim); margin: 6px 0; font-size: 13px; }
+  h3 { font: bold 11px var(--mono); letter-spacing: 0.1em; color: var(--dim); margin: 16px 0 6px; text-transform: uppercase; }
+  .lvl { display: flex; gap: 4px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .lvl .lab { font: 11px var(--mono); color: var(--dim); margin-right: 4px; }
+  .lvl .gain { font: 11px var(--mono); color: var(--accent); margin-left: 6px; }
+  table { width: 100%; border-collapse: collapse; font: 12px var(--mono); }
+  td { padding: 2px 4px; border-bottom: 1px solid #ffffff0a; vertical-align: top; }
+  td.k { color: var(--dim); white-space: nowrap; }
+  td.v { text-align: right; white-space: nowrap; }
+  .up { color: var(--good); } .down { color: var(--bad); } .neu { color: var(--text); }
+  .arrow { color: var(--faint); }
+  .obj { font: 12px var(--mono); background: #0004; border: 1px solid #ffffff0d; border-radius: 4px; padding: 6px 8px; margin: 4px 0; }
+  .obj b { color: var(--accent); font-weight: normal; }
+  .err { color: var(--bad); font: 12px var(--mono); white-space: pre-wrap; }
+  .note { font-size: 11px; color: var(--faint); margin-top: 10px; }
+  kbd { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; color: var(--dim); }
+</style>
+</head>
+<body>
+<canvas id="game" width="320" height="256"></canvas>
+<script>window.__loadErrs = []; window.onerror = (m, s, l) => { window.__loadErrs.push(m + ' (' + (s || '').split('/').pop() + ':' + l + ')'); };</script>
+<script src="../src/gfx.js"></script>
+<script src="../src/paint.js"></script>
+<script src="../src/sprites.js"></script>
+<script src="../src/audio.js"></script>
+<script src="../src/music.js"></script>
+<script src="../src/input.js"></script>
+<script src="../src/mutations.js"></script>
+<script src="../src/world.js"></script>
+<script src="../src/entities.js"></script>
+<script src="../src/gore.js"></script>
+<script src="../src/status.js"></script>
+<script src="../src/lighting.js"></script>
+<script src="../src/enemies.js"></script>
+<script src="../src/player.js"></script>
+<script src="../src/dna.js"></script>
+<script src="../src/abilities.js"></script>
+<script src="../src/bodyfx.js"></script>
+<script src="../src/floors.js"></script>
+<script src="../src/bosses.js"></script>
+<script src="../src/ui.js"></script>
+<!-- (main.js is left out: it would start the game loop) -->
+
+<header>
+  <h1>SPECIMEN 47 <span>parts explorer</span></h1>
+  <div class="tabs" id="tabs"></div>
+  <input type="search" id="q" placeholder="Search parts, effects...  ( / )" autocomplete="off">
+  <label class="tog"><input type="checkbox" id="showBoss" checked> boss roots</label>
+  <label class="tog"><input type="checkbox" id="showGraft" checked> grafts</label>
+  <label class="tog"><input type="checkbox" id="showHidden"> hidden parts</label>
+</header>
+<main>
+  <section id="trees"></section>
+  <aside id="detail"><div class="empty">Click a part to see what it does: its path, description, and its real stat changes at each growth level (computed by the game's own code).<br><br><kbd>/</kbd> search &nbsp; <kbd>Esc</kbd> clear</div></aside>
+</main>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const store = { get(k, d) { try { const v = localStorage.getItem('s47parts.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem('s47parts.' + k, JSON.stringify(v)); } catch (e) {} } };
+
+// --- Data straight from the game ---
+const iconCache = {};
+function iconURL(id) {
+  if (id in iconCache) return iconCache[id];
+  let url = '';
+  try { const c = mutIcon(id); if (c) url = c.toDataURL(); } catch (e) {}
+  return (iconCache[id] = url);
+}
+const icon = (id, cls = '') => { const u = iconURL(id); return u ? `<img src="${u}" alt="" class="${cls}">` : `<div class="ico ${cls}"></div>`; };
+const kids = id => childrenOf(id);
+const pathTo = id => { const p = [id]; while (MUTATIONS[p[0]].from) p.unshift(MUTATIONS[p[0]].from); return p; };
+const rarityColor = r => (RARITY[r] || {}).color || '#666';
+const WHISPERS = typeof HINTS !== 'undefined' ? HINTS : {};
+const spliceIngredients = sp => sp.parts.map(list => list.slice());
+const splicesUsing = id => Object.entries(SPLICES).filter(([, sp]) => sp.parts.some(list => list.includes(id))).map(([k]) => k);
+const TABS = [...LOCS, 'SPLICES'];
+const ids = Object.keys(MUTATIONS);
+const countAt = loc => ids.filter(id => locOf(id) === loc).length;
+
+// --- Effects: run the real applyMutation on a fresh body and diff it ---
+function sheet(fn) { const s = baseStats(); fn(s); finalizeStats(s); return s; }
+const BASE = sheet(() => {});
+const GUN_DEFAULTS = (() => { const s = { guns: [] }; gun(s, {}); return s.guns[0]; })();
+function effectsOf(kind, id, lvl) {
+  try {
+    if (kind === 'splice') return { s: sheet(s => SPLICES[id].apply(s, 3, null)) };
+    const path = pathTo(id);
+    return { s: sheet(s => applyMutation(s, { id, path, loc: locOf(id), lvl }, null)) };
+  } catch (e) { return { err: e.message }; }
+}
+const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(Math.abs(v) < 1 ? 3 : 2)).replace(/\.?0+$/, '')) : typeof v === 'string' ? `'${v}'` : String(v);
+function statRows(s) {
+  const rows = [];
+  for (const k of Object.keys(s)) {
+    const a = BASE[k], b = s[k];
+    if (k === 'guns' || k === 'onHit') continue;
+    if (b && typeof b === 'object') continue; // shown as blocks
+    if (a === b || (a === undefined && (b === false || b === 0 || b === null))) continue;
+    let cls = 'neu';
+    if (typeof a === 'number' && typeof b === 'number') cls = (b < a) === LOWER_IS_BETTER.has(k) ? 'up' : 'down';
+    else if (b === true || (a === undefined && b)) cls = 'up';
+    rows.push(`<tr><td class="k">${esc(k)}</td><td class="v"><span class="arrow">${a === undefined ? '' : esc(fmt(a)) + ' &rarr; '}</span><span class="${cls}">${esc(fmt(b))}</span></td></tr>`);
+  }
+  return rows;
+}
+function objBlocks(s) {
+  const out = [];
+  s.guns.forEach((g, i) => {
+    const bits = [`dmg ${fmt(g.dmg)}`, `${fmt(1 / g.delay)}/s`, `speed ${fmt(g.speed)}`, `range ${fmt(g.range)}`];
+    for (const [k, v] of Object.entries(g)) if (!['id', 'dmg', 'delay', 'speed', 'range', 'color', 'sound'].includes(k) && v !== GUN_DEFAULTS[k] && typeof v !== 'function' && typeof v !== 'object') bits.push(`${k} ${fmt(v)}`);
+    out.push(`<div class="obj"><b>weapon${s.guns.length > 1 ? ' ' + (i + 1) : ''}: ${esc(g.id || '?')}</b><br>${esc(bits.join(' · '))}</div>`);
+  });
+  for (const [src, list] of Object.entries(s.onHit || {})) for (const h of list) {
+    const o = Object.entries(h.opts).map(([k, v]) => k === 't' ? (v === Infinity ? 'until death' : fmt(v) + 's') : `${k} ${fmt(v)}`).join(', ');
+    out.push(`<div class="obj"><b>on ${esc(src)} hit</b> &rarr; ${esc(h.id)} (${esc(o)})${h.chance !== undefined ? ` · ${Math.round(h.chance * 100)}% chance` : ''}</div>`);
+  }
+  for (const key of ['limbActive', 'headActive']) { // right-click / Q abilities
+    const v = s[key]; if (!v) continue;
+    const kind = typeof v === 'object' ? v.kind : v, a = typeof ACTIVES !== 'undefined' && ACTIVES[kind];
+    if (!a) continue;
+    const L = (typeof v === 'object' && v.l) || 1, mul = key === 'limbActive' ? s.limbCdMul : s.headCdMul;
+    out.push(`<div class="obj"><b>${key === 'limbActive' ? 'right-click' : 'Q'}: ${esc(a.name)}</b> <span style="color:var(--faint)">(${esc(kind)})</span><br>cooldown ${fmt(a.cd(L) * (mul || 1))}s at ability level ${L}</div>`);
+  }
+  for (const k of Object.keys(s)) {
+    const b = s[k];
+    if (k === 'guns' || k === 'onHit' || k === 'limbActive' || k === 'headActive' || !b || typeof b !== 'object' || JSON.stringify(b) === JSON.stringify(BASE[k])) continue;
+    const body = Array.isArray(b) ? b.map(x => esc(typeof x === 'object' ? JSON.stringify(x) : x)).join(', ')
+      : Object.entries(b).filter(([, v]) => typeof v !== 'function').map(([f, v]) => `${esc(f)} ${esc(typeof v === 'object' ? JSON.stringify(v) : fmt(v))}`).join(' · ');
+    out.push(`<div class="obj"><b>${esc(k)}</b><br>${body || '(set)'}</div>`);
+  }
+  return out;
+}
+
+// --- State ---
+let tab = store.get('tab', 'MOUTH'); if (!TABS.includes(tab)) tab = 'MOUTH';
+let sel = store.get('sel', null), lvl = store.get('lvl', 0), q = '';
+const showBoss = $('#showBoss'), showGraft = $('#showGraft'), showHidden = $('#showHidden');
+showBoss.checked = store.get('boss', true); showGraft.checked = store.get('graft', true); showHidden.checked = store.get('hidden', false);
+
+const visibleRoot = id => { const d = MUTATIONS[id]; return (!d.boss || showBoss.checked) && (!d.graft || showGraft.checked) && (!d.part || showHidden.checked); };
+const matches = id => {
+  if (!q) return true;
+  const d = MUTATIONS[id] || SPLICES[id];
+  return [id, d.name, d.desc, WHISPERS[id] || '', d.whisper || ''].join(' ').toLowerCase().includes(q);
+};
+const subtreeMatches = id => matches(id) || kids(id).some(subtreeMatches);
+
+function tags(id) {
+  const d = MUTATIONS[id], t = [];
+  if (d.boss) t.push('<span class="tag boss">BOSS</span>');
+  if (d.graft) t.push('<span class="tag graft">GRAFT</span>');
+  if (d.part) t.push('<span class="tag hidden">HIDDEN</span>');
+  if (d.size > 1) t.push(`<span class="tag size">${d.size} SLOTS</span>`);
+  if (splicesUsing(id).length) t.push('<span class="tag splice">SPLICE</span>');
+  return t.join('');
+}
+function card(id) {
+  const d = MUTATIONS[id];
+  return `<div class="card${sel && sel.id === id ? ' sel' : ''}${q && !matches(id) ? ' dim' : q ? ' hit' : ''}" data-id="${id}" style="--rc:${rarityColor(d.rarity)}" title="${esc(d.desc || '')}">
+    ${icon(id)}<div class="nm">${esc(d.name)}${tags(id)}</div><div class="ds">${esc(d.desc || '')}</div></div>`;
+}
+function tree(id) {
+  const ks = kids(id);
+  return `<div class="tree">${card(id)}${ks.length ? `<div class="kids">${ks.map(tree).join('')}</div>` : ''}</div>`;
+}
+
+function renderTabs() {
+  $('#tabs').innerHTML = TABS.map(t => `<button class="${t === tab ? 'on' : ''}" data-tab="${t}">${t}<span class="n">${t === 'SPLICES' ? Object.keys(SPLICES).length : countAt(t)}</span></button>`).join('');
+}
+function renderTrees() {
+  const el = $('#trees');
+  if (tab === 'SPLICES') {
+    const list = Object.entries(SPLICES).filter(([k]) => !q || matches(k) || SPLICES[k].parts.flat().some(matches));
+    el.innerHTML = `<div class="loc-title">SPLICES <small>two parts fused into something new (${list.length})</small></div><div class="splices">` + list.map(([k, sp]) => `
+      <div class="scard${sel && sel.id === k ? ' sel' : ''}" data-splice="${k}">
+        <div class="nm">${esc(sp.name)}${sp.grown ? ` <span class="tag size">GROWN ${sp.grown}</span>` : ''}</div>
+        <div class="ing">${spliceIngredients(sp).map(l => l.map(chip).join(' or ')).join(' <span>+</span> ')}</div>
+        <div class="ds" style="font-size:12px;color:var(--dim)">${esc(sp.desc || '')}</div></div>`).join('') + '</div>';
+    return;
+  }
+  const roots = ids.filter(id => MUTATIONS[id].slot === tab && !MUTATIONS[id].from && visibleRoot(id) && subtreeMatches(id));
+  const groups = [['Roots', roots.filter(id => !MUTATIONS[id].boss && !MUTATIONS[id].graft && !MUTATIONS[id].part)],
+                  ['Boss roots', roots.filter(id => MUTATIONS[id].boss)], ['Grafts (from elite kills)', roots.filter(id => MUTATIONS[id].graft)],
+                  ['Hidden parts (starters and borrowed effects)', roots.filter(id => MUTATIONS[id].part)]];
+  el.innerHTML = groups.filter(([, l]) => l.length).map(([t, l]) => `<div class="loc-title">${tab} &middot; ${t.toUpperCase()} <small>${l.length}</small></div>` + l.map(tree).join('')).join('')
+    || '<div class="empty" style="color:var(--faint)">Nothing matches.</div>';
+}
+function chip(id) {
+  const d = MUTATIONS[id];
+  return d ? `<span class="chip" data-id="${id}">${icon(id)}${esc(d.name)}</span>` : `<span class="chip">${esc(id)}</span>`;
+}
+
+function renderDetail() {
+  const el = $('#detail');
+  if (!sel) return;
+  const isSplice = sel.kind === 'splice', id = sel.id, d = isSplice ? SPLICES[id] : MUTATIONS[id];
+  if (!d) { el.innerHTML = '<div class="empty">Gone (renamed?).</div>'; return; }
+  const loc = isSplice ? 'SPLICE' : locOf(id), path = isSplice ? [] : pathTo(id);
+  let h = `<div class="d-head">${isSplice ? icon(d.parts[0][0]) : icon(id)}<div><div class="d-name">${esc(d.name)}</div>
+    <div class="d-meta">${isSplice ? 'SPLICE' : `${loc} · <span style="color:${rarityColor(d.rarity)}">${esc((RARITY[d.rarity] || {}).label || d.rarity || '')}</span> · tier ${path.length - 1}`}
+    ${!isSplice && d.size > 1 ? ` · ${d.size} slots` : ''}</div>
+    <div class="d-id" title="Copy the id">${esc(id)} ⧉</div></div></div>`;
+  if (!isSplice && path.length > 1) h += `<div class="crumbs">${path.map(p => p === id ? `<b>${esc(MUTATIONS[p].name)}</b>` : chip(p)).join(' &rarr; ')}</div>`;
+  if (d.desc) h += `<div class="desc">${esc(d.desc)}</div>`;
+  const wh = isSplice ? d.whisper : WHISPERS[id];
+  if (wh) h += `<div class="whisper">"${esc(wh)}"</div>`;
+  if (!isSplice) {
+    const tags = [d.boss && 'Boss root: rare in vials, a boss pick', d.graft && 'Graft: from an elite kill', d.part && 'Hidden: never offered as a card', d.requires && 'Requires: ' + JSON.stringify(d.requires), d.cost && 'Cost: ' + JSON.stringify(d.cost)].filter(Boolean);
+    if (tags.length) h += `<div class="note">${tags.map(esc).join('<br>')}</div>`;
+    const ks = kids(id);
+    if (ks.length) h += `<h3>Evolves into</h3><div class="ing">${ks.map(chip).join(' ')}</div>`;
+    const sps = splicesUsing(id);
+    if (sps.length) h += `<h3>Splices with</h3>` + sps.map(k => { const sp = SPLICES[k], other = sp.parts.find(l => !l.includes(id)) || []; return `<div class="ing"><span class="chip" data-splice="${k}">⚭ ${esc(sp.name)}</span> with ${other.map(chip).join(' or ')}</div>`; }).join('');
+    h += `<div class="lvl"><span class="lab">GROWTH</span>${[0, 1, 2, 3].map(L => `<button class="${L === lvl ? 'on' : ''}" data-lvl="${L}">${L === 0 ? 'new' : 'lvl ' + L}</button>`).join('')}<span class="gain">${lvl ? esc(levelText({ loc }, lvl)) : ''}</span></div>`;
+  } else {
+    h += `<h3>Ingredients</h3><div class="ing">${spliceIngredients(d).map(l => l.map(chip).join(' or ')).join(' + ')}</div>`;
+    if (d.grown) h += `<div class="note">Both parts must be grown to level ${d.grown}.</div>`;
+  }
+  const r = effectsOf(isSplice ? 'splice' : 'part', id, lvl);
+  h += `<h3>${isSplice ? 'What the splice adds' : 'Effects on a fresh body (whole path applied)'}</h3>`;
+  if (r.err) h += `<div class="err">Couldn't compute: ${esc(r.err)}</div>`;
+  else {
+    const rows = statRows(r.s), blocks = objBlocks(r.s);
+    if (!rows.length && !blocks.length) h += '<div class="note">No stat changes: its effect is behavior the game code reacts to (see the description).</div>';
+    if (blocks.length) h += blocks.join('');
+    if (rows.length) h += `<table>${rows.join('')}</table>`;
+    h += `<div class="note">Green = better, red = worse (lower is better for delays and cooldowns). Values are after finalizeStats; flags like <code>barbedLash: true</code> are read by the game code.</div>`;
+  }
+  el.innerHTML = h;
+}
+
+function select(kind, id) {
+  sel = { kind, id }; store.set('sel', sel);
+  if (kind === 'part' && locOf(id) !== tab) { tab = locOf(id); store.set('tab', tab); renderTabs(); }
+  if (kind === 'splice' && tab !== 'SPLICES' && !document.querySelector(`[data-splice="${id}"]`)) { /* stay; detail shows it */ }
+  renderTrees(); renderDetail(); highlightPath();
+  const c = document.querySelector(`.card[data-id="${id}"], .scard[data-splice="${id}"]`);
+  if (c) c.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function highlightPath(hoverId) {
+  document.querySelectorAll('.card.path').forEach(c => c.classList.remove('path'));
+  const id = hoverId || (sel && sel.kind === 'part' && sel.id);
+  if (id && MUTATIONS[id]) for (const p of pathTo(id)) { const c = document.querySelector(`.card[data-id="${p}"]`); if (c) c.classList.add('path'); }
+}
+
+// --- Events ---
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab],[data-id],[data-splice],[data-lvl],.d-id');
+  if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; store.set('tab', tab); renderTabs(); renderTrees(); highlightPath(); }
+  else if (t.dataset.lvl) { lvl = +t.dataset.lvl; store.set('lvl', lvl); renderDetail(); }
+  else if (t.dataset.splice) select('splice', t.dataset.splice);
+  else if (t.dataset.id) select('part', t.dataset.id);
+  else if (t.classList.contains('d-id') && sel) { try { navigator.clipboard.writeText(sel.id); t.textContent = sel.id + ' ✓ copied'; } catch (err) {} }
+});
+document.addEventListener('mouseover', e => { const c = e.target.closest('.card'); if (c) highlightPath(c.dataset.id); });
+document.addEventListener('mouseout', e => { if (e.target.closest('.card')) highlightPath(); });
+$('#q').addEventListener('input', e => {
+  q = e.target.value.trim().toLowerCase();
+  if (q && tab !== 'SPLICES') { // jump to the first location with a match
+    const here = ids.some(id => locOf(id) === tab && matches(id));
+    if (!here) { const loc = LOCS.find(l => ids.some(id => locOf(id) === l && matches(id))); if (loc) { tab = loc; renderTabs(); } }
+  }
+  renderTrees(); highlightPath();
+});
+for (const [el, key] of [[showBoss, 'boss'], [showGraft, 'graft'], [showHidden, 'hidden']]) el.addEventListener('change', () => { store.set(key, el.checked); renderTrees(); highlightPath(); });
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== $('#q')) { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'Escape') { $('#q').value = ''; q = ''; renderTrees(); highlightPath(); $('#q').blur(); }
+});
+
+renderTabs(); renderTrees();
+const fromHash = decodeURIComponent(location.hash.slice(1)); // tools/parts.html#bile opens a part directly
+if (MUTATIONS[fromHash]) select('part', fromHash);
+else if (SPLICES[fromHash]) { tab = 'SPLICES'; renderTabs(); select('splice', fromHash); }
+else if (sel && (MUTATIONS[sel.id] || SPLICES[sel.id])) { renderDetail(); highlightPath(); } else sel = null;
+if (window.__loadErrs.length) $('#detail').insertAdjacentHTML('afterbegin', `<div class="err">Game scripts reported errors while loading:\n${esc(window.__loadErrs.join('\n'))}</div>`);
+})();
+</script>
+</body>
+</html>
