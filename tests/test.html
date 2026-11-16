@@ -516,6 +516,18 @@ try {
       check(`final form, ${k}-heavy (${q.stats.apex[k] || 0} parts): ${APEX_PASSIVES[k].toLowerCase()}`, q.stats.apex[k] > 0 && did);
     }
   }
+  { // 0u) Walk into a corpse to devour it.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.orbs = []; q.x = 120; q.y = 96; const d0 = q.dna;
+    game.room.corpses = [{ x: q.x + 4, y: q.y, r: 5, sprite: 'rat', dna: 3, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }];
+    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
+    check(`walking into a corpse devours it, biomass and all (${d0} -> ${q.dna})`, !game.room.corpses.length && q.dna >= d0 + 3);
+  }
+  { // 0t) Cards explain what each kind of part is for.
+    check('every kind of part has a tag and a plain explanation', LOCS.every(l => LOC_TAG[l] && LOC_HELP[l]));
+    newRun(); const q = game.player; grow(q, 'spike', 'spider'); q.capacity = 5; openEvolution({ title: 'LEVEL UP', levelUp: true, fromDna: true });
+    game.menu.t = 2; game.menu.stageT = 2; Input.mouse.x = cardX(0, game.menu.choices.length) + 10; Input.mouse.y = CARD.y + 20; updateMenu(1 / 60); render();
+    check(`hovering a card picks it out (hover ${game.menu.hover})`, game.menu.hover === 0); game.menu = null;
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} empty slots and no attack`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 0 && !p.stats.guns.length && !p.stats.bite && !p.stats.lash);

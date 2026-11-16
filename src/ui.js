@@ -119,7 +119,7 @@ function drawCard(ctx, info, i, x, y, menu) {
 
   let ty = y + 70;
   for (const line of wrapText(info.name.toUpperCase(), 20)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
-  if (info.slot) drawText(ctx, `[${info.slot}]`, cx, ty, PAL.slate, 1, 'center', null);
+  if (info.slot) drawText(ctx, `[${info.slot}] ${LOC_TAG[info.slot] || ''}`.trim(), cx, ty, PAL.slate, 1, 'center', null);
   // Its set, and whether it moves you toward a set bonus.
   if (info.set) {
     const S = SETS[info.set], after = info.setAfter;
@@ -169,9 +169,24 @@ function drawMenu(ctx) {
   });
 
   if (menu.t > 0.5) {
-    drawText(ctx, 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
+    // Hovering a card: what that kind of part does, in plain words.
+    const hov = menu.hover >= 0 && menu.choices[menu.hover] && choiceInfo(p, menu.choices[menu.hover]);
+    const help = hov && (hov.kind === 'level' ? LEVEL_HELP : LOC_HELP[hov.slot]);
+    if (help) wrapText(help, 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 201 + i * 8, '#c8b8a8', 1, 'center'));
+    else drawText(ctx, 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
+
+// What each kind of part is for: a short tag on the card, and a line when you hover it.
+const LOC_TAG = { MOUTH: 'ATTACK', LIMBS: 'MOVEMENT', HEAD: 'Q ABILITY', BACK: 'DASH/HIT', CORE: 'PASSIVE' };
+const LOC_HELP = {
+  MOUTH: 'MOUTH: AN ATTACK. EVERY MOUTH YOU GROW FIRES WHEN YOU SHOOT.',
+  LIMBS: 'LIMBS: HOW YOU MOVE, PLUS A RIGHT-CLICK (E) ABILITY. ONE SET AT A TIME.',
+  HEAD: 'HEAD: SENSES AND AIM, PLUS A Q ABILITY. YOU ONLY HAVE ONE HEAD.',
+  BACK: 'BACK: GOES OFF WHEN YOU DASH OR GET HIT. GROW AS MANY AS YOU LIKE.',
+  CORE: 'CORE: ALWAYS ON. MAKES YOUR WHOLE BODY STRONGER OR TOUGHER.',
+};
+const LEVEL_HELP = 'LEVEL UP: A SMALL BOOST TO THIS PART. AT LEVEL 3 IT EVOLVES INTO SOMETHING NEW.';
 
 // --- HUD --------------------------------------------------------------------------
 function drawHUD(ctx) {
@@ -210,7 +225,7 @@ function drawHUD(ctx) {
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
   else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial' && k.loc === 'MOUTH')) { msg = 'YOU HAVE NO MOUTH - TAKE THE RED VIAL'; col = vialColor('MOUTH'); }
   else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
-  else if (room.corpses.length) { msg = 'FRESH MEAT - BURST IT'; col = VIAL_COLOR; }
+  else if (room.corpses.length) { msg = 'FRESH MEAT - DEVOUR IT'; col = VIAL_COLOR; }
   else if (room.type === 'vault') { msg = (room.vialLoc || 'MUTAGEN') + ' VAULT'; col = vialColor(room.vialLoc); }
   else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d))) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; }
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');

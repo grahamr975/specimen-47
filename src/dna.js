@@ -111,9 +111,28 @@ function nextEvolution() {
   return null;
 }
 
+// Walk into a corpse and you devour it: a lunge, a crunch, a gulp, and the
+// biomass goes straight into you. (Attacks still burst corpses from range.)
+function devourCorpse(p, c) {
+  const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1;
+  moveEntity(game.room, p, dx / d * 3, dy / d * 3); // lunge onto it
+  p.eatT = 0.4;
+  bloodSpray(c.x, c.y, -dx / d, -dy / d, 18, c.fluid, 120);
+  game.fx.push({ kind: 'bite', x: c.x, y: c.y, t: 0.12 });
+  hitstop(0.04);
+  game.shake = Math.max(game.shake, 2);
+  Sfx.play('chomp'); Sfx.play('gulp');
+  burstCorpse(c);
+  for (const o of game.room.orbs) if (Math.hypot(o.x - c.x, o.y - c.y) < 3) { o.x = p.x; o.y = p.y; o.t = 0.36; } // straight into you
+}
+
 function updateCorpses(dt) {
   const p = game.player;
   for (const c of game.room.corpses) { c.t += dt; c.shake -= dt; }
+  if (p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
+    const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1);
+    if (c) devourCorpse(p, c);
+  }
 
   for (const o of game.room.orbs) {
     o.t += dt;
