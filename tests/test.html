@@ -390,6 +390,11 @@ try {
     const walk = (q, n, key = 'd') => { Input.keys.clear(); Input.keys.add(key); for (let i = 0; i < n; i++) { update(1 / 60); Input.endFrame(); if (i % 5 === 0) render(); } Input.keys.clear(); };
     for (const r of rootsOf('LIMBS')) { const q = arena(); grow(q, leaves().find(l => rootOf(l) === r)); walk(q, 40); }
     log.push('every LIMBS path walked and drew');
+    { let q = arena(); grow(q, 'crablegs'); walk(q, 40); check(`crab legs: six armored feet that step (${q.crab && q.crab.length})`, q.crab && q.crab.length === 6 && q.crab.some(f => f.x > 125));
+      q = arena(); grow(q, 'rootlegs'); walk(q, 40); check(`root legs: gnarled roots that step (${q.roots && q.roots.length})`, q.roots && q.roots.length === 4);
+      q = arena(); grow(q, 'haunches'); walk(q, 40); q.dashCd = 0; Input.pressed.add(' '); walk(q, 10); render();
+      q = arena(); grow(q, 'burrow', 'skull'); walk(q, 30); render(); q = arena(); grow(q, 'stilts'); walk(q, 30); render(); q = arena(); grow(q, 'hands'); walk(q, 30); render();
+      check('claws, haunches, stilts and hands all animate (drew without errors)', true); }
     let q = arena(); grow(q, 'grapple'); walk(q, 40);
     check(`tentacles: real tips that grip the floor and step (${q.tents && q.tents.length})`, q.tents && q.tents.length === 5);
     q = arena(); grow(q, 'locust'); q.dashCd = 0; Input.pressed.add(' '); walk(q, 30);

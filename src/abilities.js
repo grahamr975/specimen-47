@@ -1231,6 +1231,7 @@ function useActive(p, a) {
       return true;
     }
     case 'pincer': { // Crab Legs: a pincer snaps shut on what's in front of you
+      p.pincerAnimT = 0.18;
       const reach = s.pincerWide ? 30 : 22, cone = s.pincerWide ? -0.2 : 0.3;
       let hit = false;
       for (const e of game.enemies) {

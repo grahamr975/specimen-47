@@ -127,6 +127,11 @@ function drawTentacles(ctx, p, bx, by, which) {
       if (n % 3 === 0 && thick === 2) { ctx.fillStyle = '#e8b0c8'; ctx.fillRect(Math.round(qx), Math.round(qy + 1), 1, 1); } // suckers
       px = qx; py = qy;
     }
+    if (p.stats.hands && T.near && !(grappling && i === 3)) { // Grasping Hands: the near tentacles end in hands
+      pxCircle(ctx, tx, ty, 2, '#2a0a14'); pxCircle(ctx, tx, ty, 1.4, '#c87a8a');
+      ctx.fillStyle = '#e8a0b0'; for (let n = -1; n <= 1; n++) ctx.fillRect(Math.round(tx + n * 1.5), Math.round(ty - 2 - (n === 0 ? 1 : 0)), 1, 2);
+      return;
+    }
     // The tip curls when lifted.
     if (lift > 1) { ctx.fillStyle = '#a84a7a'; ctx.fillRect(Math.round(tx + (dx > 0 ? -1 : 1)), Math.round(ty - 1), 1, 1); }
   });
@@ -166,6 +171,7 @@ function updateBodyFx(p, dt) {
   const s = p.stats, root = limbRoot(p), mv = movement(p);
   if (p.landT > 0) p.landT -= dt;
   updateTentacles(p, dt);
+  updateProceduralLimbs(p, dt);
   p.stepT = (p.stepT || 0) - dt;
   if (p.moving && p.burrowT <= 0 && p.stepT <= 0) {
     if (mv.flyover) { p.stepT = 0.1; Sfx.play('buzz'); }                                  // wings hum
@@ -420,4 +426,195 @@ function drawCocoonPulse(ctx) {
   g.addColorStop(0, 'rgba(0,0,0,0)');
   g.addColorStop(1, apex ? `rgba(200,150,40,${a.toFixed(3)})` : `rgba(130,10,30,${a.toFixed(3)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+}
+
+// =========================================================================================
+// PROCEDURAL LIMBS: crab legs, haunches, digging claws, root legs, hands, stilts.
+// Like the spider legs: real feet that plant and step, drawn every frame.
+// =========================================================================================
+
+// A generic walker: each foot plants on the floor and steps (in alternating
+// groups) when the body gets too far ahead. defs: [{ hx, hy, fx, fy, near, g }].
+function updateWalker(p, key, defs, active, stride, stepTime, dt, onPlant) {
+  if (!active) { p[key] = null; return; }
+  const k = STAGE_SCALE[p.stage] * 1.1, lx = key + 'LX', ly = key + 'LY';
+  const vx = (p.x - (p[lx] ?? p.x)) / dt, vy = (p.y - (p[ly] ?? p.y)) / dt;
+  p[lx] = p.x; p[ly] = p.y;
+  const rest = (L, lead) => ({ x: p.x + L.fx * k + vx * lead, y: p.y + 2 + L.fy * k + vy * lead });
+  if (!p[key]) p[key] = defs.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
+  const feet = p[key], stepping = g => feet.some((f, i) => f.t > 0 && defs[i].g === g), fast = Math.hypot(vx, vy) > 150;
+  feet.forEach((f, i) => {
+    const L = defs[i];
+    if (f.t > 0) {
+      f.t = Math.max(0, f.t - dt);
+      const u = 1 - f.t / stepTime;
+      f.x = f.sx + (f.tx - f.sx) * u; f.y = f.sy + (f.ty - f.sy) * u;
+      if (f.t === 0 && onPlant) onPlant(f, i);
+      return;
+    }
+    const want = rest(L, 0.12), d = Math.hypot(want.x - f.x, want.y - f.y);
+    if (d > 40) { f.x = want.x; f.y = want.y; return; }
+    if ((d > stride * k && (fast || !stepping(1 - L.g))) || d > stride * 1.8 * k) { f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = stepTime * (fast ? 0.6 : 1); }
+    else if (!p.moving && d > 2) { f.x += (want.x - f.x) * Math.min(1, dt * 6); f.y += (want.y - f.y) * Math.min(1, dt * 6); }
+  });
+}
+
+// A two-bone leg, hip -> knee -> foot; the knee bends up and outward.
+function drawJointLeg(ctx, hx, hy, fx, fy, L1, L2, col, thick = 1) {
+  const dx = fx - hx, dy = fy - hy, d = Math.hypot(dx, dy) || 1, reach = Math.min(d, L1 + L2 - 0.5);
+  const a = (L1 * L1 - L2 * L2 + reach * reach) / (2 * reach), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  const ux = dx / d, uy = dy / d;
+  let nx = -uy, ny = ux; if (ny > 0 || (ny === 0 && nx * ux < 0)) { nx = -nx; ny = -ny; }
+  const kx = hx + ux * a + nx * h, ky = hy + uy * a + ny * h, ex = hx + ux * reach, ey = hy + uy * reach;
+  pxLine(ctx, hx, hy + 1, kx, ky + 1, col.dark, thick + 1, 0); pxLine(ctx, kx, ky + 1, ex, ey + 1, col.dark, thick, 0);
+  pxLine(ctx, hx, hy, kx, ky, col.mid, thick, 0); pxLine(ctx, kx, ky, ex, ey, col.mid, Math.max(1, thick - 1), 0);
+  ctx.fillStyle = col.hi; ctx.fillRect(Math.round(kx), Math.round(ky) - 1, 1, 1);
+  return { kx, ky, ex, ey };
+}
+
+const limbRootIs = (p, id) => { const m = partAt(p, 'LIMBS'); return !!m && m.path[0] === id && !(p.limbWear > 0) && p.burrowT <= 0 && !p.withdrawn; };
+
+// --- Crab Legs: six armored legs scuttling sideways, and two snapping pincers --------------
+const CRAB_LEGS = [
+  { hx: -3, hy: 0, fx: -14, fy: -3, near: false, g: 0 }, { hx: -2, hy: 1, fx: -16, fy: 2, near: false, g: 1 }, { hx: -1, hy: 2, fx: -12, fy: 7, near: true, g: 0 },
+  { hx: 3, hy: 0, fx: 14, fy: -3, near: false, g: 1 }, { hx: 2, hy: 1, fx: 16, fy: 2, near: false, g: 0 }, { hx: 1, hy: 2, fx: 12, fy: 7, near: true, g: 1 },
+];
+const CRAB_COL = { dark: '#1a0c08', mid: '#8a3a24', hi: '#d88a5a' };
+function drawCrab(ctx, p, bx, by, which) {
+  if (!p.crab) return;
+  const k = STAGE_SCALE[p.stage] * 1.1;
+  p.crab.forEach((f, i) => {
+    const L = CRAB_LEGS[i]; if (L.near !== (which === 'near')) return;
+    const lift = f.t > 0 ? Math.sin((1 - f.t / 0.07) * Math.PI) * 2.5 : 0;
+    drawJointLeg(ctx, bx + L.hx * k, by + 3 + L.hy * k, f.x, f.y - lift, 8 * k, 9 * k, CRAB_COL, 1);
+    ctx.fillStyle = CRAB_COL.dark; ctx.fillRect(Math.round(f.x), Math.round(f.y - lift), 1, 2); // pointed tip
+  });
+  if (which !== 'near') return;
+  // The pincers, reaching toward where you aim: they idly open and close, and snap shut on use.
+  const ang = Math.atan2(p.aimY, p.aimX), snap = p.pincerAnimT > 0 ? 1 - p.pincerAnimT / 0.18 : 0;
+  for (const side of [-1, 1]) {
+    const base = { x: bx + Math.cos(ang + side * 1.2) * 5, y: by + 3 + Math.sin(ang + side * 1.2) * 3 };
+    const reach = 7 + (snap > 0 ? Math.sin(snap * Math.PI) * 4 : 0) + (p.stats.pincerWide ? 2 : 0);
+    const cx = base.x + Math.cos(ang + side * 0.35) * reach, cy = base.y + Math.sin(ang + side * 0.35) * reach;
+    pxLine(ctx, base.x, base.y + 1, cx, cy + 1, CRAB_COL.dark, 2, 0); pxLine(ctx, base.x, base.y, cx, cy, CRAB_COL.mid, 2, 0);
+    const open = (snap > 0 ? 0.05 + 0.6 * Math.abs(Math.cos(snap * Math.PI)) : 0.45 + 0.15 * Math.sin(p.t * 3 + side)) * (p.stats.pincerWide ? 1.2 : 1);
+    for (const jaw of [-1, 1]) {
+      const ja = ang + jaw * open, jl = jaw === side ? 5 : 4;
+      pxLine(ctx, cx, cy, cx + Math.cos(ja) * jl, cy + Math.sin(ja) * jl, CRAB_COL.dark, 2, 0);
+      pxLine(ctx, cx, cy, cx + Math.cos(ja) * jl, cy + Math.sin(ja) * jl, jaw === side ? CRAB_COL.hi : CRAB_COL.mid, 1, 0);
+    }
+  }
+}
+
+// --- Haunches: big folded hind legs that crouch, spring, extend in the air, and land -------
+const HAUNCH_COL = { dark: '#140a08', mid: '#6a4632', hi: '#a87a58' };
+function drawHaunches(ctx, p, bx, by, which) {
+  if (!limbRootIs(p, 'haunches')) return;
+  const f = p.aimX < 0 ? -1 : 1, s = p.stats;
+  const air = (s.hop && p.hopAir > 0) || p.dashT > 0, crouch = p.landT > 0 ? p.landT / LAND_TIME : (s.hop && p.moving && p.hopT < 0.1 && !air) ? 1 : 0.2;
+  // Knee, ankle, toe (relative to the hip, facing right; y down): folded, standing, flung out behind.
+  const POSES = { crouch: [[4, 3], [-5, 4], [0, 6]], stand: [[3, 3], [-4, 6], [1, 7]], air: [[-2, 4], [-7, 6], [-12, 6]] };
+  const lerp = (A, B, t) => A.map((pt, i) => [pt[0] + (B[i][0] - pt[0]) * t, pt[1] + (B[i][1] - pt[1]) * t]);
+  const pose = air ? POSES.air : lerp(POSES.stand, POSES.crouch, crouch);
+  const k = STAGE_SCALE[p.stage] * 1.5;
+  const leg = (dx, dy, col, thigh) => {
+    const hx = bx - f * 5 + dx, hy = by + 3 + dy, pts = [[hx, hy]].concat(pose.map(([x, y]) => [hx + f * x * k, hy + y * k]));
+    // A heavy, muscled thigh, then a long shin and a springy foot.
+    pxCircle(ctx, hx + f * 1, hy + 1, 3.6, HAUNCH_COL.dark); pxCircle(ctx, hx + f * 1, hy + 1, 2.8, thigh);
+    for (let i = 0; i < 3; i++) { const w = i === 0 ? 3 : 2; pxLine(ctx, pts[i][0], pts[i][1] + 1, pts[i + 1][0], pts[i + 1][1] + 1, HAUNCH_COL.dark, w + 1, 0); pxLine(ctx, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], col, w, 0); }
+    ctx.fillStyle = HAUNCH_COL.hi; ctx.fillRect(Math.round(pts[1][0]), Math.round(pts[1][1]) - 1, 2, 1); ctx.fillRect(Math.round(hx), Math.round(hy), 2, 1); // knee and thigh highlights
+    ctx.fillStyle = HAUNCH_COL.dark; ctx.fillRect(Math.round(pts[3][0]) - (f > 0 ? 0 : 2), Math.round(pts[3][1]), 3, 1);     // long toes
+  };
+  if (which === 'far') leg(-2, -1, '#4e3424', '#5a3a28'); else {
+    leg(1, 1, HAUNCH_COL.mid, '#8a5a40');
+    // Small forelegs, pawing the ground.
+    const ph = p.moving && !air ? Math.sin(p.t * 14) * 1.5 : air ? 2 : 0;
+    for (const d of [0, 2]) { pxLine(ctx, bx + f * (4 + d), by + 4, bx + f * (5 + d) + ph * (d ? -1 : 1), p.y + 5 - (air ? 2 : 0), HAUNCH_COL.dark, 2, 0); pxLine(ctx, bx + f * (4 + d), by + 4, bx + f * (5 + d) + ph * (d ? -1 : 1), p.y + 5 - (air ? 2 : 0), HAUNCH_COL.mid, 1, 0); }
+  }
+}
+
+// --- Burrowing Claws: stubby forelimbs with huge curved talons, scooping as you move ------
+const CLAW_COL = { dark: '#1a1410', arm: '#5a4a3a', bone: '#e8e0c8', boneD: '#968868' };
+function drawDiggingClaws(ctx, p, bx, by, which) {
+  if (!limbRootIs(p, 'burrow')) return;
+  const f = p.aimX < 0 ? -1 : 1, near = which === 'near';
+  const ph = p.moving ? p.t * 14 + (near ? 0 : Math.PI) : 0;
+  const scoop = p.moving ? Math.sin(ph) : 0.3; // -1 reaching forward .. 1 raked back
+  const sx = bx + f * (near ? 4 : 2), sy = by + (near ? 5 : 4);
+  const ex = sx + f * (3 - scoop * 2), ey = sy + 3 - Math.abs(scoop);
+  pxLine(ctx, sx, sy + 1, ex, ey + 1, CLAW_COL.dark, 3, 0); pxLine(ctx, sx, sy, ex, ey, CLAW_COL.arm, 2, 0);
+  for (let t = -1; t <= 1; t++) { // three curved talons
+    const a = (f > 0 ? 0 : Math.PI) + t * 0.45 + scoop * 0.6 * f, len = 4 + (t === 0 ? 1 : 0);
+    const mx = ex + Math.cos(a) * len * 0.6, my = ey + Math.sin(a) * len * 0.6 + 1, tx = ex + Math.cos(a + f * 0.6) * len, ty = ey + Math.sin(a + f * 0.6) * len + 2;
+    pxLine(ctx, ex, ey, mx, my, CLAW_COL.boneD, 1, 0); pxLine(ctx, mx, my, tx, ty, CLAW_COL.bone, 1, 0);
+  }
+  if (!near) { // stubby hind feet
+    ctx.fillStyle = CLAW_COL.arm; ctx.fillRect(Math.round(bx - f * 5), Math.round(p.y + 4), 3, 2); ctx.fillRect(Math.round(bx - f * 2), Math.round(p.y + 5), 3, 2);
+  }
+}
+
+// --- Root Legs: gnarled roots that step like legs, then spread and dig in when you root ------
+const ROOT_LEGS = [
+  { hx: -3, hy: 1, fx: -9, fy: 2, near: false, g: 0 }, { hx: 3, hy: 1, fx: 9, fy: 2, near: false, g: 1 },
+  { hx: -2, hy: 3, fx: -6, fy: 7, near: true, g: 1 }, { hx: 2, hy: 3, fx: 6, fy: 7, near: true, g: 0 },
+];
+function drawRootWalker(ctx, p, bx, by, which) {
+  if (!p.roots) return;
+  const k = STAGE_SCALE[p.stage] * 1.1;
+  p.roots.forEach((f, i) => {
+    const L = ROOT_LEGS[i]; if (L.near !== (which === 'near')) return;
+    let fx = f.x, fy = f.y;
+    if (p.rooted) { const sp = Math.min(1, (p.rootedFor || 0) / 0.3); fx += (fx - p.x) * 0.6 * sp; fy += 2 * sp; } // splayed wide when rooted
+    const lift = f.t > 0 ? Math.sin((1 - f.t / 0.11) * Math.PI) * 2 : 0, hx = bx + L.hx * k, hy = by + 3 + L.hy * k;
+    const mx = (hx + fx) / 2 + Math.sin(i * 2.1 + p.t * 2) * 1.2, my = (hy + fy) / 2 - 2;
+    pxLine(ctx, hx, hy + 1, mx, my + 1, '#140c06', 3, 0.4); pxLine(ctx, mx, my + 1, fx, fy - lift + 1, '#140c06', 2, 0.4);
+    pxLine(ctx, hx, hy, mx, my, '#5a4024', 2, 0.4); pxLine(ctx, mx, my, fx, fy - lift, '#6a5030', 1, 0.4);
+    ctx.fillStyle = '#8a6a40'; ctx.fillRect(Math.round(mx), Math.round(my) - 1, 1, 1); // a knot in the bark
+    if (p.rooted) { ctx.fillStyle = '#140c06'; for (const d of [-1, 1]) ctx.fillRect(Math.round(fx + d * 2), Math.round(fy + 1), 1, 2); } // rootlets digging in
+  });
+}
+
+// --- Bone Stilts: two long bone legs taking slow, swaying strides --------------------------
+function drawStiltLegs(ctx, p, bx, by) {
+  const stride = p.moving ? Math.sin(p.t * 9) : 0;
+  for (const [side, ph] of [[-1, 1], [1, -1]]) {
+    const hx = bx + side * 3, hy = by + 5, fx = bx + side * 4 + stride * ph * 5, fy = p.y + 5 - Math.max(0, stride * ph) * 2;
+    const kx = (hx + fx) / 2 + side * 2, ky = (hy + fy) / 2;
+    pxLine(ctx, hx, hy, kx, ky, '#2e2618', 2, 0); pxLine(ctx, kx, ky, fx, fy, '#2e2618', 2, 0);
+    pxLine(ctx, hx, hy, kx, ky, '#c4b898', 1, 0); pxLine(ctx, kx, ky, fx, fy, '#e8e0c8', 1, 0);
+    ctx.fillStyle = '#e8e0c8'; ctx.fillRect(Math.round(kx) - 1, Math.round(ky), 2, 2);
+  }
+}
+
+// --- Pseudopods: small nubs of you reaching out and pulling back all around your base -----
+function drawPseudopodNubs(ctx, p, x, y) {
+  if (limbRootIs(p, 'fins') === false) return;
+  const col = p.tint ? p.tint.color : '#8a9a7a';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.6, ext = 1.5 + 2 * Math.max(0, Math.sin(p.t * (p.moving ? 9 : 3) + i * 1.7));
+    const nx = x + Math.cos(a) * (6 + ext), ny = y + 6 + Math.sin(a) * (2 + ext * 0.4);
+    pxCircle(ctx, nx, ny, 1.8, '#141a14'); pxCircle(ctx, nx, ny, 1.2, col);
+  }
+}
+
+// Everything above, behind the body ('far') or in front ('near').
+function drawProceduralLimbs(ctx, p, x, y, which) {
+  if (p.limbWear > 0) return;
+  drawCrab(ctx, p, x, y, which);
+  drawHaunches(ctx, p, x, y, which);
+  drawDiggingClaws(ctx, p, x, y, which);
+  drawRootWalker(ctx, p, x, y, which);
+  if (which === 'far') { if (movement(p).stilts) drawStiltLegs(ctx, p, x, y); if (limbRootIs(p, 'fins')) drawPseudopodNubs(ctx, p, x, y); }
+}
+
+function updateProceduralLimbs(p, dt) {
+  if (p.pincerAnimT > 0) p.pincerAnimT -= dt;
+  updateWalker(p, 'crab', CRAB_LEGS, limbRootIs(p, 'crablegs') && !p.flying, 10, 0.07, dt, (f) => { if (Math.random() < 0.3) Sfx.play('clack'); if (Math.random() < 0.3) stainPx(f.x, f.y, ['#141010'], 1); });
+  updateWalker(p, 'roots', ROOT_LEGS, limbRootIs(p, 'rootlegs'), 9, 0.11, dt, (f) => { if (Math.random() < 0.4) stainPx(f.x, f.y, ['#1e140a', '#2a1c10'], 1); });
+  if (limbRootIs(p, 'burrow') && p.moving && Math.random() < 0.35) { const f = p.aimX < 0 ? -1 : 1; game.particles.push({ x: p.x + f * 4, y: p.y + 5, vx: -f * rand(30, 70), vy: rand(-50, -15), life: 0.3, color: Math.random() < 0.5 ? '#3a3230' : '#5a4a3a', size: 1 }); } // dirt flung back
+}
+
+// Painted overlays the procedural limbs replace.
+function limbOverlayHidden(p, ov) {
+  return (ov === 'claws' && limbRootIs(p, 'burrow')) || (ov === 'hindlegs' && limbRootIs(p, 'haunches'));
 }

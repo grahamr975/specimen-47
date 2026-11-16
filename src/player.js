@@ -1283,9 +1283,6 @@ function drawPlayer(ctx) {
 
   // Withdrawn into the shell: only the shell shows.
   if (p.withdrawn) { drawCentered(ctx, ovSet.shell, x, y + 2); return; }
-  if (mvNow.stilts) { // long bone legs down to the floor
-    for (const lx of [-5, -1, 3, 6]) { pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#2e2618', 2, 0); pxLine(ctx, x + lx, y + 6, x + lx * 1.3, p.y + 5, '#c4b898', 1, 0); }
-  }
   if (p.venting && s.gasInvis) ctx.globalAlpha = 0.4; // Phantom
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
@@ -1293,11 +1290,12 @@ function drawPlayer(ctx) {
   const tents = limbsOk && !!p.tents; // real, gripping tentacles replace the painted ones
   if (tents) drawTentacles(ctx, p, x, y, 'far');
   if (limbsOk) drawPseudopod(ctx, p, x, y);
-  if (limbsOk && partAt(p, 'LIMBS') && partAt(p, 'LIMBS').path[0] === 'rootlegs') drawRootLegs(ctx, p, x, y);
+  drawRootZone(ctx, p);
+  if (limbsOk) drawProceduralLimbs(ctx, p, x, y, 'far'); // crab legs, haunches, claws, roots, stilts (bodyfx.js)
   // Squash, stretch and tilt the body around its feet.
   const ay = y + 8;
   ctx.save(); ctx.translate(x, ay); if (pose.rot) ctx.rotate(pose.rot); ctx.scale(pose.sx, pose.sy); ctx.translate(-x, -ay);
-  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs') && !(tents && ov === 'tentlimbs')) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
+  for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs') && !(tents && ov === 'tentlimbs') && !limbOverlayHidden(p, ov)) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
   let body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
   // Coloration from your parts (half strength over a set's body form, which has its own colors).
@@ -1308,12 +1306,13 @@ function drawPlayer(ctx) {
     const sx = 1 + 0.16 * k, sy = 1 - 0.08 * k;
     ctx.drawImage(body, Math.round(x - body.width * sx / 2), Math.round(y - body.height * sy / 2 + body.height * (1 - sy) / 2), Math.round(body.width * sx), Math.round(body.height * sy));
   } else drawCentered(ctx, body, x, y);
-  for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov))) drawCentered(ctx, ovSet[ov], x, y);
+  for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !limbOverlayHidden(p, ov)) drawCentered(ctx, ovSet[ov], x, y);
   drawBodyMarks(ctx, p, x, y);
   if (limbsOk) drawLimbDetails(ctx, p, x, y);
   ctx.restore();
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
   if (tents) drawTentacles(ctx, p, x, y, 'near');
+  if (limbsOk) drawProceduralLimbs(ctx, p, x, y, 'near');
   drawDefense(ctx, p);
   drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
