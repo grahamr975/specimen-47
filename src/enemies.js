@@ -208,7 +208,7 @@ function killEnemy(e) {
   Sfx.play('kill');
   game.shake = Math.max(game.shake, e.elite ? 5 : 2);
 
-  if (e.type === 'splitter') {
+  if (e.type === 'splitter' && !e.swallowed) { // (swallowed whole: its spawn are digested with it)
     for (const side of [-1, 1]) {
       const m = makeEnemy('mini', e.x + side * 3, e.y, false);
       m.spawnT = 0;

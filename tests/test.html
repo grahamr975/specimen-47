@@ -565,6 +565,13 @@ try {
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
   }
+  { // 0y) Swallowing a Failed Specimen whole doesn't split it inside you.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
+    grow(q, 'tongue'); q.stats.tongue.size = 9; const r = spawnEnemy('splitter', q.x + 30, q.y); r.spawnT = 0; r.speed = 0; r.affixes = [];
+    const h = q.hp; q.aimX = 1; q.aimY = 0; tongueAttack(q);
+    for (let i = 0; i < 60; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
+    check(`a swallowed splitter leaves no spawnlings in your mouth (spawnlings ${game.enemies.filter(e => e.type === 'mini' && !e.dead).length}, hp ${h} -> ${q.hp})`, r.dead && r.swallowed && !game.enemies.some(e => e.type === 'mini' && !e.dead) && q.hp === h);
+  }
   { // 0x) Gore escalation.
     newRun(); combatRoom(); game.enemies = []; game.particles = []; const q = game.player; q.x = 120; q.y = 96;
     let r = dummy(30, 10); damageEnemy(r, 0.5, 1, 0, true); const light = game.particles.filter(k => k.chunk).length;
