@@ -400,6 +400,7 @@ function updatePlayer(dt) {
   } else if (firing && canAttack) {
     fireWeapons(p);
   }
+  if (!s.charge) updateTongueCharge(p, dt, firing, canAttack); // Frog Tongue: hold to coil, release to send
 }
 
 const CHARGE_TIME = 1.0; // seconds to a full charge
@@ -506,7 +507,6 @@ function fireWeapons(p, only) {
   if (s.ovi && ready('ovi', s.ovi.delay)) { boost(); fireLarva(p, mul); }
   if (s.howl && ready('howl', s.howl.delay)) { boost(); howl(p, mul); }
   if (s.polyp && ready('polyp', s.polyp.delay)) { boost(); plantPolyp(p); }
-  if (s.tongue && ready('tongue', s.tongue.delay)) { boost(); tongueAttack(p, mul); }
   if (s.silk && ready('silk', s.silk.delay)) { boost(); spinWeb(p); }
   if (fired) twinCopy(p);
 }
@@ -1428,6 +1428,12 @@ function drawPlayerGlow(ctx) {
   for (let i = 0; i < p.gullet; i++) { // Frog Tongue: what's in your gut, ready to spit
     ctx.fillStyle = '#3a0a14'; ctx.fillRect(Math.round(p.x - p.gullet * 2 + i * 4) - 1, Math.round(p.y - 20) - 1, 3, 3);
     ctx.fillStyle = '#d86a7a'; ctx.fillRect(Math.round(p.x - p.gullet * 2 + i * 4), Math.round(p.y - 20), 1, 1);
+  }
+  if (p.tongueCharge > 0.05) { // Frog Tongue coiling: a pink tip at your mouth, pulsing faster as it fills
+    const k = p.tongueCharge / TONGUE_CHARGE, full = k >= 1, h = headPoint(p, p.x, p.y - 4);
+    const tx = h.x + p.aimX * (2 + 2 * k), ty = h.y + 2 + p.aimY * (2 + 2 * k);
+    pxCircle(ctx, tx, ty, 1.2 + k, full && Math.floor(p.t * 16) % 2 ? '#ffd0d8' : '#d86a7a');
+    pxRing(ctx, p.x, p.y - 2, 14 - 6 * k, full ? (Math.floor(p.t * 20) % 2 ? '#ffffff' : '#e88a9a') : '#8a3a4a');
   }
   if (p.chargeT > 0) {
     // Charging: a ring tightens around you, and flashes when full.

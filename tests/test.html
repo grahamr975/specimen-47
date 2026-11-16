@@ -65,7 +65,7 @@ function step(n, god) {
         else { const dirs = [['w'], ['a'], ['s'], ['d']]; for (const k of dirs[Math.floor(game.time) % 4]) Input.keys.add(k); }
       }
       // Charge builds let go now and then so the blast fires.
-      Input.mouse.down = !(p.stats.charge && Math.floor(game.time * 1.5) % 2);
+      Input.mouse.down = !((p.stats.charge || p.stats.tongue) && Math.floor(game.time * 1.5) % 2);
       if (Math.random() < 0.02) Input.pressed.add(' ');
       if (Math.random() < 0.03) Input.mouse.rightClicked = true;
     }
@@ -251,14 +251,19 @@ try {
     check('polyp: only a few grow at once', game.allies.filter(x => x.kind === 'polyp' && !x.dead).length <= p.stats.polyp.max);
     // Frog Tongue: swallow, then spit.
     p = setup('tongue'); a = spawnEnemy('mini', p.x + 40, p.y); a.spawnT = 0; a.speed = 0;
-    run(1, true); Input.mouse.down = false;
-    check('tongue: it takes time to reach its prey', !!p.tongue && !a.dead);
+    run(20, true);
+    check(`tongue: holding fire coils it (charge ${(p.tongueCharge || 0).toFixed(2)}), nothing goes out yet`, p.tongueCharge > 0.2 && !p.tongue);
+    run(1);
+    check('tongue: release, and it lashes out; it takes time to reach its prey', !!p.tongue && !a.dead);
     let closest = 99; for (let i = 0; i < 40 && !a.dead; i++) { run(1); if (!a.dead) closest = Math.min(closest, a.x - p.x); }
     check(`tongue: prey is reeled in to your mouth before it's eaten (got within ${closest.toFixed(1)}px)`, closest < 12);
     check(`tongue: then swallowed whole, with a gulp (gullet ${p.gullet})`, a.dead && p.gullet === 1 && p.eatT > 0);
     run(30);
-    b = dummy(50, 40); b.speed = 0; b.r = 8; run(20, true); run(30); // (too big to swallow)
-    check(`tongue: fire again to spit it back (gullet ${p.gullet}, ${(40 - b.hp).toFixed(1)} dmg)`, p.gullet === 0 && b.hp < 40);
+    b = dummy(50, 40); b.speed = 0; b.r = 8; run(4, true); run(30); // (too big to swallow)
+    check(`tongue: tap fire to spit it back (gullet ${p.gullet}, ${(40 - b.hp).toFixed(1)} dmg)`, p.gullet === 0 && b.hp < 40);
+    { const q = setup('tongue'); const far = spawnEnemy('mini', q.x + q.stats.tongue.range - 4, q.y); far.spawnT = 0; far.speed = 0;
+      run(12, true); run(40); check('tongue: a short charge falls short of far prey', !far.dead && !q.gullet);
+      run(40, true); run(60); check(`tongue: a full charge reaches it (gullet ${q.gullet})`, far.dead || q.gullet > 0); }
     // Silk Spinner.
     p = setup('silk'); run(2, true); a = dummy(30, 30); a.speed = 40; a.x = p.x + 30; a.y = p.y + 2;
     run(30);
@@ -1084,7 +1089,7 @@ try {
       if (game.player.held) throwHeld(game.player); // (the bot grabs things at random; let go before bursting corpses)
       for (const c of room.corpses.slice()) {
         const p = game.player; p.x = clamp(c.x - (p.stats.guns.length ? 22 : 9), TILE + 6, ROOM_PX_W - TILE - 6); p.y = c.y;
-        for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !(p.stats.charge && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
         if (!c.dead) { corpseFails++; if (!corpseBuilds.has(p.parts.map(m => m.id).join())) { corpseBuilds.add(p.parts.map(m => m.id).join()); log.push('corpse held vs ' + p.parts.map(m => m.path.join('>')).join(' | ') + ` (hp ${c.hp.toFixed(1)}, p ${p.x.toFixed(0)},${p.y.toFixed(0)} c ${c.x.toFixed(0)},${c.y.toFixed(0)})`); } }
       }
       for (const o of room.orbs.slice()) { game.player.x = o.x; game.player.y = o.y; step(20, true); }
@@ -1097,7 +1102,7 @@ try {
         const c = doorCenter(d), p = game.player;
         const sx = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8), sy = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8);
         // Hold position next to it, as a player would.
-        for (let k = 0; k < 600 && sealAt(room, d); k++) { p.x = sx; p.y = sy; p.mvx = p.mvy = 0; Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !(p.stats.charge && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        for (let k = 0; k < 600 && sealAt(room, d); k++) { p.x = sx; p.y = sy; p.mvx = p.mvy = 0; Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
         if (sealAt(room, d)) { sealFails++; log.push(`seal held vs ${p.parts.map(m => m.path.join('>')).join(' | ')} (door ${d}, hits ${room.seals[d].hits}, pos ${p.x.toFixed(0)},${p.y.toFixed(0)}, control ${p.controlT > 0}, withdrawn ${p.withdrawn}, fireT ${p.fireT.toFixed(2)} cd ${JSON.stringify(p.cd)} evolveT ${p.evolveT} evolving ${game.evolving} menu ${!!game.menu} ready ${evolveReady(p)} dashT ${p.dashT} lungeT ${p.lungeT} hitstop ${game.hitstop} burrow ${p.burrowT} pull ${p.pullT} state ${game.state} whips ${game.whips.length} lash ${p.stats.lash} pending ${game.pendingEvolutions.length})`); }
       }
       const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);

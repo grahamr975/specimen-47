@@ -673,17 +673,41 @@ function polypFed(p) {
 // Frog Tongue: the tongue shoots out (see updateTongue). Small prey sticks to
 // it and is reeled in and swallowed whole; fire again to spit it back out.
 const TONGUE_OUT = 560, TONGUE_BACK = 380;
-function tongueAttack(p, mul = 1) {
-  const s = p.stats, t = s.tongue;
-  if (p.tongue) return; // it's already out there
-  if (p.gullet > 0) { // spit something back out
-    p.gullet--;
-    spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0, bloodBomb: s.bloodGulp ? 5 * s.damage : 0 });
-    bloodSpray(p.x, p.y, p.aimX, p.aimY, 6, FLUID.blood, 90);
-    Sfx.play('splat');
+// The tongue is a CHARGE attack: hold fire to coil it, release to send it
+// (further the longer you held). A quick tap spits back what you've swallowed.
+const TONGUE_CHARGE = 0.6, TONGUE_TAP = 0.18;
+function updateTongueCharge(p, dt, firing, canAttack) {
+  const t = p.stats.tongue;
+  if (!t) { p.tongueCharge = 0; return; }
+  if (firing && canAttack && !p.tongue) {
+    const before = p.tongueCharge || 0;
+    p.tongueCharge = Math.min(TONGUE_CHARGE, before + dt);
+    if (Math.floor(p.tongueCharge * 10) > Math.floor(before * 10) && p.tongueCharge > TONGUE_TAP && p.tongueCharge < TONGUE_CHARGE) Sfx.play('charge');
+    if (p.tongueCharge >= TONGUE_CHARGE && before < TONGUE_CHARGE) Sfx.play('chargeFull');
     return;
   }
-  p.tongue = { len: 4, dirX: p.aimX, dirY: p.aimY, out: true, hits: [], carry: null, corpse: null, mul };
+  if (firing || !(p.tongueCharge > 0)) return;
+  const held = p.tongueCharge; p.tongueCharge = 0;
+  if (!canAttack || p.tongue || (p.cd.tongue || 0) > 0) return;
+  if (held < TONGUE_TAP) { if (p.gullet > 0) { spitBack(p); p.cd.tongue = 0.25; } return; } // a tap: spit
+  p.cd.tongue = t.delay * attackRate(p);
+  tongueAttack(p, takeAmbush(p), held / TONGUE_CHARGE);
+}
+
+function spitBack(p, mul = 1) {
+  const s = p.stats, t = s.tongue;
+  p.gullet--;
+  spawnBullet({ x: p.x + p.aimX * 6, y: p.y + p.aimY * 6, vx: p.aimX * 210, vy: p.aimY * 210, r: 4, dmg: t.spit * mul, life: 0.7, knock: 220, kind: 'shot', round: true, color: '#a8534f', acid: s.spitAcid || 0, split: s.spitSplit || 0, bloodBomb: s.bloodGulp ? 5 * s.damage : 0 });
+  bloodSpray(p.x, p.y, p.aimX, p.aimY, 6, FLUID.blood, 90);
+  Sfx.play('splat');
+}
+
+// Send the tongue out. `reach` 0-1: how far a charge sends it. Without a
+// charge (Bone Shotgun-style blasts call it directly) a full gullet spits first.
+function tongueAttack(p, mul = 1, reach = null) {
+  if (p.tongue) return; // it's already out there
+  if (reach === null && p.gullet > 0) { spitBack(p, mul); return; }
+  p.tongue = { len: 4, dirX: p.aimX, dirY: p.aimY, out: true, hits: [], carry: null, corpse: null, mul, reach: reach === null ? 1 : clamp(reach, 0, 1) };
   Sfx.play('whip');
 }
 
@@ -726,7 +750,7 @@ function updateTongue(p, dt) {
         const c = game.room.corpses.find(c => !c.dead && Math.hypot(c.x - x, c.y - y) < c.r + 2);
         if (c) { T.corpse = c; T.out = false; break; }
       }
-      if (T.len >= t.range) T.out = false;
+      if (T.len >= t.range * (0.45 + 0.55 * (T.reach ?? 1))) T.out = false; // a fuller charge reaches further
     }
     return;
   }

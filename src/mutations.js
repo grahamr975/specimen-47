@@ -501,7 +501,7 @@ const MUTATIONS = {
 
   tongue: {
     name: 'Frog Tongue', slot: 'MOUTH', boss: true, rarity: 'uncommon',
-    desc: 'Lash out a long tongue. Small prey is swallowed whole; fire again to spit it back out.',
+    desc: 'Hold fire to coil a long tongue, release to lash it out (further the longer you hold). Small prey is swallowed whole; tap fire to spit it back out.',
     apply(s, l) { s.tongue = { delay: 0.55, range: 70 + 10 * l, dmg: 1.5 + 0.8 * l, spit: 3 + 1.5 * l, max: 3, size: 6 }; },
   },
   bottomlessgut: {
