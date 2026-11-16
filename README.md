@@ -21,6 +21,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 
 - **Culture Blobs** divide once; the copy can't divide and carries no biomass.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Walk into it to devour it (the biomass goes straight into you), or attack it from range until it bursts and collect the glowing globules of biomass that spill out. Spawnlings and drones never leave one, and rats often don't.
+- **Visceral.** Harder hits spurt more blood and tear chunks off enemies that fly, trail blood and splat against the walls; overkill bursts bodies apart; badly wounded enemies drip as they move. The stronger you get, the messier it gets.
 - **You're fragile.** You start with 3 HP.
 - **Evolve.** Biomass builds up while you fight. Once the room is clear, a full bar wraps you in a cocoon by itself; it splits and you choose 1 of 3 (a level for a part, or a new part). Never mid-fight. (Esc on the cards puts it off; hold F in any cleared room to evolve later.) Cards don't say what a mutation does; you learn by growing it.
 - **Open slots.** Your body has a few slots (shown along the bottom of the screen). You start with 3, all empty: you're born with no attack at all. Every devoured boss core adds a slot, and every splice frees one (two parts fuse into one), but never more than 5: a finished body is five parts, each one earned. Fill them however you like: several mouths for a glass cannon, or backs and cores for a tank. Each part still grows somewhere on the body:

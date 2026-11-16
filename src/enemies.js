@@ -144,10 +144,14 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   const T = ENEMY_TYPES[e.type];
   if (dmg < 0.3) { if (e.hp <= 0) killEnemy(e); return; } // tiny damage ticks (bleed) stay quiet
   e.flash = 0.08;
+  const heavy = dmg / e.maxHp; // how hard this hit landed, for this enemy
+  e.lastHeavy = heavy;
   if (vx || vy) {
     knock(e, vx, vy, force !== undefined ? force : dmg * KNOCK_PER_DMG);
-    bloodSpray(e.x, e.y, vx, vy, 6, T.fluid, 110); // spurts out the far side
-  } else if (Math.random() < 0.3) {
+    bloodSpray(e.x, e.y, vx, vy, 6 + Math.round(16 * Math.min(1, heavy * 2)), T.fluid, 110 + 60 * Math.min(1, heavy)); // spurts out the far side, harder hits spurt more
+  }
+  if (heavy >= 0.3 && !T.boss) severChunk(e, vx, vy); // a heavy hit tears a piece off
+  if (!vx && !vy && Math.random() < 0.3) {
     bloodSpray(e.x, e.y, 0, 0, 1, T.fluid, 30);
   }
   if (T.robot && !quiet) burst(e.x, e.y, '#ffd070', 3, 70, 0.2); // sparks
@@ -187,6 +191,8 @@ function killEnemy(e) {
   } else {
   bloodSpray(e.x, e.y, 0, 0, e.elite ? 40 : 22, T.fluid, 130);
   gibs(e.x, e.y, e.elite ? 10 : randInt(3, 6), T.gib, T.fluid);
+  // Overkill (lots of damage to spare, or one huge hit) bursts the body.
+  if (!T.robot && !T.boss && (-e.hp >= e.maxHp * 0.6 || (e.lastHeavy || 0) >= 1.5)) goreExplode(e);
   if (T.robot) {
     leaveCorpse(e, enemySpriteName(e), T.fluid); // scrap: nothing to harvest
     burst(e.x, e.y, '#ffd070', 10, 110, 0.35);
@@ -241,6 +247,7 @@ function updateEnemies(dt) {
     if (e.dead) continue;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
     e.t += dt; e.flash -= dt; e.timer -= dt; e.blindT -= dt;
+    if (e.hp < e.maxHp * 0.5 && !ENEMY_TYPES[e.type].robot && Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + e.r * 0.6, ENEMY_TYPES[e.type].fluid, 1); // badly hurt: it drips
     // Held in your hands, flying through the air, or stunned: no thinking.
     if (e.held) continue;
     if (e.thrown) { updateThrownEnemy(e, dt); continue; }

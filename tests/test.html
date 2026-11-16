@@ -530,7 +530,7 @@ try {
     const e = spawnEnemy('spitter', q.x + 40, q.y, true); e.spawnT = 0; e.affixes = []; damageEnemy(e, 9999, 0, 0, true);
     const c = game.room.corpses.find(k => k.trait);
     check(`an elite Bloat Toad leaves a corpse with something to take (${c && c.trait})`, c && c.trait === 'spitter');
-    if (c) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); }
+    if (c) for (let i = 0; i < 8 && !game.pendingEvolutions.some(o => o.trait); i++) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); } // (an overkill's hitstop can hold the first frames)
     check('devouring it offers its trait', game.pendingEvolutions.some(o => o.trait === 'spitter'));
     openEvolution(game.pendingEvolutions.find(o => o.trait)); game.pendingEvolutions = [];
     check(`the card: Toad Gullet, or decline (${game.menu.choices.map(k => k.id).join(',')})`, game.menu.choices[0].id === 'toadgullet' && game.menu.choices.some(k => k.id === '_gorge') && choiceInfo(q, game.menu.choices[0]).status === 'DEVOURED TRAIT');
@@ -564,6 +564,19 @@ try {
     newRun(); combatRoom(); Input.pressed.add('p'); update(1 / 60); Input.endFrame(); Input.pressed.add('j'); update(1 / 60); Input.endFrame(); render();
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
+  }
+  { // 0x) Gore escalation.
+    newRun(); combatRoom(); game.enemies = []; game.particles = []; const q = game.player; q.x = 120; q.y = 96;
+    let r = dummy(30, 10); damageEnemy(r, 0.5, 1, 0, true); const light = game.particles.filter(k => k.chunk).length;
+    damageEnemy(r, 4, 1, 0, true); const heavy = game.particles.filter(k => k.chunk).length;
+    check(`a light hit tears nothing off; a heavy one does (${light} -> ${heavy} chunks)`, light === 0 && heavy >= 1);
+    game.particles = []; r = dummy(30, 4); damageEnemy(r, 3.9, 1, 0, true); const n1 = game.particles.length;
+    game.particles = []; r = dummy(30, 4); damageEnemy(r, 40, 1, 0, true); const n2 = game.particles.length;
+    check(`overkill bursts the body (${n1} particles for a clean kill, ${n2} for overkill)`, n2 > n1 * 1.5 && game.particles.some(k => k.chunk));
+    game.particles = []; game.particles.push({ x: TILE + 4, y: 96, vx: -300, vy: 0, life: 1, color: '#7a0f1a', size: 3, fluid: FLUID.blood, gib: true, chunk: true });
+    for (let i = 0; i < 20; i++) { updateParticles(1 / 60); }
+    check('a chunk that hits a wall splats and sticks', !game.particles.some(k => k.chunk));
+    render();
   }
   { // 0t) Cards explain what each kind of part is for.
     check('every kind of part has a tag and a plain explanation', LOCS.every(l => LOC_TAG[l] && LOC_HELP[l]));

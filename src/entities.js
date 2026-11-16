@@ -300,7 +300,9 @@ function burst(x, y, color, n, speed = 60, life = 0.4) {
 function updateParticles(dt) {
   for (const p of game.particles) {
     p.x += p.vx * dt; p.y += p.vy * dt;
-    p.vx *= 0.9; p.vy *= 0.9;
+    const drag = p.chunk ? 0.96 : 0.9; // chunks of meat fly further
+    p.vx *= drag; p.vy *= drag;
+    if (p.chunk && p.fluid) chunkStep(p);
     p.life -= dt;
     if (p.life <= 0 && p.fluid) landParticle(p); // blood stains where it lands
   }
