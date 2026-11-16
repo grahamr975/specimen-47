@@ -623,6 +623,19 @@ try {
     check(`declared on-hit effects land, merged (lash bleed ${statusOf(r, 'bleed') && statusOf(r, 'bleed').dps}dps for ${statusT(r, 'bleed').toFixed(1)}s)`, statusOf(r, 'bleed') && statusOf(r, 'bleed').dps === 5 && statusT(r, 'bleed') === 3);
     const g = baseStats(); onHit(g, 'dash', 'bleed', { t: 3, dps: 1.5 }, {}, 'add'); onHit(g, 'dash', 'bleed', { t: 3, dps: 3 }, {}, 'add');
     check(`additive effects add up (Gore Horns: ${g.onHit.dash[0].opts.dps}dps)`, g.onHit.dash[0].opts.dps === 4.5);
+    const missing = Object.keys(ENEMY_TYPES).filter(k => !ENEMY_BEHAVIOR[k] || typeof ENEMY_BEHAVIOR[k].update !== 'function');
+    const strays = Object.keys(ENEMY_BEHAVIOR).filter(k => !ENEMY_TYPES[k]);
+    check(`every enemy type has a behavior, and every behavior an enemy (${missing.concat(strays).join(',') || 'all good'})`, !missing.length && !strays.length);
+    { const errs = [];
+      for (const type of Object.keys(ENEMY_TYPES)) {
+        arena(); game.player.inv = 99; const e = spawnEnemy(type, 200, 96); e.spawnT = 0;
+        try { for (let i = 0; i < 120; i++) { game.player.hp = game.player.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } damageEnemy(e, 99999, 1, 0, true); update(1 / 60); Input.endFrame(); }
+        catch (err) { errs.push(type + ': ' + err.message); }
+      }
+      check(`every enemy acts for 2s and dies without errors (${errs.join('; ') || 'all good'})`, !errs.length); }
+    { arena(); const sp = spawnEnemy('splitter', 200, 96); sp.spawnT = 0; damageEnemy(sp, 999, 0, 0, true); const minis = game.enemies.filter(o => o.type === 'mini' && !o.dead);
+      minis.forEach(m => damageEnemy(m, 999, 0, 0, true));
+      check(`splitters split in two, and their halves don't split again (${minis.length} -> ${game.enemies.filter(o => o.type === 'mini' && !o.dead).length})`, minis.length === 2 && !game.enemies.some(o => o.type === 'mini' && !o.dead)); }
   }
   { // 0zg) Floor bosses 2-5, and threat that rises floor by floor.
     for (const [d, id] of [[2, 'colossus'], [3, 'biotank'], [4, 'archive'], [5, 'director']]) {

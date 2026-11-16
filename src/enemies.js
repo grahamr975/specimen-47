@@ -165,10 +165,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   const ps = game.player && game.player.stats;
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
   dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
-  if (e.type === 'enforcer' && (vx || vy) && e.fx !== undefined && (vx * e.fx + vy * e.fy) / (Math.hypot(vx, vy) || 1) < -0.35) { // hit on its riot plate
-    dmg *= 0.25;
-    if (!(e.clankT > game.time)) { e.clankT = game.time + 0.15; burst(e.x + e.fx * 6, e.y + e.fy * 6, '#ffd070', 4, 80, 0.2); Sfx.play('clank'); }
-  }
+  if (ENEMY_BEHAVIOR[e.type].onHurt) dmg = ENEMY_BEHAVIOR[e.type].onHurt(e, dmg, vx, vy); // (the Enforcer's riot plate)
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
@@ -198,18 +195,7 @@ function killEnemy(e) {
   statusOnKill(e, p, s); // Acid Maw bursts, Leech Spitter feeds, Hives, Cocoon Wrap...
   onSetKill(e, p, s);
   apexKill(p);
-  if (e.type === 'frostbitten') { // it shatters into chilling shards
-    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 95, vy: Math.sin(a) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 0.7, color: '#d8f0ff', chill: true }); }
-    burst(e.x, e.y, '#d8f0ff', 14, 110, 0.4); Sfx.play('clank');
-  }
-  if (e.type === 'carrier') spawnPuddle(e.x, e.y, 16, 5, 'enemy');  // it bursts into acid
-  if (e.type === 'bloater') { // it bursts: gas and acid
-    game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 }); burst(e.x, e.y, '#aac25a', 24, 140, 0.5);
-    spawnPuddle(e.x, e.y, 18, 5, 'enemy'); game.shake = Math.max(game.shake, 4); Sfx.play('blast');
-    if (Math.hypot(p.x - e.x, p.y - e.y) < 30 + p.r) hurtPlayer(1);
-    for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, 4, o.x - e.x, o.y - e.y, true);
-  }
-  if (e.type === 'clone') for (const o of game.enemies) if (o !== e && !o.dead && o.type === 'clone') { o.rage = Math.min(1.2, (o.rage || 0) + 0.25); burst(o.x, o.y, '#e05050', 3, 40, 0.2); } // the others get faster
+  if (ENEMY_BEHAVIOR[e.type].onDeath) ENEMY_BEHAVIOR[e.type].onDeath(e, p); // (shatters, bursts...)
   if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
     p.armorKills = 0;
     if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
@@ -245,15 +231,6 @@ function killEnemy(e) {
   Sfx.play('kill');
   game.shake = Math.max(game.shake, e.elite ? 5 : 2);
 
-  if (e.type === 'splitter' && !e.swallowed) { // (swallowed whole: its spawn are digested with it)
-    for (const side of [-1, 1]) {
-      const m = makeEnemy('mini', e.x + side * 3, e.y, false);
-      m.spawnT = 0;
-      m.kx = side * 120;
-      game.enemies.push(m);
-    }
-  }
-
   // A scavenger bursts with the DNA it stole (130% if it was engorged).
   if (e.ate) {
     const n = Math.round(e.ate * (e.engorged ? ENGORGE_BONUS : 1) * s.dnaMul);
@@ -277,6 +254,290 @@ function killEnemy(e) {
   if (e.elite && Math.random() < 0.45) spawnPickup('vial', x, y);
   else if (!T.harmless && Math.random() < 0.05) spawnPickup('heart', x, y);
 }
+
+// --- How each enemy acts ------------------------------------------------------------------
+// update(e, dt, c) returns how it wants to move: [mx, my]. c is what it knows: tg (where it
+// thinks you are: you, a decoy, a lure, or a wander point when blind), dx/dy/d/ux/uy toward
+// tg, pd (real distance to you) and p (you). Bosses get dt sped up by the floor's threat.
+// Optional hooks: onDeath(e) when it dies; onHurt(e, dmg, vx, vy) returns the damage it takes.
+const ENEMY_BEHAVIOR = {
+  culture: {
+    update(e, dt, c) { // drifts, swells, divides
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      updateCulture(e, dt);
+      mx = ux * e.speed + Math.sin(e.t * 2) * 4; my = uy * e.speed + Math.cos(e.t * 1.7) * 4;
+      return [mx, my];
+    },
+  },
+  scavenger: { update(e, dt, c) { return updateScavenger(e, dt); } },
+  // --- Floor 2: Cryo Wing ---
+  frostbitten: { // shambles; shatters when it dies
+    update(e, dt, c) { const { ux, uy } = c; return [ux * e.speed, uy * e.speed]; },
+    onDeath(e) { // into chilling shards
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 95, vy: Math.sin(a) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 0.7, color: '#d8f0ff', chill: true }); }
+      burst(e.x, e.y, '#d8f0ff', 14, 110, 0.4); Sfx.play('clank');
+    },
+  },
+  cryocrawler: {
+    update(e, dt, c) { // skitters in, stops, sprays a frost cone that chills you
+      const { d, ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'spray') {
+        if (e.timer <= 0) {
+          e.state = 'move'; e.timer = rand(1.8, 2.6);
+          const base = Math.atan2(uy, ux);
+          for (let k = -2; k <= 2; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + k * 0.18) * 125, vy: Math.sin(base + k * 0.18) * 125, r: 2, team: 'enemy', kind: 'enemy', life: 0.5, color: '#a0e0ff', chill: true });
+          Sfx.play('spray');
+        }
+        return [mx, my];
+      }
+      const w = Math.sin(e.t * 10) * 0.8;
+      mx = (ux - uy * w) * e.speed; my = (uy + ux * w) * e.speed;
+      if (e.timer <= 0) { if (d < 85) { e.state = 'spray'; e.timer = 0.45; } else e.timer = rand(0.8, 1.6); }
+      return [mx, my];
+    },
+  },
+  jarthing: {
+    update(e, dt, c) { // dormant in a cryo jar until you come close; then it bursts out and lunges
+      const { d, pd, ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'dormant') {
+        if (pd < 55 || e.hp < e.maxHp) { e.state = 'burst'; e.timer = 0.35; burst(e.x, e.y, '#d8f0ff', 14, 90, 0.4); Sfx.play('clank'); floatText(e.x, e.y - 14, '!', '#a0e0ff'); }
+        return [mx, my];
+      }
+      if (e.state === 'burst') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.4; e.dirX = ux; e.dirY = uy; } return [mx, my]; }
+      if (e.state === 'charge') { mx = e.dirX * 230; my = e.dirY * 230; if (e.timer <= 0) { e.state = 'move'; e.timer = rand(1.5, 2.5); } return [mx, my]; }
+      mx = ux * e.speed; my = uy * e.speed;
+      if (e.timer <= 0 && d < 75) { e.state = 'burst'; e.timer = 0.3; } else if (e.timer <= 0) e.timer = 0.5;
+      return [mx, my];
+    },
+  },
+  // --- Floor 3: Bio-Weapons ---
+  carrier: {
+    onDeath(e) { spawnPuddle(e.x, e.y, 16, 5, 'enemy'); }, // it bursts into acid
+    update(e, dt, c) { // shuffles after you, leaking acid
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      mx = ux * e.speed; my = uy * e.speed;
+      if ((e.dripT = (e.dripT || 0) - dt) <= 0) { e.dripT = 0.7; spawnPuddle(e.x, e.y + 2, 7, 4, 'enemy'); }
+      return [mx, my];
+    },
+  },
+  bloater: {
+    onDeath(e, p) { // it bursts: gas and acid
+      game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 }); burst(e.x, e.y, '#aac25a', 24, 140, 0.5);
+      spawnPuddle(e.x, e.y, 18, 5, 'enemy'); game.shake = Math.max(game.shake, 4); Sfx.play('blast');
+      if (Math.hypot(p.x - e.x, p.y - e.y) < 30 + p.r) hurtPlayer(1);
+      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, 4, o.x - e.x, o.y - e.y, true);
+    },
+    update(e, dt, c) { // drifts at you, then swells and bursts
+      const { pd, ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'fuse') { if (e.timer <= 0) damageEnemy(e, e.hp + 1, 0, 0, true); return [mx, my]; }
+      mx = ux * e.speed + Math.sin(e.t * 2) * 8; my = uy * e.speed + Math.cos(e.t * 1.6) * 8;
+      if (pd < 28) { e.state = 'fuse'; e.timer = 0.7; Sfx.play('flicker'); floatText(e.x, e.y - 12, '!', '#c0e040'); }
+      return [mx, my];
+    },
+  },
+  gunpolyp: {
+    update(e, dt, c) { // rooted: fires bursts of three aimed spores
+      const { ux, uy } = c;
+      if (e.timer <= 0) { e.burstN = 3; e.timer = rand(2.4, 3.2); }
+      if (e.burstN > 0 && (e.burstT = (e.burstT || 0) - dt) <= 0) {
+        e.burstN--; e.burstT = 0.16;
+        spawnBullet({ x: e.x, y: e.y - 3, vx: ux * 115, vy: uy * 115, r: 2, team: 'enemy', kind: 'enemy', life: 2.5, color: '#c870a0' });
+        Sfx.play('enemyShot');
+      }
+      return [0, 0];
+    },
+  },
+  // --- Floor 4: Gene Bank ---
+  mimic: {
+    update(e, dt, c) { // a corpse, until you come close to eat it
+      const { pd, ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'disguise') {
+        if (pd < 24 || e.hp < e.maxHp) { e.state = 'reveal'; e.timer = 0.25; floatText(e.x, e.y - 10, '!', PAL.red); Sfx.play('chomp'); }
+        return [mx, my];
+      }
+      if (e.state === 'reveal') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.32; e.dirX = ux; e.dirY = uy; } return [mx, my]; }
+      if (e.state === 'charge') { mx = e.dirX * 240; my = e.dirY * 240; if (e.timer <= 0) { e.state = 'move'; e.timer = 1; } return [mx, my]; }
+      const w = Math.sin(e.t * 9) * 0.5; mx = (ux - uy * w) * e.speed; my = (uy + ux * w) * e.speed;
+      return [mx, my];
+    },
+  },
+  chimera: {
+    update(e, dt, c) { // a toad's spit and an urchin's charge, switching every few seconds
+      const { dx, dy, d, ux, uy } = c;
+      let mx = 0, my = 0;
+      e.modeT = (e.modeT ?? rand(2, 4)) - dt;
+      if (e.modeT <= 0) { e.modeT = 4; e.mode = e.mode === 'spit' ? 'charge' : 'spit'; e.state = 'move'; e.timer = 0.6; burst(e.x, e.y, '#c4b898', 6, 50); }
+      if (e.mode === 'spit') {
+        const f = d > 110 ? 1 : d < 75 ? -1 : 0;
+        mx = (ux * f - uy * e.strafe * 0.4) * e.speed; my = (uy * f + ux * e.strafe * 0.4) * e.speed;
+        if (e.timer <= 0) {
+          e.timer = rand(1.4, 2);
+          const flight = clamp(d / 90, 0.4, 1.4);
+          for (const side of [-1, 0, 1]) spawnBullet({ x: e.x, y: e.y, vx: (dx - uy * 30 * side) / flight, vy: (dy + ux * 30 * side) / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
+          Sfx.play('enemyShot');
+        }
+      } else if (e.state === 'move') {
+        mx = ux * e.speed; my = uy * e.speed;
+        if (e.timer <= 0) { e.state = 'wind'; e.timer = 0.45; }
+      } else if (e.state === 'wind') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.55; e.dirX = ux; e.dirY = uy; } }
+      else if (e.state === 'charge') { mx = e.dirX * 200; my = e.dirY * 200; if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.5; } }
+      else if (e.timer <= 0) { e.state = 'move'; e.timer = rand(0.8, 1.4); }
+      return [mx, my];
+    },
+  },
+  clone: {
+    onDeath(e) { for (const o of game.enemies) if (o !== e && !o.dead && o.type === 'clone') { o.rage = Math.min(1.2, (o.rage || 0) + 0.25); burst(o.x, o.y, '#e05050', 3, 40, 0.2); } }, // the others get faster
+    update(e, dt, c) { // pack hunters; each loss makes the rest faster
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      const sp = e.speed * (1 + (e.rage || 0)), w = e.strafe * 0.35;
+      mx = (ux - uy * w) * sp; my = (uy + ux * w) * sp;
+      return [mx, my];
+    },
+  },
+  // --- Floor 5: Director's Wing ---
+  enforcer: {
+    onHurt(e, dmg, vx, vy) { // a hit on its riot plate barely lands (only its back is soft)
+      if (!(vx || vy) || e.fx === undefined || (vx * e.fx + vy * e.fy) / (Math.hypot(vx, vy) || 1) >= -0.35) return dmg;
+      if (!(e.clankT > game.time)) { e.clankT = game.time + 0.15; burst(e.x + e.fx * 6, e.y + e.fy * 6, '#ffd070', 4, 80, 0.2); Sfx.play('clank'); }
+      return dmg * 0.25;
+    },
+    update(e, dt, c) { // advances behind a riot plate (only its back is soft) and fires spreads
+      const { d, ux, uy } = c;
+      let mx = 0, my = 0;
+      e.fx = ux; e.fy = uy; e.face = ux >= 0 ? 1 : -1;
+      const k = d > 50 ? 1 : 0.2; mx = ux * e.speed * k; my = uy * e.speed * k;
+      if (e.timer <= 0 && d < 150) {
+        e.timer = rand(2.2, 3);
+        const base = Math.atan2(uy, ux);
+        for (const off of e.elite ? [-0.3, -0.15, 0, 0.15, 0.3] : [-0.2, 0, 0.2]) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + off) * 120, vy: Math.sin(base + off) * 120, r: 2, team: 'enemy', kind: 'enemy', life: 2.4, color: PAL.red });
+        Sfx.play('enemyShot');
+      }
+      return [mx, my];
+    },
+  },
+  hunter: {
+    update(e, dt, c) { // circles, locks on (a red line), then dashes straight through
+      const { tg, d, ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'aim') {
+        e.tx += (tg.x - e.tx) * Math.min(1, dt * 3); e.ty += (tg.y - e.ty) * Math.min(1, dt * 3);
+        if (e.timer <= 0) { const ddx = e.tx - e.x, ddy = e.ty - e.y, dd = Math.hypot(ddx, ddy) || 1; e.state = 'charge'; e.timer = Math.min(0.55, (dd + 30) / 290); e.dirX = ddx / dd; e.dirY = ddy / dd; Sfx.play('dash'); }
+      } else if (e.state === 'charge') { mx = e.dirX * 290; my = e.dirY * 290; if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.5; } }
+      else if (e.state === 'rest') { if (e.timer <= 0) { e.state = 'move'; e.timer = rand(1.4, 2.4); } }
+      else {
+        const f = d > 100 ? 1 : d < 70 ? -1 : 0;
+        mx = (ux * f - uy * e.strafe) * e.speed; my = (uy * f + ux * e.strafe) * e.speed;
+        if (e.timer <= 0) { e.state = 'aim'; e.timer = 0.6; e.tx = tg.x; e.ty = tg.y; Sfx.play('flicker'); }
+      }
+      return [mx, my];
+    },
+  },
+  handler: {
+    update(e, dt, c) { // keeps its distance and fires containment nets that pin you
+      const { d, ux, uy } = c;
+      let mx = 0, my = 0;
+      const f = d > 110 ? 1 : d < 70 ? -1 : 0;
+      mx = (ux * f - uy * e.strafe * 0.5) * e.speed; my = (uy * f + ux * e.strafe * 0.5) * e.speed;
+      if (e.timer <= 0) { e.timer = rand(2.6, 3.4); spawnBullet({ x: e.x, y: e.y, vx: ux * 105, vy: uy * 105, r: 3, team: 'enemy', kind: 'enemy', life: 2.2, color: '#e8e0c8', net: true }); Sfx.play('whip'); }
+      return [mx, my];
+    },
+  },
+  mother: { update(e, dt, c) { return updateMother(e, dt, c.p); } },
+  colossus: { update(e, dt, c) { return updateColossus(e, dt, c.p); } },
+  biotank: { update(e, dt, c) { return updateBiotank(e, dt, c.p); } },
+  archive: { update(e, dt, c) { return updateArchive(e, dt, c.p); } },
+  director: { update(e, dt, c) { return updateDirector(e, dt, c.p); } },
+  motherling: { update(e, dt, c) { return updateMotherling(e, dt, c.p); } },
+  rat: {
+    update(e, dt, c) { // fast, wiggly chaser
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      const w = Math.sin(e.t * 8) * 0.6;
+      mx = (ux - uy * w) * e.speed;
+      my = (uy + ux * w) * e.speed;
+      return [mx, my];
+    },
+  },
+  splitter: {
+    onDeath(e) { // it splits in two (unless swallowed whole: then its spawn are digested with it)
+      if (e.swallowed) return;
+      for (const side of [-1, 1]) { const m = makeEnemy('mini', e.x + side * 3, e.y, false); m.spawnT = 0; m.kx = side * 120; game.enemies.push(m); }
+    },
+    update(e, dt, c) { // slow, relentless chasers
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      mx = ux * e.speed; my = uy * e.speed;
+      return [mx, my];
+    },
+  },
+  drone: {
+    update(e, dt, c) { // keeps its distance, strafes, shoots
+      const { d, ux, uy } = c;
+      let mx = 0, my = 0;
+      const f = d > 95 ? 1 : d < 65 ? -1 : 0;
+      mx = (ux * f - uy * e.strafe * 0.7) * e.speed;
+      my = (uy * f + ux * e.strafe * 0.7) * e.speed;
+      if (Math.random() < dt * 0.4) e.strafe *= -1;
+      if (e.timer <= 0) {
+        e.timer = rand(1.6, 2.4);
+        const angles = e.elite ? [-0.3, 0, 0.3] : [0];
+        const base = Math.atan2(uy, ux);
+        for (const off of angles) {
+          spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + off) * 95, vy: Math.sin(base + off) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 3, color: PAL.red });
+        }
+        Sfx.play('enemyShot');
+      }
+      return [mx, my];
+    },
+  },
+  urchin: {
+    update(e, dt, c) { // creeps, winds up, then charges in a straight line
+      const { ux, uy } = c;
+      let mx = 0, my = 0;
+      if (e.state === 'move') {
+        mx = ux * e.speed; my = uy * e.speed;
+        if (e.timer <= 0) { e.state = 'wind'; e.timer = 0.5; }
+      } else if (e.state === 'wind') {
+        if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.6; e.dirX = ux; e.dirY = uy; }
+      } else if (e.state === 'charge') {
+        mx = e.dirX * 190; my = e.dirY * 190;
+        if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.6; }
+      } else if (e.timer <= 0) {
+        e.state = 'move'; e.timer = rand(1.2, 2.2);
+      }
+      return [mx, my];
+    },
+  },
+  spitter: {
+    update(e, dt, c) { // keeps range and lobs acid where you're standing
+      const { dx, dy, d, ux, uy } = c;
+      let mx = 0, my = 0;
+      const f = d > 120 ? 1 : d < 80 ? -1 : 0;
+      mx = (ux * f - uy * e.strafe * 0.4) * e.speed;
+      my = (uy * f + ux * e.strafe * 0.4) * e.speed;
+      if (e.timer <= 0) {
+        e.timer = rand(2, 2.8);
+        const flight = clamp(d / 90, 0.4, 1.4);
+        spawnBullet({ x: e.x, y: e.y, vx: dx / flight, vy: dy / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
+        if (e.elite) {
+          for (const side of [-1, 1]) {
+            spawnBullet({ x: e.x, y: e.y, vx: (dx - uy * 40 * side) / flight, vy: (dy + ux * 40 * side) / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
+          }
+        }
+        Sfx.play('enemyShot');
+      }
+      return [mx, my];
+    },
+  },
+};
+ENEMY_BEHAVIOR.mini = { update: ENEMY_BEHAVIOR.splitter.update }; // moves the same (but doesn't split again)
 
 function updateEnemies(dt) {
   const p = game.player;
@@ -307,193 +568,10 @@ function updateEnemies(dt) {
     const d = Math.hypot(dx, dy) || 1;
     const pd = Math.hypot(p.x - e.x, p.y - e.y);
     const ux = dx / d, uy = dy / d;
-    let mx = 0, my = 0;
     updateAffixes(e, dt);
 
-    switch (e.type) {
-      case 'culture': // drifts, swells, divides
-        updateCulture(e, dt);
-        mx = ux * e.speed + Math.sin(e.t * 2) * 4; my = uy * e.speed + Math.cos(e.t * 1.7) * 4;
-        break;
-      case 'scavenger': [mx, my] = updateScavenger(e, dt); break;
-      // --- Floor 2: Cryo Wing ---
-      case 'frostbitten': mx = ux * e.speed; my = uy * e.speed; break; // shambles; shatters when it dies
-      case 'cryocrawler': { // skitters in, stops, sprays a frost cone that chills you
-        if (e.state === 'spray') {
-          if (e.timer <= 0) {
-            e.state = 'move'; e.timer = rand(1.8, 2.6);
-            const base = Math.atan2(uy, ux);
-            for (let k = -2; k <= 2; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + k * 0.18) * 125, vy: Math.sin(base + k * 0.18) * 125, r: 2, team: 'enemy', kind: 'enemy', life: 0.5, color: '#a0e0ff', chill: true });
-            Sfx.play('spray');
-          }
-          break;
-        }
-        const w = Math.sin(e.t * 10) * 0.8;
-        mx = (ux - uy * w) * e.speed; my = (uy + ux * w) * e.speed;
-        if (e.timer <= 0) { if (d < 85) { e.state = 'spray'; e.timer = 0.45; } else e.timer = rand(0.8, 1.6); }
-        break;
-      }
-      case 'jarthing': { // dormant in a cryo jar until you come close; then it bursts out and lunges
-        if (e.state === 'dormant') {
-          if (pd < 55 || e.hp < e.maxHp) { e.state = 'burst'; e.timer = 0.35; burst(e.x, e.y, '#d8f0ff', 14, 90, 0.4); Sfx.play('clank'); floatText(e.x, e.y - 14, '!', '#a0e0ff'); }
-          break;
-        }
-        if (e.state === 'burst') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.4; e.dirX = ux; e.dirY = uy; } break; }
-        if (e.state === 'charge') { mx = e.dirX * 230; my = e.dirY * 230; if (e.timer <= 0) { e.state = 'move'; e.timer = rand(1.5, 2.5); } break; }
-        mx = ux * e.speed; my = uy * e.speed;
-        if (e.timer <= 0 && d < 75) { e.state = 'burst'; e.timer = 0.3; } else if (e.timer <= 0) e.timer = 0.5;
-        break;
-      }
-      // --- Floor 3: Bio-Weapons ---
-      case 'carrier': // shuffles after you, leaking acid
-        mx = ux * e.speed; my = uy * e.speed;
-        if ((e.dripT = (e.dripT || 0) - dt) <= 0) { e.dripT = 0.7; spawnPuddle(e.x, e.y + 2, 7, 4, 'enemy'); }
-        break;
-      case 'bloater': { // drifts at you, then swells and bursts
-        if (e.state === 'fuse') { if (e.timer <= 0) damageEnemy(e, e.hp + 1, 0, 0, true); break; }
-        mx = ux * e.speed + Math.sin(e.t * 2) * 8; my = uy * e.speed + Math.cos(e.t * 1.6) * 8;
-        if (pd < 28) { e.state = 'fuse'; e.timer = 0.7; Sfx.play('flicker'); floatText(e.x, e.y - 12, '!', '#c0e040'); }
-        break;
-      }
-      case 'gunpolyp': // rooted: fires bursts of three aimed spores
-        if (e.timer <= 0) { e.burstN = 3; e.timer = rand(2.4, 3.2); }
-        if (e.burstN > 0 && (e.burstT = (e.burstT || 0) - dt) <= 0) {
-          e.burstN--; e.burstT = 0.16;
-          spawnBullet({ x: e.x, y: e.y - 3, vx: ux * 115, vy: uy * 115, r: 2, team: 'enemy', kind: 'enemy', life: 2.5, color: '#c870a0' });
-          Sfx.play('enemyShot');
-        }
-        break;
-      // --- Floor 4: Gene Bank ---
-      case 'mimic': { // a corpse, until you come close to eat it
-        if (e.state === 'disguise') {
-          if (pd < 24 || e.hp < e.maxHp) { e.state = 'reveal'; e.timer = 0.25; floatText(e.x, e.y - 10, '!', PAL.red); Sfx.play('chomp'); }
-          break;
-        }
-        if (e.state === 'reveal') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.32; e.dirX = ux; e.dirY = uy; } break; }
-        if (e.state === 'charge') { mx = e.dirX * 240; my = e.dirY * 240; if (e.timer <= 0) { e.state = 'move'; e.timer = 1; } break; }
-        const w = Math.sin(e.t * 9) * 0.5; mx = (ux - uy * w) * e.speed; my = (uy + ux * w) * e.speed;
-        break;
-      }
-      case 'chimera': { // a toad's spit and an urchin's charge, switching every few seconds
-        e.modeT = (e.modeT ?? rand(2, 4)) - dt;
-        if (e.modeT <= 0) { e.modeT = 4; e.mode = e.mode === 'spit' ? 'charge' : 'spit'; e.state = 'move'; e.timer = 0.6; burst(e.x, e.y, '#c4b898', 6, 50); }
-        if (e.mode === 'spit') {
-          const f = d > 110 ? 1 : d < 75 ? -1 : 0;
-          mx = (ux * f - uy * e.strafe * 0.4) * e.speed; my = (uy * f + ux * e.strafe * 0.4) * e.speed;
-          if (e.timer <= 0) {
-            e.timer = rand(1.4, 2);
-            const flight = clamp(d / 90, 0.4, 1.4);
-            for (const side of [-1, 0, 1]) spawnBullet({ x: e.x, y: e.y, vx: (dx - uy * 30 * side) / flight, vy: (dy + ux * 30 * side) / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
-            Sfx.play('enemyShot');
-          }
-        } else if (e.state === 'move') {
-          mx = ux * e.speed; my = uy * e.speed;
-          if (e.timer <= 0) { e.state = 'wind'; e.timer = 0.45; }
-        } else if (e.state === 'wind') { if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.55; e.dirX = ux; e.dirY = uy; } }
-        else if (e.state === 'charge') { mx = e.dirX * 200; my = e.dirY * 200; if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.5; } }
-        else if (e.timer <= 0) { e.state = 'move'; e.timer = rand(0.8, 1.4); }
-        break;
-      }
-      case 'clone': { // pack hunters; each loss makes the rest faster
-        const sp = e.speed * (1 + (e.rage || 0)), w = e.strafe * 0.35;
-        mx = (ux - uy * w) * sp; my = (uy + ux * w) * sp;
-        break;
-      }
-      // --- Floor 5: Director's Wing ---
-      case 'enforcer': { // advances behind a riot plate (only its back is soft) and fires spreads
-        e.fx = ux; e.fy = uy; e.face = ux >= 0 ? 1 : -1;
-        const k = d > 50 ? 1 : 0.2; mx = ux * e.speed * k; my = uy * e.speed * k;
-        if (e.timer <= 0 && d < 150) {
-          e.timer = rand(2.2, 3);
-          const base = Math.atan2(uy, ux);
-          for (const off of e.elite ? [-0.3, -0.15, 0, 0.15, 0.3] : [-0.2, 0, 0.2]) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + off) * 120, vy: Math.sin(base + off) * 120, r: 2, team: 'enemy', kind: 'enemy', life: 2.4, color: PAL.red });
-          Sfx.play('enemyShot');
-        }
-        break;
-      }
-      case 'hunter': { // circles, locks on (a red line), then dashes straight through
-        if (e.state === 'aim') {
-          e.tx += (tg.x - e.tx) * Math.min(1, dt * 3); e.ty += (tg.y - e.ty) * Math.min(1, dt * 3);
-          if (e.timer <= 0) { const ddx = e.tx - e.x, ddy = e.ty - e.y, dd = Math.hypot(ddx, ddy) || 1; e.state = 'charge'; e.timer = Math.min(0.55, (dd + 30) / 290); e.dirX = ddx / dd; e.dirY = ddy / dd; Sfx.play('dash'); }
-        } else if (e.state === 'charge') { mx = e.dirX * 290; my = e.dirY * 290; if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.5; } }
-        else if (e.state === 'rest') { if (e.timer <= 0) { e.state = 'move'; e.timer = rand(1.4, 2.4); } }
-        else {
-          const f = d > 100 ? 1 : d < 70 ? -1 : 0;
-          mx = (ux * f - uy * e.strafe) * e.speed; my = (uy * f + ux * e.strafe) * e.speed;
-          if (e.timer <= 0) { e.state = 'aim'; e.timer = 0.6; e.tx = tg.x; e.ty = tg.y; Sfx.play('flicker'); }
-        }
-        break;
-      }
-      case 'handler': { // keeps its distance and fires containment nets that pin you
-        const f = d > 110 ? 1 : d < 70 ? -1 : 0;
-        mx = (ux * f - uy * e.strafe * 0.5) * e.speed; my = (uy * f + ux * e.strafe * 0.5) * e.speed;
-        if (e.timer <= 0) { e.timer = rand(2.6, 3.4); spawnBullet({ x: e.x, y: e.y, vx: ux * 105, vy: uy * 105, r: 3, team: 'enemy', kind: 'enemy', life: 2.2, color: '#e8e0c8', net: true }); Sfx.play('whip'); }
-        break;
-      }
-      case 'mother': [mx, my] = updateMother(e, dt * threatRate(), p); break;
-      case 'colossus': [mx, my] = updateColossus(e, dt * threatRate(), p); break;
-      case 'biotank': [mx, my] = updateBiotank(e, dt * threatRate(), p); break;
-      case 'archive': [mx, my] = updateArchive(e, dt * threatRate(), p); break;
-      case 'director': [mx, my] = updateDirector(e, dt * threatRate(), p); break;
-      case 'motherling': [mx, my] = updateMotherling(e, dt, p); break;
-      case 'rat': { // fast, wiggly chaser
-        const w = Math.sin(e.t * 8) * 0.6;
-        mx = (ux - uy * w) * e.speed;
-        my = (uy + ux * w) * e.speed;
-        break;
-      }
-      case 'splitter':
-      case 'mini': // slow, relentless chasers
-        mx = ux * e.speed; my = uy * e.speed;
-        break;
-      case 'drone': { // keeps its distance, strafes, shoots
-        const f = d > 95 ? 1 : d < 65 ? -1 : 0;
-        mx = (ux * f - uy * e.strafe * 0.7) * e.speed;
-        my = (uy * f + ux * e.strafe * 0.7) * e.speed;
-        if (Math.random() < dt * 0.4) e.strafe *= -1;
-        if (e.timer <= 0) {
-          e.timer = rand(1.6, 2.4);
-          const angles = e.elite ? [-0.3, 0, 0.3] : [0];
-          const base = Math.atan2(uy, ux);
-          for (const off of angles) {
-            spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + off) * 95, vy: Math.sin(base + off) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 3, color: PAL.red });
-          }
-          Sfx.play('enemyShot');
-        }
-        break;
-      }
-      case 'urchin': { // creeps, winds up, then charges in a straight line
-        if (e.state === 'move') {
-          mx = ux * e.speed; my = uy * e.speed;
-          if (e.timer <= 0) { e.state = 'wind'; e.timer = 0.5; }
-        } else if (e.state === 'wind') {
-          if (e.timer <= 0) { e.state = 'charge'; e.timer = 0.6; e.dirX = ux; e.dirY = uy; }
-        } else if (e.state === 'charge') {
-          mx = e.dirX * 190; my = e.dirY * 190;
-          if (e.timer <= 0) { e.state = 'rest'; e.timer = 0.6; }
-        } else if (e.timer <= 0) {
-          e.state = 'move'; e.timer = rand(1.2, 2.2);
-        }
-        break;
-      }
-      case 'spitter': { // keeps range and lobs acid where you're standing
-        const f = d > 120 ? 1 : d < 80 ? -1 : 0;
-        mx = (ux * f - uy * e.strafe * 0.4) * e.speed;
-        my = (uy * f + ux * e.strafe * 0.4) * e.speed;
-        if (e.timer <= 0) {
-          e.timer = rand(2, 2.8);
-          const flight = clamp(d / 90, 0.4, 1.4);
-          spawnBullet({ x: e.x, y: e.y, vx: dx / flight, vy: dy / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
-          if (e.elite) {
-            for (const side of [-1, 1]) {
-              spawnBullet({ x: e.x, y: e.y, vx: (dx - uy * 40 * side) / flight, vy: (dy + ux * 40 * side) / flight, r: 3, team: 'enemy', kind: 'glob', life: flight, maxLife: flight, color: PAL.lime });
-            }
-          }
-          Sfx.play('enemyShot');
-        }
-        break;
-      }
-    }
+    const B = ENEMY_BEHAVIOR[e.type];
+    let [mx, my] = B.update(e, ENEMY_TYPES[e.type].boss ? dt * threatRate() : dt, { p, tg, dx, dy, d, pd, ux, uy });
 
     if (statusFlag(e, 'noShoot') && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
     { const m = statusMoveMul(e); mx *= m; my *= m; } // webbed, slowed
