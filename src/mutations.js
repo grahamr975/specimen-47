@@ -2596,9 +2596,9 @@ function rollLevelUps(p, n) {
 function applyChoice(p, c) {
   if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + 2); return; }
   if (c.quirk && QUIRKS[c.quirk] && !p.quirk) { // born with it: this card's birth defect
-    const q = QUIRKS[c.quirk], before = p.maxHp;
+    const q = QUIRKS[c.quirk], before = p.maxHp, hp0 = p.hp;
     p.quirk = c.quirk; recomputeStats(p);
-    p.hp = Math.max(1, Math.min(p.maxHp, p.hp + (p.maxHp - before)));
+    p.hp = Math.max(1, Math.min(p.maxHp, hp0 + (p.maxHp - before))); // (a full body stays full)
     p.bornBanner = { text: 'BORN ' + q.name, sub: q.desc.toUpperCase(), color: '#e8a020', t: 3.2 };
     whisper('You were born ' + q.name.toLowerCase() + '. ' + q.desc);
   }

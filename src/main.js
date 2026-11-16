@@ -176,6 +176,7 @@ function update(dt) {
   updateEnemies(wdt);
   updateBullets(wdt);
   updatePuddles(dt);
+  updateHazards(dt);
   updatePickups(dt);
   updateCorpses(dt);
   updateFx(dt);
@@ -197,7 +198,7 @@ function update(dt) {
 
   // Room cleared?
   // Room cleared? (Harmless scavengers don't keep the doors shut.)
-  if (room.locked && !game.enemies.some(e => !ENEMY_TYPES[e.type].harmless)) {
+  if (room.locked && !game.enemies.some(e => !ENEMY_TYPES[e.type].harmless && e.state !== 'disguise')) { // (a disguised Mimic waits for you after)
     room.locked = false;
     room.cleared = true;
     Sfx.play('door');
@@ -300,6 +301,7 @@ function render() {
   drawDoors(ctx);
   drawHatch(ctx);
   drawPuddles(ctx);
+  drawHazards(ctx);
   drawWebs(ctx);
   drawDecoy(ctx);
   drawEnemies(ctx);
@@ -312,6 +314,7 @@ function render() {
   drawPickups(ctx);
   drawCorpseGlow(ctx);
   drawPuddleGlow(ctx);
+  drawHazardGlow(ctx);
   drawEnemyGlow(ctx);
   drawBossFx(ctx);
   if (game.state === 'play') drawPlayerGlow(ctx);

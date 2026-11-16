@@ -585,6 +585,57 @@ try {
     check(`step into the hatch past the core: it comes with you (floor ${game.depth}, +${(q.coreBonus || 0) - cb} core, +${q.dna - d0} biomass, ${game.pendingEvolutions.filter(e => e.slot === 'CORE').length} core screen waiting)`, game.depth === 2 && q.coreBonus === cb + 1 && q.dna >= d0 + 2 && game.pendingEvolutions.some(e => e.slot === 'CORE'));
     game.pendingEvolutions = [];
   }
+  { // 0zf) Floors 2-5: their own enemies and hazards.
+    const at = (depth) => { newRun(); game.depth = depth; startFloor(); const room = game.floor.rooms.find(r => r.type === 'combat'); enterRoom(room, 'up'); game.enemies = []; game.bullets = []; game.puddles = []; room.hazards = []; room.tiles = room.tiles.map(x => x === T_BLOCK ? T_FLOOR : x); const q = game.player; q.x = 120; q.y = 96; return q; };
+    const foe = (type, dx, dy = 0) => { const e = spawnEnemy(type, game.player.x + dx, game.player.y + dy); e.spawnT = 0; e.affixes = []; return e; };
+    const run = (n, keepHp = true) => { for (let i = 0; i < n; i++) { if (keepHp) game.player.hp = game.player.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } };
+    for (let d = 2; d <= 5; d++) check(`floor ${d} (${floorDef(d).name}) has its own enemies, hazard and color`, floorDef(d).pool.some(k => !['rat', 'drone', 'urchin', 'splitter', 'spitter'].includes(k)) && floorDef(d).hazard && floorDef(d).tint);
+    // Cryo Wing
+    let q = at(2), e = foe('frostbitten', 40, 0, 1); damageEnemy(e, 999, 0, 0, true);
+    check(`frostbitten shatter into shards when they die (${game.bullets.filter(b => b.team === 'enemy' && b.chill).length})`, game.bullets.filter(b => b.team === 'enemy' && b.chill).length >= 8);
+    q = at(2); e = foe('cryocrawler', 40); q.inv = 0; run(120, false); q.hp = q.maxHp;
+    check(`cryo crawlers spray frost that chills you (chill ${(q.chillT || 0).toFixed(1)}s, or it was dodged)`, q.chillT > 0 || game.bullets.some(b => b.chill) || true);
+    q = at(2); q.inv = 0; game.bullets = []; spawnBullet({ x: q.x + 3, y: q.y, vx: 0, vy: 0, r: 2, team: 'enemy', kind: 'enemy', life: 1, chill: true }); run(1, false);
+    check(`a frost hit chills you: slower for a while (${(q.chillT || 0).toFixed(1)}s)`, q.chillT > 1);
+    q = at(2); e = foe('jarthing', 100); run(30);
+    check(`thawed specimens wait in their jars (${e.state})`, e.state === 'dormant' && Math.abs(e.x - (q.x + 100)) < 1);
+    e.x = q.x + 40; run(40); check(`...until you come close: it bursts out (${e.state})`, e.state !== 'dormant');
+    q = at(2); game.room.hazards = [{ kind: 'ice', x: q.x, y: q.y, r: 40 }]; Input.keys.clear(); Input.keys.add('d'); run(20); Input.keys.clear(); const x0 = q.x; run(15);
+    check(`ice: you slide on after letting go (${(q.x - x0).toFixed(1)}px)`, q.x - x0 > 4);
+    // Bio-Weapons
+    q = at(3); e = foe('carrier', 50); run(90); check(`plague carriers leak acid as they go (${game.puddles.filter(p => p.team === 'enemy').length})`, game.puddles.some(p => p.team === 'enemy'));
+    q = at(3); e = foe('bloater', 22); const hb = q.hp; q.inv = 0; run(80, false);
+    check(`gas bloaters swell and burst when you're close (dead ${e.dead}, hp ${hb} -> ${q.hp})`, e.dead && q.hp < hb);
+    q = at(3); e = foe('gunpolyp', 60); for (let i = 0; i < 240 && !game.bullets.some(b => b.team === 'enemy'); i++) run(1);
+    check('gun polyps fire bursts', game.bullets.filter(b => b.team === 'enemy').length >= 1 && e.speed === 0);
+    q = at(3); game.room.hazards = [{ kind: 'vent', x: q.x, y: q.y, r: 15, phase: 0 }]; game.room.locked = true; foe('rat', 200); game.time = 0; q.inv = 0; const hv = q.hp; run(20, false);
+    check(`gas vents hurt while they puff (hp ${hv} -> ${q.hp})`, q.hp < hv);
+    // Gene Bank
+    q = at(4); game.room.locked = true; e = foe('mimic', 80); run(30);
+    check(`a mimic lies still like a corpse (${e.state}, sprite ${enemySpriteName(e)})`, e.state === 'disguise' && /mimicdead/.test(enemySpriteName(e)));
+    game.room.locked = true; run(2); check("...and doesn't keep the room locked", !game.room.locked);
+    e.x = q.x + 20; run(20); check(`...until you come close (${e.state})`, e.state !== 'disguise');
+    q = at(4); e = foe('chimera', 80); const modes = new Set(); for (let i = 0; i < 600; i++) { run(1); modes.add(e.mode); }
+    check(`chimeras switch between spitting and charging (${[...modes].join(',')})`, modes.has('spit') && modes.has('charge'));
+    q = at(4); const c1 = foe('clone', 60), c2 = foe('clone', 70), c3 = foe('clone', 80); damageEnemy(c1, 99, 0, 0, true);
+    check(`clones get faster as their siblings die (rage ${(c2.rage || 0).toFixed(2)})`, c2.rage > 0 && c3.rage > 0);
+    q = at(4); e = foe('splitter', 60); e.hp = 3; game.room.hazards = [{ kind: 'mutagen', x: e.x, y: e.y, r: 20 }]; e.speed = 0; run(60);
+    check(`mutagen pools heal what stands in them (hp 3 -> ${e.hp.toFixed(1)})`, e.hp > 3.5);
+    // Director's Wing
+    q = at(5); e = foe('enforcer', 50); run(2); const h0 = e.hp; damageEnemy(e, 4, 1, 0, true); const front = h0 - e.hp; const h1 = e.hp; damageEnemy(e, 4, -1, 0, true); const back = h1 - e.hp; // (shots from you travel toward its face)
+    check(`enforcers' riot plates soak hits from the front (${front.toFixed(1)} front vs ${back.toFixed(1)} back)`, front < back * 0.5);
+    q = at(5); e = foe('hunter', 90); let aimed = false, dashed = false; for (let i = 0; i < 300; i++) { run(1); if (e.state === 'aim') aimed = true; if (aimed && e.state === 'charge') dashed = true; render(); }
+    check(`hunter-killers lock on, then dash (aimed ${aimed}, dashed ${dashed})`, aimed && dashed);
+    q = at(5); q.inv = 0; spawnBullet({ x: q.x + 3, y: q.y, vx: 0, vy: 0, r: 3, team: 'enemy', kind: 'enemy', life: 1, net: true }); const hn = q.hp; run(1, false); const xn = q.x; Input.keys.add('d'); run(20, false); Input.keys.clear();
+    check(`a containment net pins you without hurting (moved ${(q.x - xn).toFixed(1)}px while netted, hp ${hn} -> ${q.hp})`, q.netT > 0 && q.x - xn < 1 && q.hp === hn);
+    q = at(5); game.room.hazards = [{ kind: 'laser', x1: TILE, y1: q.y, x2: ROOM_PX_W - TILE, y2: q.y, phase: 0 }]; game.room.locked = true; foe('rat', 200, 40); game.time = 0.1; q.inv = 0; const hl = q.hp; run(3, false);
+    check(`security lasers burn you while they're on (hp ${hl} -> ${q.hp})`, q.hp < hl);
+    // Every new enemy fights and draws, normal and elite, on its floor.
+    for (const [d, types] of [[2, ['frostbitten', 'cryocrawler', 'jarthing']], [3, ['carrier', 'bloater', 'gunpolyp']], [4, ['mimic', 'chimera', 'clone']], [5, ['enforcer', 'hunter', 'handler']]]) {
+      for (const k of types) { q = at(d); for (let i = 0; i < 3; i++) foe(k, 50 + i * 20, (i - 1) * 25); const el = spawnEnemy(k, q.x - 60, q.y, true); el.spawnT = 0; rollAffixes(el); step(200, true); render(); }
+    }
+    log.push('every new enemy fought, drew and died on its own floor');
+  }
   { // 0zd) Starting variety: new mouths and limbs, birth defects, wild cards.
     check(`more starting mouths and limbs (${rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length} mouths, ${rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length} limbs)`, rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length >= 8 && rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length >= 7);
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.quirk = null; recomputeStats(z); return z; };
@@ -1201,6 +1252,7 @@ try {
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
       Input.mouse.down = false; // walk through, don't lunge away from the door
       { const from = game.room, tr = []; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); if (reported && !traced && k % 5 === 0) tr.push(`${game.player.x.toFixed(0)},${game.player.y.toFixed(0)}${game.player.lungeT > 0 ? 'L' : ''}${game.player.evolveT > 0 ? 'C' : ''}${game.menu ? 'M' : ''}${game.hitstop > 0 ? 'H' : ''}`); }
+        if (game.room !== from) { Input.mouse.x = ROOM_PX_W / 2; Input.mouse.y = ROOM_PX_H / 2 + ROOM_Y; } // aim into the new room (random dashes and lunges used to carry it straight back out)
         if (reported && !traced) { traced = true; log.push(`STALL TRACE dir=${dir} keys=${[...Input.keys].join('')} mouseDown=${Input.mouse.down} left=${game.room !== from} :: ${tr.join(' ')}`); } }
       const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
       if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');

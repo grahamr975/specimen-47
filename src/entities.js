@@ -139,7 +139,10 @@ function updateBullets(dt) {
       const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
       if (twin && Math.hypot(twin.x - b.x, twin.y - b.y) < twin.r + b.r) { hurtTwin(twin); b.dead = true; continue; }
       if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1) {
-        if (hurtPlayer(1)) b.dead = true;
+        if (b.net) { // a containment net: it pins you, no damage
+          if (!(p.inv > 0) && p.dashT <= 0) { p.netT = 1.1; floatText(p.x, p.y - 14, 'NETTED', '#e8e0c8'); Sfx.play('whip'); }
+          b.dead = true;
+        } else if (hurtPlayer(1)) { b.dead = true; if (b.chill) { p.chillT = 2.5; floatText(p.x, p.y - 14, 'CHILLED', '#a0e0ff'); } }
       }
     }
   }

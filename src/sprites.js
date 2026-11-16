@@ -1123,6 +1123,146 @@ function darkened(src) {
 }
 
 // Registers a sprite plus its left-facing, white-flash, red-outline and corpse versions.
+// =========================================================================================
+// FLOORS 2-5: their own creatures.
+// =========================================================================================
+const ICE = ['#16243a', '#2e4a66', '#4a7aa0', '#8ab8d8', '#d8f0ff'];
+const FROZEN = ['#1a2230', '#3a4a5a', '#6a7a88', '#9aaab8', '#c8d8e0'];
+const HAZMAT = ['#2a2008', '#5a4810', '#a08a20', '#d8c040', '#f8e890'];
+const SICK = ['#141a0c', '#2e3a18', '#4e6226', '#7a9238', '#aac25a'];
+
+// --- Cryo Wing -------------------------------------------------------------------------------
+function paintFrostbitten(frame) { // a hunched, half-frozen corpse with ice on its back
+  const P = new Painter(20, 22, 61), lf = frame ? 1 : 0;
+  P.tube([[8, 16], [7 - lf, 21]], 1.3, 1, FROZEN).tube([[12, 16], [13 + lf, 21]], 1.3, 1, FROZEN);
+  P.blob(10, 12, 5, 6, FROZEN, { spec: 1, noise: 0.2 });
+  P.tube([[14, 11], [17, 15 + lf]], 1, 0.8, FROZEN);
+  P.blob(13.5, 6.8, 3, 3, FROZEN, { spec: 1 });
+  for (let k = 0; k < 4; k++) P.tube([[7 + k * 1.6, 8.5], [5.5 + k * 2, 3 + hash2(k, 1, 61) * 2]], 0.9, 0.2, ICE, { spec: 1 });
+  P.blob(10, 13, 1.6, 1.2, R.blood, { noise: 0 });
+  P.dot(14.6, 6.4, '#a0e0ff');
+  return P.outline().toCanvas();
+}
+function paintCryoCrawler(frame) { // a pale, skittering thing with a swollen frost gland
+  const P = new Painter(22, 16, 63), lf = frame ? 1.5 : 0;
+  for (const [hx, fx] of [[8, 3], [10, 6], [12, 16], [14, 19]]) P.tube([[hx, 9], [fx + (hx < 11 ? -lf : lf), 14 - (hx % 4 ? lf : 0)]], 0.6, 0.4, FROZEN);
+  P.blob(11, 8.6, 5, 3.4, FROZEN, { spec: 1, noise: 0.15 });
+  P.blob(7, 7.4, 3, 2.6, ICE, { spec: 1, specColor: '#ffffff' }); // the frost gland
+  P.blob(15.6, 8.4, 2.2, 1.8, FROZEN, { spec: 1 });
+  P.dot(17, 8, '#a0e0ff').dot(16.4, 7.6, '#a0e0ff');
+  return P.outline().toCanvas();
+}
+function paintJar() { // a cryo jar, something dark curled inside
+  const P = new Painter(16, 22, 65);
+  P.rect(3, 4, 12, 20, ['#0e1a26', '#1a3048', '#2a4a66', '#4a7aa0', '#8ab8d8'], 0.35, { noise: 0.15 });
+  P.blob(8, 13, 3.4, 5, R.murk, { noise: 0.2 });
+  P.dot(9, 11, '#a0e0ff');
+  P.rect(2, 2, 13, 4, R.metal, 0.5).rect(2, 20, 13, 21, R.metal, 0.5);
+  for (let y = 6; y < 20; y += 3) P.dot(4, y, '#d8f0ff');
+  return P.outline().toCanvas();
+}
+function paintThawed(frame) { // what came out of the jar: long-limbed and wet
+  const P = new Painter(22, 20, 67), lf = frame ? 1 : 0;
+  P.tube([[7, 12], [3, 17 + lf]], 0.9, 0.6, FROZEN).tube([[10, 13], [8, 18 - lf]], 0.9, 0.6, FROZEN).tube([[13, 13], [15, 18 + lf]], 0.9, 0.6, FROZEN).tube([[15, 12], [20, 16 - lf]], 0.9, 0.6, FROZEN);
+  P.blob(11, 10, 6, 3.6, FROZEN, { spec: 1, noise: 0.2 });
+  P.blob(17, 8, 2.8, 2.6, FROZEN, { spec: 1 });
+  P.scratch([[16.5, 9.5], [19.5, 9.5]], '#200810');
+  P.dot(18, 7.4, '#a0e0ff').dot(17, 7.2, '#a0e0ff');
+  for (let k = 0; k < 3; k++) P.dot(8 + k * 3, 7.5, '#d8f0ff');
+  return P.outline().toCanvas();
+}
+
+// --- Bio-Weapons -----------------------------------------------------------------------------
+function paintCarrier(frame) { // an infected test subject, bloated with green boils
+  const P = new Painter(20, 22, 71), lf = frame ? 1 : 0;
+  P.tube([[8, 16], [7 - lf, 21]], 1.4, 1.1, R.flesh).tube([[12, 16], [13 + lf, 21]], 1.4, 1.1, R.flesh);
+  P.blob(10, 12, 5.6, 6, R.flesh, { spec: 1, noise: 0.25 });
+  P.blob(12.5, 5.6, 3, 2.8, R.flesh, { spec: 1 });
+  for (let k = 0; k < 5; k++) P.blob(6.5 + hash2(k, 1, 71) * 7, 9 + hash2(k, 2, 71) * 7, 1.2, 1.1, R.pus, { spec: 1 });
+  P.dot(13.6, 5.2, '#c0e040');
+  P.tube([[13, 7.5], [14, 10]], 0.5, 0.4, R.bile);
+  return P.outline().toCanvas();
+}
+function paintBloater(swollen) { // a drifting sac of gas trailing tendrils
+  const P = new Painter(22, 22, 73), k = swollen ? 1.2 : 1;
+  for (let i = 0; i < 4; i++) P.tube([[8 + i * 2, 13], [7 + i * 2.5 + Math.sin(i) * 2, 20]], 0.5, 0.2, SICK);
+  P.blob(11, 9, 6.5 * k, 6 * k, SICK, { spec: 1, noise: 0.12 });
+  P.vein(8, 7, 5, '#2e3a18', 0.4).vein(13, 10, 4, '#2e3a18', -1.2);
+  P.blob(11, 9.5, 1.8, 1.4, swollen ? R.glow : R.socket, { noise: 0 });
+  return P.outline().toCanvas();
+}
+function paintGunPolyp(frame) { // a rooted, fleshy turret with a barrel and one eye
+  const P = new Painter(20, 20, 75);
+  P.blob(10, 16, 7, 3, R.flesh, { shift: -0.25, noise: 0.2 });
+  P.blob(10, 11, 5, 5, R.muscle, { spec: 1, noise: 0.15 });
+  P.tube([[12, 9], [17, 7 - (frame ? 1 : 0)]], 1.6, 1.3, R.cyst, { spec: 1 });
+  P.blob(17.4, 6.6, 1.3, 1.3, R.socket, { noise: 0 });
+  P.blob(8, 9.5, 1.8, 1.8, R.sclera, { spec: 1 }); P.dot(8.4, 9.5, '#200608');
+  return P.outline().toCanvas();
+}
+
+// --- Gene Bank -------------------------------------------------------------------------------
+function paintMimic(frame) { // what looked like a corpse: all teeth
+  const P = new Painter(22, 18, 81), lf = frame ? 1 : 0;
+  P.tube([[7, 11], [4, 15 + lf]], 0.8, 0.6, R.fur).tube([[14, 11], [17, 15 - lf]], 0.8, 0.6, R.fur);
+  P.blob(11, 9, 6.6, 4.4, R.fur, { noise: 0.3 });
+  P.blob(11, 9.4, 4.4, 2.6, R.socket, { noise: 0 }); // a gaping maw down its whole body
+  for (let x = 7.5; x <= 14.5; x += 1.5) { P.dot(x, 7.6, '#e8e0c8'); P.dot(x + 0.7, 11, '#e8e0c8'); }
+  P.dot(16.5, 7, '#e01828');
+  return P.outline().toCanvas();
+}
+function paintChimera(frame) { // toad body, urchin spines, a rat's tail: stitched together
+  const P = new Painter(26, 22, 83), lf = frame ? 1 : 0;
+  P.tube([[5, 14], [2, 16], [1, 19]], 1, 0.4, R.pink);
+  for (let k = 0; k < 6; k++) { const a = -Math.PI * 0.85 + k * 0.32; P.tube([[12 + Math.cos(a) * 4, 10 + Math.sin(a) * 4], [12 + Math.cos(a) * 9, 10 + Math.sin(a) * 8]], 1.1, 0.3, R.bone); }
+  P.tube([[9, 15], [8 - lf, 20]], 1.5, 1.2, R.toad).tube([[16, 15], [17 + lf, 20]], 1.5, 1.2, R.toad);
+  P.blob(12.5, 12, 7.5, 5.5, R.toad, { spec: 1, noise: 0.2 });
+  P.blob(19.5, 10.5, 3.6, 3, R.fur, { noise: 0.25 });
+  P.scratch([[8, 9], [8, 15]], '#c4b898').scratch([[16, 9], [16, 15]], '#c4b898'); // stitches
+  for (const y of [10, 12, 14]) { P.dot(7, y, '#c4b898'); P.dot(9, y, '#c4b898'); P.dot(15, y, '#c4b898'); P.dot(17, y, '#c4b898'); }
+  P.dot(21, 9.6, '#e0c040').dot(20, 9.4, '#e01828');
+  return P.outline().toCanvas();
+}
+function paintClone(frame) { // a small, pale homunculus with a barcode tag
+  const P = new Painter(14, 16, 85), lf = frame ? 1 : 0;
+  P.tube([[5.5, 11], [5 - lf, 15]], 0.8, 0.6, R.pink).tube([[8.5, 11], [9 + lf, 15]], 0.8, 0.6, R.pink);
+  P.blob(7, 8.6, 3.4, 3.6, R.pink, { spec: 1 });
+  P.blob(7, 4, 2.6, 2.4, R.pink, { spec: 1 });
+  for (const x of [5, 6, 8]) P.scratch([[x, 8], [x, 10]], '#1a0c10');
+  P.dot(8, 3.6, '#1a0c10').dot(6, 3.6, '#1a0c10');
+  return P.outline().toCanvas();
+}
+
+// --- Director's Wing -------------------------------------------------------------------------
+function paintEnforcer(frame) { // armored security unit with a riot plate in front
+  const P = new Painter(22, 22, 91), lf = frame ? 1 : 0;
+  P.tube([[8, 16], [7 - lf, 21]], 1.4, 1.2, R.metal).tube([[13, 16], [14 + lf, 21]], 1.4, 1.2, R.metal);
+  P.blob(10.5, 11.5, 5.4, 6, R.metal, { spec: 1, noise: 0.08 });
+  P.blob(10.5, 5, 3, 2.6, R.metal, { spec: 1 });
+  P.scratch([[9, 5], [13, 5]], '#ff3030');
+  P.rect(16, 6, 19, 18, R.metal, 0.7, { noise: 0.05 }); // the riot plate
+  P.scratch([[17.5, 7], [17.5, 17]], '#ffd070');
+  return P.outline().toCanvas();
+}
+function paintHunter(frame) { // a sleek attack drone with blade fins
+  const P = new Painter(22, 16, 93);
+  P.tube([[3, 8], [8, 6]], 0.8, 0.3, R.metal).tube([[3, 9], [8, 11]], 0.8, 0.3, R.metal); // blade fins
+  P.blob(12, 8.4, 6.5, 3.2, R.metal, { spec: 1, noise: 0.06 });
+  P.blob(17, 8.4, 2, 1.8, R.glow, { spec: 1, specColor: '#ffe0d0' });
+  if (frame) P.scratch([[2, 8.4], [5, 8.4]], '#ff8040');
+  return P.outline().toCanvas();
+}
+function paintHandler(frame) { // a containment worker in a hazmat suit, net launcher in hand
+  const P = new Painter(20, 22, 95), lf = frame ? 1 : 0;
+  P.tube([[8, 15], [7 - lf, 21]], 1.4, 1.2, HAZMAT).tube([[12, 15], [13 + lf, 21]], 1.4, 1.2, HAZMAT);
+  P.blob(10, 11, 4.8, 5.4, HAZMAT, { spec: 1, noise: 0.08 });
+  P.blob(10, 4.6, 3.2, 3, HAZMAT, { spec: 1 });
+  P.blob(11, 4.6, 2, 1.5, R.murk, { spec: 1, specColor: '#a0e0ff' }); // the visor
+  P.tube([[13, 10], [18, 9]], 1.1, 1, R.metal); P.dot(18.5, 9, '#e8e0c8');
+  P.scratch([[6, 9], [14, 9]], '#1a1608');
+  return P.outline().toCanvas();
+}
+
 function withFlash(name, img) {
   for (const [n, i] of [[name, img], [name + '_L', flipH(img)]]) {
     SPR[n] = i;
@@ -1184,6 +1324,12 @@ function withFlash(name, img) {
   withFlash('mother2', paintMother(1, false));
   withFlash('motherling', paintMother(0, true));
   withFlash('motherling2', paintMother(1, true));
+  // Floors 2-5.
+  for (const [n, fn] of [['frostbitten', paintFrostbitten], ['cryocrawler', paintCryoCrawler], ['jarthing', paintThawed], ['carrier', paintCarrier], ['gunpolyp', paintGunPolyp],
+    ['mimic', paintMimic], ['chimera', paintChimera], ['clone', paintClone], ['enforcer', paintEnforcer], ['hunter', paintHunter], ['handler', paintHandler]]) { withFlash(n, fn(false)); withFlash(n + '2', fn(true)); }
+  withFlash('jar', paintJar());
+  withFlash('bloater', paintBloater(false)); withFlash('bloater2', paintBloater(true));
+  withFlash('mimicdead', SPR.rat_dead); // a Mimic in disguise: just another corpse
 
   SPR.heart = paintHeart(R.blood);
   SPR.heartEmpty = paintHeart(R.empty);

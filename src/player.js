@@ -85,6 +85,7 @@ function recomputeStats(p) {
     p.setKey = key;
   }
   p.stats = s;
+  if (!(s.shieldCd > 0)) p.shieldUp = false; // no shell part, no shell
   p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp + (p.coreBonus || 0)) * s.hpMul));
   if (!s.flyover && game.room && circleHitsWall(game.room, p.x, p.y, p.r, false)) {
     const spot = randomFloorSpot(game.room, null, 0);
@@ -181,6 +182,7 @@ function updatePlayer(dt) {
   p.t += dt; p.inv -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
   for (const k in p.cd) p.cd[k] -= dt;
   if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
+  if (p.chillT > 0) p.chillT -= dt; if (p.netT > 0) p.netT -= dt;
   if (s.setSporeAura && game.room.locked && (p.sporeT = (p.sporeT || s.setSporeAura) - dt) <= 0) { p.sporeT = s.setSporeAura; spawnCloud(p.x, p.y, 24); } // Fruiting Body
   const mv = movement(p);
 
@@ -324,10 +326,13 @@ function updatePlayer(dt) {
     if (mv.fins && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) top = mv.fins * s.speedMul * boost;
     // Sticky culture spills (Floor 1) drag at you, unless you fly or walk on stilts.
     if (!mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'sticky')) top *= 0.55;
-    if (mv.accel) {
-      // Wings / cilia: momentum. You accelerate, drift and overshoot.
-      p.mvx += ix * mv.accel * dt; p.mvy += iy * mv.accel * dt;
-      p.mvx -= p.mvx * mv.drag * dt; p.mvy -= p.mvy * mv.drag * dt;
+    if (p.chillT > 0) top *= 0.6; // chilled by frost
+    const icy = !mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'ice'); // Cryo Wing: you slide on ice
+    if (mv.accel || icy) {
+      // Wings / cilia (and ice): momentum. You accelerate, drift and overshoot.
+      const acc = icy ? 280 : mv.accel, drag = icy ? 0.8 : mv.drag;
+      p.mvx += ix * acc * dt; p.mvy += iy * acc * dt;
+      p.mvx -= p.mvx * drag * dt; p.mvy -= p.mvy * drag * dt;
       const sp = Math.hypot(p.mvx, p.mvy);
       if (sp > top) { p.mvx *= top / sp; p.mvy *= top / sp; }
       vx = p.mvx; vy = p.mvy;
@@ -347,6 +352,7 @@ function updatePlayer(dt) {
       vx = ix * spd; vy = iy * spd;
     }
   }
+  if (p.netT > 0 && p.dashT <= 0) { vx = vy = 0; p.mvx = p.mvy = 0; } // pinned under a net
   if (p.pullT <= 0 && moveEntity(game.room, p, vx * dt, vy * dt) && mv.accel) { p.mvx *= 0.3; p.mvy *= 0.3; }
   updateCentipede(p);
 
@@ -1103,6 +1109,9 @@ function hurtPlayer(dmg) {
     Sfx.play('clank');
     return true;
   }
+  // Any hit that gets this far tears the cocoon, even one your armor takes.
+  if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
+  p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   if (s.boneWard && p.plates > 0) { // Bone Ward: a plate takes it
     const q = platePos(p, 0, p.plates); breakPlate(p, q.x, q.y);
     p.inv = 0.6; floatText(p.x, p.y - 14, 'WARDED', '#d9cfa0');
@@ -1115,8 +1124,6 @@ function hurtPlayer(dmg) {
     game.shake = Math.max(game.shake, 3); Sfx.play('clank');
     return true;
   }
-  if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
-  p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   p.hp -= dmg * s.hitCost; // Hollow Body: every hit costs double
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;

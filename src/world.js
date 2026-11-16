@@ -257,6 +257,8 @@ function bakeRoom(room) {
   const c = makeCanvas(ROOM_PX_W, ROOM_PX_H);
   const x = c.getContext('2d');
   paintSurface(x, ROOM_PX_W, ROOM_PX_H, randInt(1, 999999), true);
+  const tint = floorDef(game.depth).tint; // each floor's own cast: icy, sickly, violet, sterile
+  if (tint) { x.fillStyle = tint; x.fillRect(0, 0, ROOM_PX_W, ROOM_PX_H); }
   const cracks = randInt(2, 5);
   for (let i = 0; i < cracks; i++) crack(x, rand(TILE * 2, ROOM_PX_W - TILE * 2), rand(TILE * 2, ROOM_PX_H - TILE * 2), randInt(12, 30));
 
