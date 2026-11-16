@@ -1144,8 +1144,8 @@ const MUTATIONS = {
 
   rootlegs: {
     name: 'Root Legs', slot: 'LIMBS', rarity: 'uncommon',
-    desc: 'Slow, rooty legs. Stand still and you take root: you attack faster and slowly heal. Right-click: roots burst up and hold enemies.',
-    apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 56 + 4 * l); s.limbActive = { kind: 'entangle', l }; s.rootLegs = { delay: 0.6, rate: 0.75 - 0.05 * l, heal: 14 - 2 * l }; },
+    desc: 'Slow, rooty legs. Stand still and you take root: you attack faster, slowly heal, and roots spread around you, snaring and hurting whatever steps in. Move and you tear free in a burst. Right-click: roots burst up and hold enemies.',
+    apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 56 + 4 * l); s.limbActive = { kind: 'entangle', l }; s.rootLegs = { delay: 0.6, rate: 0.75 - 0.05 * l, heal: 14 - 2 * l, zone: 28 + 3 * l, dps: 0.8 + 0.4 * l }; },
   },
   taproot: {
     name: 'Taproot', from: 'rootlegs', rarity: 'uncommon', icon: ['rootlegs', 'starving'],

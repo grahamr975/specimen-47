@@ -900,6 +900,16 @@ function updatePlant(p, dt) {
   p.rooted = !!(s.rootLegs && !(p.limbWear > 0) && p.stillT >= s.rootLegs.delay);
   if (p.rooted && !was) { burst(p.x, p.y + 5, '#3a2a18', 8, 40); Sfx.play('chomp'); }
   if (!p.rooted && was) burst(p.x, p.y + 5, '#3a2a18', 6, 60);
+  // Uproot: tear free of the roots after a real stand, and they fling you onward.
+  if (!p.rooted && was && p.rootedFor > 0.4 && p.moving && p.dashT <= 0) uproot(p);
+  p.rootedFor = p.rooted ? (p.rootedFor || 0) + dt : 0;
+  // The root zone: roots spread out around you, snaring and wearing down anything that steps in.
+  p.rootZone = p.rooted ? s.rootLegs.zone * Math.min(1, p.rootedFor / 0.35) : 0;
+  if (p.rootZone > 0) for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > p.rootZone + e.r) continue;
+    if (!isBoss(e)) e.webT = Math.max(e.webT || 0, 0.15);
+    damageEnemy(e, s.rootLegs.dps * s.damage * dt, 0, 0, true);
+  }
   let rate = p.rooted ? s.rootLegs.heal : 0;
   if (s.setStillRegen && p.stillT > 1) rate = rate ? Math.min(rate, s.setStillRegen) : s.setStillRegen;
   if (rate && p.hp < p.maxHp) {
@@ -941,7 +951,30 @@ function updatePlant(p, dt) {
 }
 
 // Root Legs: knotted roots for legs; when you stand still they dig into the floor.
+// Torn free: the roots fling you forward, untouchable for a moment.
+function uproot(p) {
+  p.dashT = 0.13; p.dashX = p.inX || p.aimX; p.dashY = p.inY || p.aimY;
+  p.inv = Math.max(p.inv, 0.25); p.dashHit.clear();
+  for (let i = 0; i < 8; i++) game.particles.push({ x: p.x + rand(-6, 6), y: p.y + rand(2, 6), vx: rand(-60, 60), vy: rand(-80, -10), life: 0.4, color: i % 2 ? '#3a2a18' : '#5a4024', size: 2 });
+  stain(p.x, p.y + 5, 3, ['#1e140a', '#2a1c10']);
+  Sfx.play('creak'); Sfx.play('dash');
+}
+
+// The root zone on the floor: tendrils reaching out to its edge.
+function drawRootZone(ctx, p) {
+  if (!(p.rootZone > 0)) return;
+  const z = p.rootZone;
+  ctx.globalAlpha = 0.55;
+  pxRing(ctx, p.x, p.y + 4, z, '#2a1c10');
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6 + Math.sin(i * 2.3) * 0.2, wob = Math.sin(p.t * 2 + i) * 1.5;
+    pxLine(ctx, p.x, p.y + 5, p.x + Math.cos(a) * z, p.y + 4 + Math.sin(a) * z * 0.7 + wob, i % 2 ? '#3a2a18' : '#5a4024', 1, 1.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawRootLegs(ctx, p, x, y) {
+  drawRootZone(ctx, p);
   const dark = '#140c06', bark = '#5a4024', moving = p.moving && !p.rooted;
   for (let k = 0; k < 5; k++) {
     const hx = x - 4 + k * 2, hy = y + 4;

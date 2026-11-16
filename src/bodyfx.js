@@ -41,6 +41,7 @@ function bodyPose(p) {
   if (!p.moving) sy *= 1 + (p.form === 'PREDATOR' ? 0.05 : 0.025) * Math.sin(p.t * (p.form === 'PREDATOR' ? 4 : 2.5)); // breathing
   if (p.form === 'ABOMINATION') { sx *= 1 + 0.04 * Math.sin(p.t * 5); sy *= 1 + 0.04 * Math.sin(p.t * 3.7 + 1); } // lopsided pulse
   if (s.diveBomb && p.dashT > 0) rot = 0.5 * (p.dashX >= 0 ? 1 : -1); // Dive Bomb: nose down
+  if (p.snapT > 0) { sx *= 1 + 0.25 * Math.abs(p.snapX); sy *= 1 + 0.25 * Math.abs(p.snapY); sx *= 1 - 0.1 * Math.abs(p.snapY); sy *= 1 - 0.12 * Math.abs(p.snapX); } // stretched into the snap
   if (p.apex) { sx *= 1.12; sy *= 1.12; } // the final form is bigger
   return { alt, sx, sy, rot };
 }

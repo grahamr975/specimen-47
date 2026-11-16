@@ -570,13 +570,29 @@ try {
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
   }
+  { // 0zc) Root Legs: a root zone that defends you, and an uproot burst.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
+    grow(q, 'rootlegs'); Input.keys.clear();
+    for (let i = 0; i < 70; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`standing still: you take root and roots spread around you (zone ${(q.rootZone || 0).toFixed(0)}px)`, q.rooted && q.rootZone > 25);
+    const r = dummy(28, 99); r.speed = 40; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); } render();
+    check(`whatever steps in is snared and worn down (web ${(r.webT || 0).toFixed(2)}, ${(99 - r.hp).toFixed(1)} dmg)`, r.webT > 0 && r.hp < 99);
+    { const b = spawnBullet({ x: q.x + 20, y: q.y, vx: -100, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); const x0 = b.x; q.inv = 1; update(1 / 60); Input.endFrame();
+      check(`enemy shots wade through the roots (moved ${(x0 - b.x).toFixed(2)}px in a frame, not ${(100 / 60).toFixed(2)})`, x0 - b.x < 100 / 60 * 0.7); }
+    game.enemies = []; game.bullets = []; const x1 = q.x; Input.keys.add('a'); update(1 / 60); Input.endFrame(); update(1 / 60); Input.endFrame();
+    check(`moving off tears you free in a burst (dash ${q.dashT.toFixed(2)}, untouchable ${q.inv.toFixed(2)})`, q.dashT > 0 && q.inv > 0.1);
+    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check(`...flinging you onward (${(x1 - q.x).toFixed(0)}px)`, x1 - q.x > 20);
+  }
   { // 0zb) Mandibles: the bite lunges onto prey, and bitten prey reels.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 100; q.y = 96;
     grow(q, 'mandibles'); const r = dummy(48, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; const x0 = q.x;
-    bite(q, q.stats.biteDmg);
-    check(`a bite lunges onto prey just out of reach (moved ${(q.x - x0).toFixed(0)}px, ${(99 - r.hp).toFixed(1)} dmg)`, q.x - x0 > 15 && r.hp < 99 && q.inv > 0);
+    bite(q, q.stats.biteDmg); update(1 / 60); Input.endFrame();
+    check(`the lunge travels: one frame in, you're on the way but not there (moved ${(q.x - x0).toFixed(0)}px)`, q.x - x0 > 2 && q.x - x0 < 20 && r.hp === 99 && q.inv > 0);
+    for (let i = 0; i < 10 && r.hp === 99; i++) { update(1 / 60); Input.endFrame(); }
+    check(`...and the bite lands when you arrive (moved ${(q.x - x0).toFixed(0)}px, ${(99 - r.hp).toFixed(1)} dmg)`, q.x - x0 > 15 && r.hp < 99);
     check(`bitten prey reels (stagger ${(r.staggerT || 0).toFixed(2)}s)`, r.staggerT > 0.3);
-    { const z = dummy(8, 99); z.speed = 60; bite(q, q.stats.biteDmg); q.inv = 0; const h = q.hp; z.x = q.x + 6; z.y = q.y;
+    { const z = dummy(8, 99); z.speed = 60; bite(q, q.stats.biteDmg); for (let i = 0; i < 10 && q.snapT > 0; i++) { update(1 / 60); Input.endFrame(); } q.inv = 0; const h = q.hp; z.x = q.x + 6; z.y = q.y;
       for (let i = 0; i < 12; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
       check(`...and can't hurt you while it reels (hp ${h} -> ${q.hp})`, q.hp === h); }
     const far = dummy(90, 99); far.speed = 0; far.y = q.y; const x1 = q.x; game.enemies = [far]; bite(q, q.stats.biteDmg);
