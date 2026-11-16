@@ -5,8 +5,8 @@
 
 // --- Telegraphed attacks -------------------------------------------------------------
 // A red warning line appears, then the attack lands along it.
-function telegraphLine(x, y, angle, len, width, delay, dmg) {
-  game.telegraphs.push({ x, y, ang: angle, len, w: width, t: delay, max: delay, dmg });
+function telegraphLine(x, y, angle, len, width, delay, dmg, look) {
+  game.telegraphs.push({ x, y, ang: angle, len, w: width, t: delay, max: delay, dmg, look });
 }
 
 function distToSegment(px, py, x1, y1, x2, y2) {
@@ -27,13 +27,15 @@ function updateBossFx(dt) {
     if (tg.t > 0) continue;
     tg.done = true;
     const x2 = tg.x + Math.cos(tg.ang) * tg.len, y2 = tg.y + Math.sin(tg.ang) * tg.len;
+    if (!tg.dmg) continue; // only a warning (the attack itself comes another way)
     if (distToSegment(p.x, p.y, tg.x, tg.y, x2, y2) < tg.w / 2 + p.r) hurtPlayer(tg.dmg);
     for (const a of game.allies) if (a.kind === 'twin' && distToSegment(a.x, a.y, tg.x, tg.y, x2, y2) < tg.w / 2 + a.r) hurtTwin(a);
     game.fx.push({ kind: 'slamline', x1: tg.x, y1: tg.y, x2, y2, t: 0.25 });
+    const look = tg.look || {};
     for (let k = 0; k < 8; k++) {
       const f = k / 8;
-      burst(tg.x + (x2 - tg.x) * f, tg.y + (y2 - tg.y) * f, '#8a6a70', 2, 50, 0.3);
-      stainPx(tg.x + (x2 - tg.x) * f + rand(-3, 3), tg.y + (y2 - tg.y) * f + rand(-3, 3), FLUID.rot, 2);
+      burst(tg.x + (x2 - tg.x) * f, tg.y + (y2 - tg.y) * f, look.color || '#8a6a70', 2, 50, 0.3);
+      stainPx(tg.x + (x2 - tg.x) * f + rand(-3, 3), tg.y + (y2 - tg.y) * f + rand(-3, 3), look.fluid || FLUID.rot, 2);
     }
     game.shake = Math.max(game.shake, 4);
     Sfx.play('slam');
@@ -56,6 +58,7 @@ function updateBossFx(dt) {
 
 // Drawn above the darkness so you can always see what's coming.
 function drawBossFx(ctx) {
+  drawBossSweeps(ctx);
   for (const tg of game.telegraphs) {
     const x2 = tg.x + Math.cos(tg.ang) * tg.len, y2 = tg.y + Math.sin(tg.ang) * tg.len;
     const k = 1 - tg.t / tg.max;
@@ -173,7 +176,11 @@ function fleeScavenger(e, dt) {
 
 // --- Bosses --------------------------------------------------------------------------
 const BOSSES = {
-  mother: { title: 'THE MOTHER CULTURE', sub: 'Failed attempt no. 1' },
+  mother:   { title: 'THE MOTHER CULTURE',   sub: 'Failed attempt no. 1',       dead: 'THE MOTHER IS DEAD',     deadSub: 'Her core is still beating' },
+  colossus: { title: 'THE THAWING COLOSSUS', sub: 'Cold storage, unit 9',       dead: 'THE COLOSSUS SHATTERS',  deadSub: 'Something still beats inside the ice' },
+  biotank:  { title: 'SPECIMEN ZERO',        sub: 'Weaponized. Unstable.',      dead: 'SPECIMEN ZERO IS DOWN',  deadSub: 'Its core is still pumping' },
+  archive:  { title: 'THE ARCHIVE',          sub: 'Every sample, all at once',  dead: 'THE ARCHIVE IS ERASED',  deadSub: 'One sample survives: its core' },
+  director: { title: 'THE DIRECTOR',         sub: 'He made you',                dead: 'THE DIRECTOR IS DEAD',   deadSub: 'Nothing is left to stop you. Go deeper.' },
 };
 
 function spawnBoss(id) {
@@ -181,7 +188,7 @@ function spawnBoss(id) {
   e.spawnT = 1.4;
   e.birthT = 3; e.slamT = 2.5;
   game.banner = { text: BOSSES[id].title, sub: BOSSES[id].sub, color: PAL.red, t: 3 };
-  game.bossName = BOSSES[id].title;
+  game.bossName = BOSSES[id].title; game.bossId = id;
   game.bossMax = e.maxHp;
   Sfx.play('scream');
 }
@@ -271,7 +278,8 @@ function onBossPartKilled(e) {
   if (rest.length) return;
   // The boss is dead.
   game.bossName = null;
-  game.banner = { text: 'THE MOTHER IS DEAD', sub: 'Her core is still beating', color: PAL.lime, t: 3 };
+  const B = BOSSES[game.bossId] || BOSSES.mother;
+  game.banner = { text: B.dead, sub: B.deadSub, color: PAL.lime, t: 3.2 };
   for (let i = 0; i < 8; i++) {
     const a = rand(0, Math.PI * 2), sp = rand(40, 110);
     game.room.orbs.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });
@@ -300,7 +308,7 @@ const AFFIXES = {
 };
 
 function rollAffixes(e) {
-  const n = game.depth >= 4 ? 2 : 1;
+  const n = game.depth >= 7 ? 3 : game.depth >= 4 ? 2 : 1; // more affixes the deeper you go
   const pool = Object.keys(AFFIXES);
   e.affixes = [];
   while (e.affixes.length < n) {
@@ -374,5 +382,144 @@ function onAffixDeath(e) {
       c.spawnT = 0; c.kx = side * 130;
       game.enemies.push(c);
     }
+  }
+}
+
+// --- Floor bosses 2-5 ------------------------------------------------------------------------
+// Each has two phases: at half health it changes (and says so).
+function bossPhase(e, flag, banner, onTurn) {
+  if (e[flag] || e.hp > e.maxHp * 0.5) return !!e[flag];
+  e[flag] = true;
+  game.banner = Object.assign({ color: PAL.red, t: 2.4 }, banner);
+  game.shake = Math.max(game.shake, 6);
+  Sfx.play('splice');
+  if (onTurn) onTurn();
+  return true;
+}
+// A minion born of a boss: no DNA, no farming.
+function bossMinion(type, x, y) {
+  const m = makeEnemy(type, x, y); m.offspring = true; m.noDna = true; m.spawnT = 0.4;
+  game.enemies.push(m); return m;
+}
+const countAlive = type => game.enemies.filter(o => !o.dead && o.type === type).length;
+
+// Cryo Wing: THE THAWING COLOSSUS. Fans of ice spikes and frost breath; at
+// half health the ice cracks, it starts walking, and Frostbitten break free.
+function updateColossus(e, dt, p) {
+  const ph2 = bossPhase(e, 'thawed', { text: 'THE ICE CRACKS', sub: 'It can move now', color: '#a0e0ff' }, () => {
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 100, vy: Math.sin(a) * 100, r: 2, team: 'enemy', kind: 'enemy', life: 1.4, color: '#d8f0ff', chill: true }); }
+    burst(e.x, e.y, '#d8f0ff', 30, 140, 0.6); Sfx.play('clank');
+  });
+  const a = Math.atan2(p.y - e.y, p.x - e.x);
+  if ((e.atkT = (e.atkT ?? 2) - dt) <= 0) {
+    e.atkT = ph2 ? rand(1.5, 2.1) : rand(2.1, 2.7);
+    if (Math.random() < 0.5) { // ice spikes: a fan of telegraphed lines
+      for (const off of ph2 ? [-0.5, -0.25, 0, 0.25, 0.5] : [-0.35, 0, 0.35]) telegraphLine(e.x, e.y, a + off, 185, 9, 0.8, 1, ICE_LOOK);
+    } else { // frost breath: a wide cone of chilling shards
+      for (let k = -4; k <= 4; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a + k * 0.12) * 130, vy: Math.sin(a + k * 0.12) * 130, r: 2, team: 'enemy', kind: 'enemy', life: 1.1, color: '#a0e0ff', chill: true });
+      Sfx.play('spray');
+    }
+  }
+  if (!ph2) return [0, 0];
+  if ((e.spawnFT = (e.spawnFT ?? 3) - dt) <= 0) { e.spawnFT = 7; if (countAlive('frostbitten') < 3) { bossMinion('frostbitten', e.x + rand(-20, 20), e.y + 18); floatText(e.x, e.y - 20, 'IT SHEDS', '#a0e0ff'); } }
+  return [Math.cos(a) * 24, Math.sin(a) * 24];
+}
+const ICE_LOOK = { color: '#a0e0ff', fluid: ['#4a7aa0', '#8ab8d8', '#d8f0ff'] };
+
+// Bio-Weapons: SPECIMEN ZERO. Acid mortars, telegraphed charges, Gas
+// Bloaters; at half health its tanks rupture and it gets faster.
+function updateBiotank(e, dt, p) {
+  const ph2 = bossPhase(e, 'ruptured', { text: 'IT RUPTURES', sub: 'Its tanks are leaking', color: '#c0e040' }, () => {
+    e.speed *= 1.4; for (let k = 0; k < 4; k++) spawnPuddle(e.x + rand(-30, 30), e.y + rand(-20, 20), 14, 6, 'enemy');
+  });
+  const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  if (ph2 && Math.random() < dt * 2) spawnPuddle(e.x + rand(-8, 8), e.y + 10, 7, 3, 'enemy'); // leaking
+  if (e.state === 'aim') { if ((e.aimT -= dt) <= 0) { e.state = 'charge'; e.timer = 0.6; Sfx.play('ram'); } return [0, 0]; }
+  if (e.state === 'charge') { if (e.timer <= 0) e.state = 'move'; return [e.dirX * 260, e.dirY * 260]; }
+  if ((e.atkT = (e.atkT ?? 2.5) - dt) <= 0) {
+    e.atkT = ph2 ? rand(1.7, 2.3) : rand(2.5, 3.1);
+    if (Math.random() < 0.55) { // mortar: lobbed acid around where you stand
+      for (let i = 0; i < (ph2 ? 5 : 3); i++) {
+        const tx = p.x + (i ? rand(-34, 34) : 0), ty = p.y + (i ? rand(-26, 26) : 0), fl = clamp(Math.hypot(tx - e.x, ty - e.y) / 90, 0.5, 1.4);
+        spawnBullet({ x: e.x, y: e.y - 6, vx: (tx - e.x) / fl, vy: (ty - e.y) / fl, r: 3, team: 'enemy', kind: 'glob', life: fl, maxLife: fl, color: PAL.lime });
+      }
+      Sfx.play('enemyShot');
+    } else { // a charge, telegraphed first
+      e.state = 'aim'; e.aimT = 0.75; e.dirX = ux; e.dirY = uy;
+      telegraphLine(e.x, e.y, Math.atan2(uy, ux), 180, 22, 0.75, 0, { color: '#c0e040' });
+    }
+  }
+  if ((e.minionT = (e.minionT ?? 5) - dt) <= 0) { e.minionT = ph2 ? 6 : 8; if (countAlive('bloater') < 3) for (const s of [-1, 1]) bossMinion('bloater', e.x + s * 20, e.y); }
+  return [ux * e.speed * 0.6, uy * e.speed * 0.6];
+}
+
+// Gene Bank: THE ARCHIVE. Bursts of spiraling bullets and packs of Clones;
+// at half health it rewrites itself: a faster spiral, and a Chimera.
+function updateArchive(e, dt, p) {
+  const ph2 = bossPhase(e, 'rewritten', { text: 'IT REWRITES ITSELF', sub: 'A new sample crawls out', color: '#e8a0b8' }, () => bossMinion('chimera', e.x, e.y + 22));
+  e.spinA = (e.spinA || 0) + dt * (ph2 ? 1.7 : 1.1);
+  e.patT = (e.patT || 0) + dt;
+  if (e.patT % 5 < 3 && (e.fireT = (e.fireT ?? 0.5) - dt) <= 0) { // spiral bursts: three seconds on, two off
+    e.fireT = ph2 ? 0.17 : 0.24;
+    const arms = ph2 ? 4 : 3;
+    for (let k = 0; k < arms; k++) { const a = e.spinA + k * Math.PI * 2 / arms; spawnBullet({ x: e.x + Math.cos(a) * e.r, y: e.y + Math.sin(a) * e.r, vx: Math.cos(a) * 82, vy: Math.sin(a) * 82, r: 2, team: 'enemy', kind: 'enemy', life: 2.8, color: '#e8a0b8' }); }
+    if (Math.random() < 0.3) Sfx.play('enemyShot');
+  }
+  if ((e.cloneT = (e.cloneT ?? 4) - dt) <= 0) {
+    e.cloneT = ph2 ? 7 : 9;
+    if (countAlive('clone') < 6) { for (let k = 0; k < 3; k++) bossMinion('clone', e.x + rand(-24, 24), e.y + 24 + rand(-4, 4)); floatText(e.x, e.y - 24, 'COPIES', '#e8a0b8'); Sfx.play('hatch'); }
+  }
+  return [0, 0];
+}
+
+// Director's Wing: THE DIRECTOR. Sweeping lasers, aimed volleys, security
+// on call; at half health, LOCKDOWN: the room's lasers come on.
+function updateDirector(e, dt, p) {
+  const ph2 = bossPhase(e, 'lockdown', { text: 'LOCKDOWN', sub: 'He seals the room', color: '#ff4040' }, () => {
+    const rows = [TILE * 3 + 4, ROOM_PX_H - TILE * 3 - 4];
+    for (const [i, y] of rows.entries()) game.room.hazards.push({ kind: 'laser', x1: TILE, y1: y, x2: ROOM_PX_W - TILE, y2: y, phase: i * LASER_CYCLE / 2 });
+    Sfx.play('door');
+  });
+  const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  if (e.sweep) { // a sweeping laser: a warning flicker, then the beam swings across
+    const S = e.sweep;
+    S.t -= dt;
+    if (S.t < S.dur) {
+      S.a += S.dir * S.speed * dt;
+      if (distToSegment(p.x, p.y, e.x, e.y, e.x + Math.cos(S.a) * S.len, e.y + Math.sin(S.a) * S.len) < p.r + 1.5 && p.burrowT <= 0) hurtPlayer(1);
+    }
+    if (S.t <= 0) e.sweep = null;
+    return [0, 0];
+  }
+  if ((e.atkT = (e.atkT ?? 2) - dt) <= 0) {
+    e.atkT = ph2 ? rand(1.6, 2.2) : rand(2.2, 3);
+    if (Math.random() < 0.45) {
+      const dir = Math.random() < 0.5 ? 1 : -1, dur = ph2 ? 1.6 : 1.9;
+      e.sweep = { a: Math.atan2(uy, ux) - dir * 1.0, dir, speed: ph2 ? 1.5 : 1.1, len: 210, dur, t: dur + 0.6 };
+      Sfx.play('flicker');
+    } else e.volleys = ph2 ? 4 : 3;
+  }
+  if (e.volleys > 0 && (e.volT = (e.volT || 0) - dt) <= 0) { // aimed volleys
+    e.volleys--; e.volT = 0.3;
+    const base = Math.atan2(uy, ux);
+    for (const off of [-0.3, -0.15, 0, 0.15, 0.3]) spawnBullet({ x: e.x, y: e.y - 4, vx: Math.cos(base + off) * 130, vy: Math.sin(base + off) * 130, r: 2, team: 'enemy', kind: 'enemy', life: 2.4, color: PAL.red });
+    Sfx.play('enemyShot');
+  }
+  if ((e.callT = (e.callT ?? 5) - dt) <= 0) { // security on call
+    e.callT = ph2 ? 8 : 10;
+    if (countAlive('hunter') + countAlive('enforcer') < 3) { bossMinion('hunter', e.x - 30, e.y); if (ph2) bossMinion('enforcer', e.x + 30, e.y); floatText(e.x, e.y - 22, 'SECURITY', PAL.red); Sfx.play('door'); }
+  }
+  const f = d > 110 ? 1 : d < 80 ? -1 : 0;
+  return [(ux * f - uy * 0.5) * e.speed, (uy * f + ux * 0.5) * e.speed];
+}
+
+// The Director's sweeping laser, over the darkness.
+function drawBossSweeps(ctx) {
+  for (const e of game.enemies) {
+    if (e.dead || !e.sweep) continue;
+    const S = e.sweep, x2 = e.x + Math.cos(S.a) * S.len, y2 = e.y + Math.sin(S.a) * S.len;
+    if (S.t > S.dur) { // warning: where it starts
+      if (Math.floor(game.time * 16) % 2) { ctx.fillStyle = '#ff6060'; const n = S.len / 3; for (let i = 0; i < n; i += 2) ctx.fillRect(Math.round(e.x + (x2 - e.x) * i / n), Math.round(e.y + (y2 - e.y) * i / n), 1, 1); }
+    } else { pxLine(ctx, e.x, e.y, x2, y2, '#600808', 3, 0); pxLine(ctx, e.x, e.y, x2, y2, Math.random() < 0.5 ? '#ff3030' : '#ff9090', 1, 0); }
   }
 }

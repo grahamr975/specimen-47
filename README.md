@@ -22,6 +22,8 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Culture Blobs** divide once; the copy can't divide and carries no biomass.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Walk into it to devour it (the biomass goes straight into you), or attack it from range until it bursts and collect the glowing globules of biomass that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **Visceral.** Harder hits spurt more blood and tear chunks off enemies that fly, trail blood and splat against the walls; overkill bursts bodies apart; badly wounded enemies drip as they move. The stronger you get, the messier it gets.
+- **Bosses.** Every floor ends in a boss, each with two phases (it changes at half health): the Mother Culture, the Thawing Colossus (ice spikes and frost breath; then it thaws and walks), Specimen Zero (acid mortars, charges, Gas Bloaters; then it ruptures), the Archive (spiraling bullet storms and Clone packs; then it rewrites itself), and the Director (sweeping lasers, volleys, security on call; then LOCKDOWN).
+- **Threat rises.** Every floor, enemies attack more often, their shots fly faster, elites carry more affixes, and health and numbers grow. Past the Director the lab loops, deeper and harder.
 - **Every floor is its own place.**
   - **Cryo Wing** (icy): ice patches you slide on. Frostbitten shamble at you and shatter into chilling shards when they die; Cryo Crawlers skitter in and spray frost that slows you; Thawed Specimens wait in cryo jars until you come close.
   - **Bio-Weapons** (sickly): gas vents puff on a cycle. Plague Carriers leak acid; Gas Bloaters drift in, swell and burst; Gun Polyps are rooted turrets firing bursts.

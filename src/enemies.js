@@ -34,11 +34,22 @@ const ENEMY_TYPES = {
   hunter:      { name: 'Hunter-Killer',    hp: 6, r: 6, speed: 55, dna: 0, corpse: 0,   fluid: FLUID.oil,   gib: ['#5e5e66', '#3e3e46'], eyes: [[5, 0]], flying: true, robot: true },
   handler:     { name: 'Containment Handler', hp: 7, r: 6, speed: 34, dna: 2, corpse: 0.7, fluid: FLUID.blood, gib: ['#d8c040', '#a08a20', '#7a0f1a'], eyes: [[1, -6]] },
   // --- Bosses ---
+  colossus: { name: 'The Thawing Colossus', hp: 70, r: 16, speed: 0, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#9aaab8', '#4a7aa0', '#d8f0ff'], eyes: [[-2, -12], [2, -12]], boss: true },
+  biotank:  { name: 'Specimen Zero',     hp: 80, r: 15, speed: 30, dna: 0, corpse: 0, fluid: FLUID.bile, gib: ['#b0605a', '#aac25a', '#5e5e66'], eyes: [[-2, -10], [1, -10]], boss: true },
+  archive:  { name: 'The Archive',       hp: 85, r: 17, speed: 0, dna: 0, corpse: 0, fluid: FLUID.ichor, gib: ['#a45a7a', '#4a7aa0', '#e0c8c8'], eyes: [[-6, -4], [4, -6], [-1, 3]], boss: true },
+  director: { name: 'The Director',      hp: 100, r: 12, speed: 34, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#e8e8ee', '#5e5e66', '#7a0f1a'], eyes: [[-2, -13], [2, -13]], boss: true },
   mother:   { name: 'The Mother Culture', hp: 60, r: 17, speed: 0, dna: 0, corpse: 0, fluid: FLUID.rot, gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [[0, -8], [-12, 0], [12, 2]], boss: true },
   motherling:{ name: 'Mother Culture',  hp: 18, r: 10, speed: 22, dna: 0, corpse: 0, fluid: FLUID.rot, gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [[0, -4]], boss: true },
 };
 
 const ENEMY_POOL = ['rat', 'rat', 'drone', 'urchin', 'splitter', 'spitter'];
+
+// THREAT: everything gets a little harder every floor (and keeps going after the
+// Director, as the lab loops deeper). Enemies attack more often and their shots
+// fly faster; elites carry more affixes; health and numbers keep growing (makeEnemy,
+// spawnRoomEnemies).
+function threatRate() { return 1 + 0.12 * (game.depth - 1); }            // how much faster they act
+function threatShotSpeed() { return Math.min(1.45, 1 + 0.06 * (game.depth - 1)); }
 
 function makeEnemy(type, x, y, elite = false) {
   const T = ENEMY_TYPES[type];
@@ -288,7 +299,7 @@ function updateEnemies(dt) {
   for (const e of game.enemies) {
     if (e.dead) continue;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
-    e.t += dt; e.flash -= dt; e.timer -= dt; e.blindT -= dt;
+    e.t += dt; e.flash -= dt; e.timer -= dt * threatRate(); e.blindT -= dt; // deeper floors: they attack more often
     if (e.barbT > 0 && (e.barbT -= dt) <= 0) ripBarbs(e); // barbs tear out
     if (e.hp < e.maxHp * 0.5 && !ENEMY_TYPES[e.type].robot && Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + e.r * 0.6, ENEMY_TYPES[e.type].fluid, 1); // badly hurt: it drips
     // Held in your hands, flying through the air, or stunned: no thinking.
@@ -433,7 +444,11 @@ function updateEnemies(dt) {
         if (e.timer <= 0) { e.timer = rand(2.6, 3.4); spawnBullet({ x: e.x, y: e.y, vx: ux * 105, vy: uy * 105, r: 3, team: 'enemy', kind: 'enemy', life: 2.2, color: '#e8e0c8', net: true }); Sfx.play('whip'); }
         break;
       }
-      case 'mother': [mx, my] = updateMother(e, dt, p); break;
+      case 'mother': [mx, my] = updateMother(e, dt * threatRate(), p); break;
+      case 'colossus': [mx, my] = updateColossus(e, dt * threatRate(), p); break;
+      case 'biotank': [mx, my] = updateBiotank(e, dt * threatRate(), p); break;
+      case 'archive': [mx, my] = updateArchive(e, dt * threatRate(), p); break;
+      case 'director': [mx, my] = updateDirector(e, dt * threatRate(), p); break;
       case 'motherling': [mx, my] = updateMotherling(e, dt, p); break;
       case 'rat': { // fast, wiggly chaser
         const w = Math.sin(e.t * 8) * 0.6;
@@ -603,7 +618,7 @@ function enemySpriteName(e) {
   if (e.type === 'drone' && Math.floor(e.t * 16) % 2) n = 'drone2';
   if (e.type === 'scavenger' && e.engorged) n = e.fleeT < 4 && Math.floor(e.t * 8) % 2 ? 'scavengerfat2' : 'scavengerfat'; // pulses when about to escape
   if (e.type === 'culture' && !e.offspring && !e.divided && (e.growT || 0) > floorDef(game.depth).cultureSplit * 0.6) n = 'culture2'; // swelling, about to divide
-  if ((e.type === 'mother' || e.type === 'motherling') && Math.floor(e.t * 2.5) % 2) n = e.type + '2'; // pulsing
+  if (['mother', 'motherling', 'colossus', 'biotank', 'archive', 'director'].includes(e.type) && Math.floor(e.t * 2.5) % 2) n = e.type + '2'; // pulsing / breathing
   if (FRAMED.has(e.type) && (e.speed === 0 ? e.burstN > 0 : true) && Math.floor(e.t * 8) % 2) n = e.type + '2';           // walking frames
   if (e.type === 'jarthing' && e.state === 'dormant') n = 'jar';
   if (e.type === 'mimic' && e.state === 'disguise') n = 'mimicdead';

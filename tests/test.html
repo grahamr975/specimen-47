@@ -585,6 +585,28 @@ try {
     check(`step into the hatch past the core: it comes with you (floor ${game.depth}, +${(q.coreBonus || 0) - cb} core, +${q.dna - d0} biomass, ${game.pendingEvolutions.filter(e => e.slot === 'CORE').length} core screen waiting)`, game.depth === 2 && q.coreBonus === cb + 1 && q.dna >= d0 + 2 && game.pendingEvolutions.some(e => e.slot === 'CORE'));
     game.pendingEvolutions = [];
   }
+  { // 0zg) Floor bosses 2-5, and threat that rises floor by floor.
+    for (const [d, id] of [[2, 'colossus'], [3, 'biotank'], [4, 'archive'], [5, 'director']]) {
+      newRun(); game.depth = d; startFloor(); const q = game.player; enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
+      const b = livingBossParts().find(o => o.type === id);
+      check(`floor ${d}'s exit holds ${BOSSES[id].title}`, !!b && game.bossName === BOSSES[id].title);
+      if (!b) continue;
+      b.spawnT = 0; let minions = 0, shots = 0;
+      for (let i = 0; i < 360; i++) { q.hp = q.maxHp; q.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; shots = Math.max(shots, game.bullets.filter(x => x.team === 'enemy').length + game.telegraphs.length + (b.sweep ? 1 : 0)); if (i % 30 === 0) render(); }
+      minions = game.enemies.filter(o => !o.dead && !ENEMY_TYPES[o.type].boss).length;
+      const hp0 = b.maxHp; b.hp = hp0 * 0.45; for (let i = 0; i < 5; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+      const turned = b.thawed || b.ruptured || b.rewritten || b.lockdown;
+      check(`${BOSSES[id].title}: attacks (${shots} at once), brings help (${minions}), and turns at half health (${game.banner && game.banner.text})`, shots > 0 && turned);
+      for (let i = 0; i < 240; i++) { q.hp = q.maxHp; q.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; if (i % 40 === 0) render(); }
+      for (const o of livingBossParts()) damageEnemy(o, 99999, 0, 0, true);
+      check(`...and dies with its own last words, leaving a core (${game.banner && game.banner.text})`, game.banner && game.banner.text === BOSSES[id].dead && game.room.pickups.some(k => k.kind === 'core'));
+    }
+    { newRun(); const r1 = threatRate(), s1 = threatShotSpeed(); game.depth = 5; const r5 = threatRate(), s5 = threatShotSpeed(); game.depth = 9; const r9 = threatRate();
+      check(`threat rises every floor (attack rate x${r1.toFixed(2)} -> x${r5.toFixed(2)} -> x${r9.toFixed(2)}, shots x${s1.toFixed(2)} -> x${s5.toFixed(2)})`, r1 === 1 && r5 > r1 && r9 > r5 && s5 > s1);
+      const e = makeEnemy('rat', 50, 50); game.depth = 1; const e1 = makeEnemy('rat', 50, 50); check(`enemies are tougher deeper (rat hp ${e1.maxHp.toFixed(1)} on floor 1, ${e.maxHp.toFixed(1)} on floor 9)`, e.maxHp > e1.maxHp * 2);
+      game.depth = 7; const el = makeEnemy('rat', 50, 50, true); rollAffixes(el); check(`deep elites carry more affixes (${el.affixes.length} on floor 7)`, el.affixes.length === 3);
+      game.depth = 6; startFloor(); check(`past the Director the lab loops deeper ("${game.banner.text}")`, /\+/.test(game.banner.text)); }
+  }
   { // 0zf) Floors 2-5: their own enemies and hazards.
     const at = (depth) => { newRun(); game.depth = depth; startFloor(); const room = game.floor.rooms.find(r => r.type === 'combat'); enterRoom(room, 'up'); game.enemies = []; game.bullets = []; game.puddles = []; room.hazards = []; room.tiles = room.tiles.map(x => x === T_BLOCK ? T_FLOOR : x); const q = game.player; q.x = 120; q.y = 96; return q; };
     const foe = (type, dx, dy = 0) => { const e = spawnEnemy(type, game.player.x + dx, game.player.y + dy); e.spawnT = 0; e.affixes = []; return e; };
@@ -861,8 +883,7 @@ try {
     newRun(); game.depth = 2; startFloor(); p = game.player;
     enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
     const w = game.enemies.find(e => e.warden);
-    check('floors without a boss have a warden in the exit room', !!w);
-    if (w) { w.spawnT = 0; w.affixes = []; damageEnemy(w, 9999, 0, 0, true); check('the warden drops its core', game.room.pickups.some(k => k.kind === 'core')); } // (no affixes: a shielded one can block the test hit)
+    check(`every floor has a boss now: floor 2's exit holds ${livingBossParts().map(b => b.type).join(',')}`, !w && livingBossParts().some(b => b.type === 'colossus'));
   }
   { // 0c) Sets.
     const untagged = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && !setOf(id));

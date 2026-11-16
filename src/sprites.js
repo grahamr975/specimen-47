@@ -1263,6 +1263,54 @@ function paintHandler(frame) { // a containment worker in a hazmat suit, net lau
   return P.outline().toCanvas();
 }
 
+// --- Bosses of floors 2-5 --------------------------------------------------------------------
+function paintColossus(frame) { // a frozen giant, hunched under blocks of ice
+  const P = new Painter(46, 42, 101), b = frame ? 0.8 : 0;
+  P.tube([[16, 30], [13, 40]], 3.4, 3, FROZEN).tube([[30, 30], [33, 40]], 3.4, 3, FROZEN);
+  P.blob(23, 24 + b * 0.5, 15 + b, 12 + b, FROZEN, { spec: 1, noise: 0.18 });
+  P.tube([[10, 20], [5, 33]], 3, 2.6, FROZEN).tube([[36, 20], [41, 33]], 3, 2.6, FROZEN);
+  P.blob(23, 10, 6, 5.4, FROZEN, { spec: 1 });
+  for (const [x, y, w, h] of [[10, 13, 6, 5], [33, 12, 6, 6], [19, 18, 4, 3], [28, 27, 5, 4]]) P.blob(x, y, w, h, ICE, { spec: 1, specColor: '#ffffff', noise: 0.1 }); // ice blocks
+  for (let k = 0; k < 5; k++) P.tube([[15 + k * 4, 14], [13 + k * 5, 4 + hash2(k, 3, 101) * 3]], 1.2, 0.2, ICE, { spec: 1 });
+  P.blob(23, 25, 2.4, 2, R.blood, { noise: 0 });
+  P.dot(21, 9.6, '#a0e0ff').dot(25, 9.6, '#a0e0ff');
+  return P.outline().toCanvas();
+}
+function paintBiotank(frame) { // a bloated, weaponized hulk with gas tanks strapped to its back
+  const P = new Painter(46, 40, 103), b = frame ? 1 : 0;
+  P.tube([[7, 10], [9, 30]], 3, 3, R.metal, { spec: 1 }).tube([[39, 10], [37, 30]], 3, 3, R.metal, { spec: 1 }); // gas tanks
+  P.blob(8, 18, 1.6, 4, SICK, { spec: 1, specColor: '#e0ff80' }).blob(38, 18, 1.6, 4, SICK, { spec: 1, specColor: '#e0ff80' });
+  P.tube([[17, 30], [15, 39]], 3.4, 3, R.flesh).tube([[29, 30], [31, 39]], 3.4, 3, R.flesh);
+  P.blob(23, 22, 14 + b, 12 + b, R.flesh, { spec: 1, noise: 0.22 });
+  for (let k = 0; k < 7; k++) P.blob(13 + hash2(k, 1, 103) * 20, 15 + hash2(k, 2, 103) * 14, 1.8, 1.6, R.pus, { spec: 1 });
+  P.scratch([[11, 14], [35, 30]], '#2a2a30').scratch([[35, 14], [11, 30]], '#2a2a30'); // harness straps
+  P.blob(23, 9, 5, 4.4, R.flesh, { spec: 1 });
+  P.blob(23, 10, 3.6, 2, R.metal, { spec: 1 }); P.dot(21.5, 10, '#c0e040').dot(24.5, 10, '#c0e040'); // a gas mask
+  return P.outline().toCanvas();
+}
+function paintArchive(frame) { // a mass of fused specimen jars, eyes everywhere
+  const P = new Painter(48, 44, 105);
+  P.blob(24, 24, 17, 15, R.cyst, { spec: 1, noise: 0.15 });
+  const jars = [[10, 16], [38, 15], [8, 30], [40, 31], [18, 36], [31, 37], [24, 8]];
+  for (const [x, y] of jars) { P.rect(x - 3, y - 4, x + 3, y + 4, ['#0e1a26', '#1a3048', '#2a4a66', '#4a7aa0', '#8ab8d8'], 0.4, { noise: 0.1 }); P.blob(x, y, 1.8, 2.4, R.murk, { noise: 0.2 }); }
+  P.vein(14, 20, 9, '#5a2238', 0.3).vein(34, 22, 8, '#5a2238', 2.6).vein(24, 30, 7, '#5a2238', 1.6);
+  const eyes = [[18, 20], [28, 18], [23, 27], [32, 28], [15, 28]];
+  eyes.forEach(([x, y], i) => { if (frame && i % 2) P.scratch([[x - 1.5, y], [x + 1.5, y]], '#200810'); else { P.blob(x, y, 2, 1.8, R.sclera, { spec: 1 }); P.dot(x + 0.5, y, '#200810'); } });
+  return P.outline().toCanvas();
+}
+function paintDirector(frame) { // the man who made you, fused into a walking security harness
+  const P = new Painter(36, 38, 107), lf = frame ? 1.5 : 0;
+  for (const [hx, fx, s] of [[12, 3, 1], [14, 7, -1], [22, 29, 1], [24, 33, -1]]) P.tube([[hx, 24], [(hx + fx) / 2, 18 + s * lf], [fx, 36]], 1.2, 0.8, R.metal, { spec: 1 }); // mechanical legs
+  P.blob(18, 24, 8, 4, R.metal, { spec: 1 });
+  P.blob(18, 15, 6, 8, ['#4a4a52', '#9a9aa2', '#c8c8d0', '#e8e8ee', '#ffffff'], { spec: 1, noise: 0.05 }); // the lab coat
+  P.scratch([[18, 9], [18, 22]], '#6a6a72');
+  P.tube([[12, 12], [7, 17]], 1.2, 1, ['#4a4a52', '#9a9aa2', '#c8c8d0', '#e8e8ee', '#ffffff']).tube([[24, 12], [29, 16]], 1.2, 1, ['#4a4a52', '#9a9aa2', '#c8c8d0', '#e8e8ee', '#ffffff']);
+  P.blob(18, 5.6, 3.6, 3.6, R.flesh, { spec: 1 });
+  P.scratch([[15.5, 5.5], [20.5, 5.5]], '#ff2020'); // a red visor
+  P.dot(28.6, 16.2, '#ff4040');
+  return P.outline().toCanvas();
+}
+
 function withFlash(name, img) {
   for (const [n, i] of [[name, img], [name + '_L', flipH(img)]]) {
     SPR[n] = i;
@@ -1330,6 +1378,7 @@ function withFlash(name, img) {
   withFlash('jar', paintJar());
   withFlash('bloater', paintBloater(false)); withFlash('bloater2', paintBloater(true));
   withFlash('mimicdead', SPR.rat_dead); // a Mimic in disguise: just another corpse
+  for (const [n, fn] of [['colossus', paintColossus], ['biotank', paintBiotank], ['archive', paintArchive], ['director', paintDirector]]) { withFlash(n, fn(0)); withFlash(n + '2', fn(1)); }
 
   SPR.heart = paintHeart(R.blood);
   SPR.heartEmpty = paintHeart(R.empty);

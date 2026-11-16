@@ -17,13 +17,13 @@ const FLOORS = [
     pool: ['rat', 'rat', 'culture', 'culture', 'culture', 'spitter', 'splitter'],
     scavengers: true, hazard: 'sticky', boss: 'mother', cultureSplit: 15,
   },
-  { name: 'CRYO WING', sub: 'Cold storage', hazard: 'ice', tint: 'rgba(110,170,230,0.13)', cultureSplit: 13,
+  { name: 'CRYO WING', sub: 'Cold storage', boss: 'colossus', hazard: 'ice', tint: 'rgba(110,170,230,0.13)', cultureSplit: 13,
     pool: ['frostbitten', 'frostbitten', 'cryocrawler', 'cryocrawler', 'jarthing', 'rat', 'spitter'] },
-  { name: 'BIO-WEAPONS', sub: 'The armory', hazard: 'vents', tint: 'rgba(140,180,40,0.11)', cultureSplit: 12,
+  { name: 'BIO-WEAPONS', sub: 'The armory', boss: 'biotank', hazard: 'vents', tint: 'rgba(140,180,40,0.11)', cultureSplit: 12,
     pool: ['carrier', 'carrier', 'bloater', 'bloater', 'gunpolyp', 'splitter', 'rat'] },
-  { name: 'GENE BANK', sub: 'The archive', hazard: 'mutagen', tint: 'rgba(150,80,180,0.12)', cultureSplit: 11,
+  { name: 'GENE BANK', sub: 'The archive', boss: 'archive', hazard: 'mutagen', tint: 'rgba(150,80,180,0.12)', cultureSplit: 11,
     pool: ['mimic', 'chimera', 'clone', 'clone', 'urchin', 'splitter', 'rat'] },
-  { name: "DIRECTOR'S WING", sub: 'The end', hazard: 'lasers', tint: 'rgba(225,225,235,0.09)', cultureSplit: 10,
+  { name: "DIRECTOR'S WING", sub: 'The end', boss: 'director', hazard: 'lasers', tint: 'rgba(225,225,235,0.09)', cultureSplit: 10,
     pool: ['enforcer', 'hunter', 'hunter', 'handler', 'handler', 'drone', 'rat'] },
 ];
 

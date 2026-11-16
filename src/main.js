@@ -44,7 +44,8 @@ function startFloor() {
   game.player.y = ROOM_PX_H / 2;
   enterRoom(game.floor.start, null);
   const fd = floorDef(game.depth);
-  game.banner = { text: `FLOOR ${game.depth}: ${fd.name}`, sub: fd.sub, color: PAL.red, t: 2.4 };
+  const loop = Math.floor((game.depth - 1) / FLOORS.length); // past the Director, the lab goes deeper (and harder)
+  game.banner = { text: `FLOOR ${game.depth}: ${fd.name}` + (loop ? ' ' + '+'.repeat(loop) : ''), sub: loop ? 'Deeper still. Everything is stronger.' : fd.sub, color: PAL.red, t: 2.4 };
 }
 
 // `side` = which door of the new room the player comes through.

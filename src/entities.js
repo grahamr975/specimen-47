@@ -11,6 +11,7 @@ function spawnBullet(o) {
     x: 0, y: 0, vx: 0, vy: 0, r: 2, dmg: 1, life: 1, team: 'player', kind: 'shot',
     homing: 0, split: 0, acid: 0, pierce: 0, color: PAL.lime,
   }, o);
+  if (b.team === 'enemy' && b.kind !== 'glob') { const k = threatShotSpeed(); b.vx *= k; b.vy *= k; b.life /= k; } // deeper: faster shots (same reach)
   game.bullets.push(b);
   return b;
 }
