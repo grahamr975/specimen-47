@@ -1957,7 +1957,7 @@ const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit', 'mul'])
 
 // Add one part's whole path to a stat sheet. Each node uses the part's growth level.
 function applyMutation(s, m, p) {
-  const l = m.path.length, L = m.lvl || 0;
+  const l = m.path.length, raw = m.lvl || 0, L = raw <= LEVEL_MAX ? raw : LEVEL_MAX + (raw - LEVEL_MAX) * 0.5; // overgrowth: half-size steps
   if (!L) { for (const id of m.path) MUTATIONS[id].apply(s, l, p); return; }
   const before = {}, objs = {}, g0 = s.guns.length;
   for (const k in s) { if (typeof s[k] === 'number') before[k] = s[k]; else if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) objs[k] = s[k]; }
@@ -2201,7 +2201,7 @@ function choiceInfo(p, c) {
   if (c.kind === 'level') {
     const m = c.part, d = MUTATIONS[m.id], L = (m.lvl || 0) + 1, evolves = L >= LEVEL_MAX && childrenOf(m.id).length > 0;
     return { id: m.id, name: d.name, rarity: d.rarity, desc: d.desc, malignant: !!d.malignant && slotMalignant(m), set: null, slot: m.loc, kind: 'level',
-      status: evolves ? 'EVOLVES!' : 'LEVEL ' + L, note: levelText(m, L), noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: L, size: 1 };
+      status: evolves ? 'EVOLVES!' : L > LEVEL_MAX ? 'OVERGROWTH ' + (L - LEVEL_MAX) : 'LEVEL ' + L, note: levelText(m, L), noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: Math.min(L, LEVEL_MAX), size: 1 };
   }
   if (c.id === '_gorge') {
     const free = freeSlots(p);
@@ -2241,6 +2241,41 @@ function choiceInfo(p, c) {
   };
 }
 
+// --- The Ultimate Metamorphosis ------------------------------------------------------
+// Five fully grown parts: your next cocoon is the last one. You become your
+// final form: +25% damage, +2 max health, a little faster, a passive for every
+// set your parts belong to (stronger the more parts share it), and your parts
+// can keep leveling past the max (OVERGROWTH) for the rest of the run.
+const fullyGrown = m => !m.starter && !childrenOf(m.id).length;
+function apexReady(p) {
+  return !p.apex && slotsUsed(p) >= MAX_SLOTS && p.parts.every(fullyGrown);
+}
+function checkApex(p) {
+  if (!apexReady(p) || game.pendingEvolutions.some(e => e.apex)) return;
+  game.pendingEvolutions.push({ apex: true, title: 'ULTIMATE METAMORPHOSIS' });
+  whisper('Every part of you is finished. One last change is coming.');
+}
+// What each set gives a final form, given how many of your parts belong to it.
+const APEX_PASSIVES = {
+  HIVE: 'A SWARM HATCHES AROUND YOU', BONE: 'BONE SHARDS BURST FROM YOU', FUNGAL: 'YOU TRAIL TOXIC SPORES',
+  PREDATOR: 'KILLS FEED YOU AND SPEED YOU UP', PLANT: 'POLYPS SPROUT AROUND YOU', ABOMINATION: 'TENDRILS LASH OUT ON THEIR OWN',
+};
+function apexPassives(p) { return setCounts(p); }
+function becomeApex(p) {
+  p.apex = true;
+  recomputeStats(p);
+  p.hp = p.maxHp;
+  const sets = Object.keys(apexPassives(p));
+  game.banner = { text: 'ULTIMATE METAMORPHOSIS', sub: sets.map(k => APEX_PASSIVES[k]).slice(0, 2).join(' - ') || 'YOU ARE FINISHED', color: '#ffd070', t: 4 };
+  whisper('There is nothing left of the specimen. There is only you.');
+  bloodSpray(p.x, p.y, 0, 0, 40, FLUID.blood, 160);
+  gibs(p.x, p.y, 12, ['#c8b4a0', '#a8907e', '#5e2229', '#ffd070'], FLUID.blood);
+  burst(p.x, p.y, '#ffd070', 40, 150, 1);
+  game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 70, t: 0.6 });
+  game.shake = Math.max(game.shake, 8);
+  Sfx.play('splice'); Sfx.play('secondHeart');
+}
+
 // --- Level-ups --------------------------------------------------------------------
 // A biomass level-up: mostly "+1 level" for your parts, plus a new part when
 // you have room (always a mouth / limbs while you have none), and a
@@ -2252,7 +2287,7 @@ function rollLevelUps(p, n) {
   const takeRoot = loc => { const rs = roots.filter(c => (!loc || locOf(c.id) === loc) && !out.some(o => o.id === c.id)); if (rs.length) out.push({ id: pickW(rs).id, kind: 'root' }); };
   if (!partAt(p, 'MOUTH')) takeRoot('MOUTH');
   if (!partAt(p, 'LIMBS') && out.length < n) takeRoot('LIMBS');
-  const levels = p.parts.filter(m => !m.starter && (m.lvl || 0) < LEVEL_MAX).sort(() => Math.random() - 0.5).map(m => ({ id: m.id, kind: 'level', part: m }));
+  const levels = p.parts.filter(m => !m.starter && ((m.lvl || 0) < LEVEL_MAX || (p.apex && fullyGrown(m)))).sort(() => Math.random() - 0.5).map(m => ({ id: m.id, kind: 'level', part: m }));
   if (!out.length && roots.length) takeRoot(); // room for one more part: one card offers it
   for (const c of levels) { if (out.length >= n) break; out.push(c); }
   while (out.length < n && roots.length > out.filter(c => c.kind === 'root').length) { const k = out.length; takeRoot(); if (out.length === k) break; }
@@ -2277,6 +2312,7 @@ function applyChoice(p, c) {
     burst(p.x, p.y, VIAL_COLOR, 10, 60, 0.4);
     Sfx.play('absorb');
     recomputeStats(p);
+    checkApex(p);
     return;
   }
   c = resolveCard(p, c);
@@ -2312,4 +2348,5 @@ function applyChoice(p, c) {
     Sfx.play('absorb');
   }
   recomputeStats(p);
+  checkApex(p);
 }

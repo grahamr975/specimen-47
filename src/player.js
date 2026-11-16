@@ -32,6 +32,7 @@ function makePlayer() {
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
     controlT: 0, twinDead: false, twinLost: 0, leechHits: 0,
     shieldUp: false, shieldT: 0, secondHeartUsed: false,
+    apex: false, apexKills: 0,
     armor: 0, armorKills: 0, plates: 0, plateT: 0, platesBroken: 0, mirrorT: 0, mirrorHits: 0,
   };
 }
@@ -50,6 +51,11 @@ function recomputeStats(p) {
   for (const k of splices) SPLICES[k].apply(s, p);
   s.power = bodyPower(p);
   s.damageMul *= s.power; // weak when fresh, strong when fully evolved
+  if (p.apex) { // the final form
+    s.damageMul *= 1.25; s.maxHp += 2; s.rateMul *= 0.9; s.speedMul *= 1.08;
+    s.apex = apexPassives(p);
+    if (s.apex.PLANT) s.grovePolyp = s.grovePolyp || { dmg: 0.9, rate: 1, life: 12 };
+  }
   finalizeStats(s);
   for (const k of splices) {
     // The two parts fuse into one: the slot it frees is yours for good (up to the cap).
@@ -1369,7 +1375,8 @@ function drawSpiderLegs(ctx, p, bx, by, which) {
 // The cocoon wraps up from the floor as it grows, then pulses before splitting.
 function drawCocoon(ctx, p, x, y) {
   const k = Math.min(1, p.evolveT / COCOON_TIME);
-  const rx = Math.round(8 * STAGE_SCALE[p.stage]) + 1, ry = Math.round(10 * STAGE_SCALE[p.stage]) + 1;
+  const big = game.pendingEvolutions.some(e => e.apex) ? 1.6 : 1; // the last cocoon: a huge chrysalis
+  const rx = Math.round(8 * STAGE_SCALE[p.stage] * big) + 1, ry = Math.round(10 * STAGE_SCALE[p.stage] * big) + 1;
   const jx = k > 0.6 ? Math.round(rand(-1, 1) * (k - 0.6) * 2.5) : 0; // it trembles near the end
   const cx = Math.round(x + jx), cy = Math.round(y + 1);
   const top = cy + ry - Math.round(2 * ry * k); // wrapped up to here

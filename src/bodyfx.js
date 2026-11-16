@@ -41,6 +41,7 @@ function bodyPose(p) {
   if (!p.moving) sy *= 1 + (p.form === 'PREDATOR' ? 0.05 : 0.025) * Math.sin(p.t * (p.form === 'PREDATOR' ? 4 : 2.5)); // breathing
   if (p.form === 'ABOMINATION') { sx *= 1 + 0.04 * Math.sin(p.t * 5); sy *= 1 + 0.04 * Math.sin(p.t * 3.7 + 1); } // lopsided pulse
   if (s.diveBomb && p.dashT > 0) rot = 0.5 * (p.dashX >= 0 ? 1 : -1); // Dive Bomb: nose down
+  if (p.apex) { sx *= 1.12; sy *= 1.12; } // the final form is bigger
   return { alt, sx, sy, rot };
 }
 
@@ -266,6 +267,13 @@ function drawBodyGlow(ctx, p) {
     ctx.fillRect(Math.round(p.x - 6 + (p.t % 2.5) * 48), Math.round(y - 5), 1, 1);
   }
   ctx.globalAlpha = 1;
+  if (p.apex) { // the final form: a slow golden aura and eyes that shine in the dark
+    const sets = Object.keys(p.stats.apex || {}), col = sets.length ? SETS[sets[Math.floor(p.t / 2) % sets.length]].color : '#ffd070';
+    ctx.globalAlpha = 0.3 + 0.15 * Math.sin(p.t * 2);
+    pxRing(ctx, p.x, p.y - 2, 15 + Math.sin(p.t * 1.5) * 2, col); pxRing(ctx, p.x, p.y - 2, 11, '#ffd070');
+    ctx.globalAlpha = 1;
+    if (Math.floor(p.t * 8) % 30) { const h = headPoint(p, p.x, y); ctx.fillStyle = '#fff0c0'; ctx.fillRect(Math.round(h.x), Math.round(h.y), 1, 1); ctx.fillRect(Math.round(h.x - (p.aimX < 0 ? -2 : 2)), Math.round(h.y), 1, 1); }
+  }
   const set = activeSet(p);
   if (set && set.tier === 1) { // a full set: a faint aura in the set's color
     ctx.globalAlpha = 0.25 + 0.15 * Math.sin(p.t * 3);

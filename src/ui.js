@@ -9,6 +9,7 @@
 // deliberately do NOT explain what mutations do: you learn by growing them.
 function openEvolution(opts) {
   const p = game.player;
+  if (opts.apex) { becomeApex(p); return; } // the ultimate metamorphosis has no cards
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
       : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
@@ -317,6 +318,7 @@ function drawMutationList(ctx) {
     }
     // Its level: pink dots that fill toward its next evolution.
     if (!m.starter) for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < (m.lvl || 0) ? VIAL_COLOR : '#2a1c22'; ctx.fillRect(x + 38 + l * 3, top + 23, 2, 2); }
+    if ((m.lvl || 0) > LEVEL_MAX && w >= 56) drawText(ctx, '+' + (m.lvl - LEVEL_MAX), x + 48, top + 21, '#ffd070', 1, 'left', null); // overgrowth
   }
   for (; cell < cap; cell++) {
     const x = 3 + cell * pitch, w = pitch - 2;

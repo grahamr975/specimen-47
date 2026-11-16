@@ -38,6 +38,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Body forms.** Once two of your parts share a set, your whole body reshapes into that set's creature: a skeletal Bone crawler, a mushroom-sprouting Fungal mass, a Hive insect, a hunched Predator beast, or a lopsided Abomination. Mutation parts still grow on top.
 - **Cores.** CORE parts are only planted from devoured boss cores. Each floor's boss (or, on floors without one yet, the exit room's Warden) drops its still-beating core: eat it and you always gain +1 max health (and a slot, up to 5); then choose a CORE part. Once planted, a CORE part grows from level-ups like any other part. New defensive CORE parts: **Bone Plates** (plates orbit you, block shots and burst into shrapnel when they break; they regrow every room) and **Mirror Cyst** (a membrane in front of you throws enemy shots back, harder).
 - **Armor hearts.** Every 30 kills grow a grey armor heart (up to 2). It takes a hit for you and doesn't come back.
+- **The Ultimate Metamorphosis.** Fill all five slots with fully grown parts and your next cocoon is the last: a huge chrysalis that splits into your final form. It's bigger and glows, gets +25% damage, +2 max health and a little speed, and a passive for every set among your parts (stronger the more parts share it): HIVE hatches a swarm around you, BONE bursts shards from you, FUNGAL trails toxic spores, PREDATOR kills feed you and speed you up, PLANT sprouts polyps around you, ABOMINATION lashes out with tendrils on its own. From then on your parts keep leveling past the max (OVERGROWTH, smaller bumps), so level-ups never run dry.
 - **Rare finds.** The strangest roots (the playstyle mouths, Tentacles and Parasite Brain) never come from level-ups: they turn up, rarely, in colored vials of their kind. On a full body, one takes the place of your least-grown part of the same kind (the card says which). Together with big splices, they're where the late-game power fantasy comes from.
 - **Playstyle mouths** (boss picks). Some MOUTH roots don't shoot at all: Ovipositor (larvae that infest hosts and burst out), Miasma (a toxic aura; hold fire to vent it), Howl (no damage, but it hurls enemies into walls and each other), Polyp Seeder (plant turret polyps), Frog Tongue (swallow small prey whole, spit it back) and Silk Spinner (lay sticky, cutting webs).
 - **The Plant path.** Polyp Seeder (MOUTH), Bloom (HEAD: a pollen-puffing flower), Thornbark (BACK), Root Legs (LIMBS: stand still to take root) and Heartwood (CORE). Its body form is bark, leaves and a flower for a head.
@@ -87,3 +88,9 @@ The project is a git repository. Commit after each working change (`git add -A`,
 
 - **itch.io**: zip the folder, create a new project with kind "HTML", upload the zip, and tick "This file will be played in the browser".
 - **GitHub Pages**: push the folder to a repo and enable Pages.
+
+# License
+MIT License
+
+# AI Notice
+Developed with the assistance of Claude

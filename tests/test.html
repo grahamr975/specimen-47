@@ -486,6 +486,36 @@ try {
     { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }
       check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300)`, seen > 30 && seen < 120 && first === 0); }
   }
+  { // 0s) The Ultimate Metamorphosis.
+    newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
+    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'brood'); p.capacity = 5;
+    check('four grown parts and a young one: not yet', (grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'hide'), !apexReady(p)));
+    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide')); p.capacity = 5;
+    check('five fully grown parts: ready', apexReady(p));
+    for (const m of p.parts) m.lvl = LEVEL_MAX;
+    recomputeStats(p);
+    { const cs = rollLevelUps(p, 3); check(`before it, a maxed body has nothing to level (${cs.map(c => c.id).join(',')})`, !cs.some(c => c.kind === 'level')); }
+    checkApex(p);
+    check('it queues the ultimate metamorphosis', game.pendingEvolutions.some(e => e.apex) && evolveReady(p));
+    const dmg0 = p.stats.damageMul, hp0 = p.maxHp;
+    for (let i = 0; i < 200 && !p.apex; i++) { update(1 / 60); Input.endFrame(); if (game.menu) autoMenu(); }
+    check(`the cocoon splits into the final form (damage x${dmg0.toFixed(2)} -> x${p.stats.damageMul.toFixed(2)}, health ${hp0} -> ${p.maxHp})`, p.apex && p.stats.damageMul > dmg0 * 1.2 && p.maxHp === hp0 + 2 && game.banner && game.banner.text === 'ULTIMATE METAMORPHOSIS');
+    render();
+    { const cs = rollLevelUps(p, 3); check(`after it, level-ups never run dry: overgrowth (${cs.map(c => c.kind + ':' + c.id).join(',')})`, cs.filter(c => c.kind === 'level').length === 3 && /OVERGROWTH/.test(choiceInfo(p, cs[0]).status)); }
+    { const m = p.parts[0]; const d0 = p.stats.biteDmg; applyChoice(p, { id: m.id, kind: 'level', part: m }); check(`an overgrowth level is a smaller bump (bite ${d0.toFixed(2)} -> ${p.stats.biteDmg.toFixed(2)})`, p.stats.biteDmg > d0 && m.lvl === LEVEL_MAX + 1); }
+    checkApex(p); check('it happens once per run', !game.pendingEvolutions.some(e => e.apex));
+    // Passives come from your parts' sets.
+    const formOf = (k, sl) => Object.keys(MUTATIONS).find(id => !MUTATIONS[id].part && locOf(id) === sl && setOf(id) === k && !childrenOf(id).length);
+    for (const k of Object.keys(SETS)) {
+      newRun(); combatRoom(); const q = game.player; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
+      grow(q, ...['MOUTH', 'BACK', 'LIMBS'].map(sl => formOf(k, sl)).filter(Boolean)); q.apex = true; recomputeStats(q);
+      calm(); game.room.locked = true; const a0 = game.allies.length, c0 = game.clouds.length; const r = dummy(40); r.speed = 0;
+      for (let i = 0; i < 600; i++) { q.hp = q.maxHp; q.inv = 1; Input.keys.clear(); if (i % 60 < 30) Input.keys.add('d'); else Input.keys.add('a'); update(1 / 60); Input.endFrame(); }
+      Input.keys.clear(); render();
+      const did = { HIVE: game.allies.filter(a => a.kind === 'spiderling').length > a0, BONE: true, FUNGAL: game.clouds.length > c0 || game.clouds.some(c => c.toxic), PLANT: game.allies.some(a => a.kind === 'polyp'), ABOMINATION: r.hp < 99 || r.dead, PREDATOR: true }[k];
+      check(`final form, ${k}-heavy (${q.stats.apex[k] || 0} parts): ${APEX_PASSIVES[k].toLowerCase()}`, q.stats.apex[k] > 0 && did);
+    }
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} empty slots and no attack`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 0 && !p.stats.guns.length && !p.stats.bite && !p.stats.lash);
@@ -972,6 +1002,7 @@ try {
       const room = game.room;
       if (room.locked) { lockedFor += 30; if (lockedFor > 1800) for (const e of game.enemies.slice()) damageEnemy(e, 999, 0, 0, true); continue; }
       lockedFor = 0;
+      if (game.player.held) throwHeld(game.player); // (the bot grabs things at random; let go before bursting corpses)
       for (const c of room.corpses.slice()) {
         const p = game.player; p.x = clamp(c.x - (p.stats.guns.length ? 22 : 9), TILE + 6, ROOM_PX_W - TILE - 6); p.y = c.y;
         for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !(p.stats.charge && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }

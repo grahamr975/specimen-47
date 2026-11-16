@@ -1191,6 +1191,7 @@ function updateActives(p, dt) {
   p.limbCd -= dt; p.headCd -= dt;
   updateNursery(p, dt);
   updateDefense(p, dt);
+  updateApex(p, dt);
   if (p.blackoutT > 0) p.blackoutT -= dt;
   for (const b of game.actShots) {
     b.life -= dt;
@@ -1346,4 +1347,36 @@ function mirrorReflects(b) {
   burst(b.x, b.y, '#c8e8ff', 6, 70, 0.25);
   Sfx.play('shield');
   return true;
+}
+
+// --- The final form's passives: one per set among your parts -----------------------------
+// n = how many of your parts share the set (more parts: faster, stronger).
+function updateApex(p, dt) {
+  const ap = p.stats.apex;
+  if (!ap || !game.room.locked || p.evolveT > 0) return;
+  p.apexT = p.apexT || {};
+  const every = (k, base) => { const n = ap[k]; if (!n) return false; if ((p.apexT[k] = (p.apexT[k] ?? base / n) - dt) > 0) return false; p.apexT[k] = base / n; return true; };
+  const s = p.stats;
+  if (every('HIVE', 6) && game.allies.filter(a => a.kind === 'spiderling' && !a.dead).length < 4 + 2 * ap.HIVE) { // a swarm hatches around you
+    for (let i = 0; i < 1 + (ap.HIVE >= 3 ? 1 : 0); i++) spawnAlly('spiderling', p.x + rand(-8, 8), p.y + rand(-6, 6));
+    Sfx.play('hatch');
+  }
+  if (every('BONE', 5)) fireRing(p, 4 + 2 * ap.BONE);                               // shards burst from you
+  if (every('FUNGAL', 2.4) && p.moving) game.clouds.push({ x: p.x, y: p.y, r: 10 + 2 * ap.FUNGAL, life: 3, toxic: true }); // toxic spores
+  if (every('PLANT', 9) && game.allies.filter(a => a.kind === 'polyp' && !a.dead).length < 1 + ap.PLANT) { // polyps sprout
+    const a = rand(0, Math.PI * 2), x = p.x + Math.cos(a) * 18, y = p.y + Math.sin(a) * 14;
+    if (!pointSolid(game.room, x, y)) { const q = spawnAlly('polyp', x, y); q.shootT = 0.5; burst(x, y, '#7ab84a', 6, 40); }
+  }
+  if (every('ABOMINATION', 3)) { // tendrils lash out on their own
+    const e = nearestEnemy(p.x, p.y, 60);
+    if (e && !e.dead) { game.fx.push({ kind: 'whip', x1: p.x, y1: p.y - 2, x2: e.x, y2: e.y, t: 0.15 }); damageEnemy(e, (2 + ap.ABOMINATION) * s.damage, e.x - p.x, e.y - p.y, true); Sfx.play('whip'); }
+  }
+}
+
+// Predator: kills feed you and speed you up.
+function apexKill(p) {
+  const n = p.stats.apex && p.stats.apex.PREDATOR;
+  if (!n) return;
+  p.adrenalT = Math.max(p.adrenalT || 0, 0.6 + 0.4 * n);
+  if (++p.apexKills % Math.max(4, 12 - 2 * n) === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
 }

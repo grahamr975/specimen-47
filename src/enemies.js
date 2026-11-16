@@ -167,6 +167,7 @@ function killEnemy(e) {
     burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
   }
   onSetKill(e, p, s);
+  apexKill(p);
   if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
     p.armorKills = 0;
     if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
