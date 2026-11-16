@@ -15,7 +15,7 @@ function makePlayer() {
     // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
     // You're born with nothing at all: the first room holds a MOUTH vial.
     parts: [], capacity: START_SLOTS,
-    quirk: pick(Object.keys(QUIRKS)), // your birth defect
+    quirk: null, // your birth defect: chosen with your first mouth
     limbCd: 0, headCd: 0,
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
     moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,
@@ -308,7 +308,7 @@ function updatePlayer(dt) {
     const tg = p.snap && p.snap.target;
     if (p.snapT <= 0 || !tg || tg.dead || Math.hypot(tg.x - p.x, tg.y - p.y) <= tg.r + p.r + 3) {
       p.snapT = 0; vx = vy = 0;
-      if (p.snap) { const sn = p.snap; p.snap = null; bite(p, sn.dmg, true); }
+      if (p.snap) { const sn = p.snap; p.snap = null; bite(p, sn.dmg, true, sn.target); }
     }
   } else if (p.lungeT > 0) {
     // Feral lunge: a short, savage leap that bites at the end.
@@ -724,7 +724,7 @@ function meleeHit(p, e, dmg, dx, dy) {
 // Mandibles: bite the nearest enemy in front of you (lunging onto it if it's
 // just out of reach), and it reels.
 const BITE_LUNGE = 40, BITE_STAGGER = 0.4, SNAP_SPEED = 380;
-function bite(p, dmg, arrived = false) {
+function bite(p, dmg, arrived = false, prey = null) {
   const s = p.stats, reach = s.biteReach;
   let target = null, best = reach;
   for (const e of game.enemies) {
@@ -734,6 +734,8 @@ function bite(p, dmg, arrived = false) {
     if (d > 4 && (dx * p.aimX + dy * p.aimY) / (d + e.r) < 0.3) continue; // must be in front
     best = d; target = e;
   }
+  // Arriving from a snap: the bite lands on the prey you snapped at, wherever you're aiming now.
+  if (arrived && prey && !prey.dead && Math.hypot(prey.x - p.x, prey.y - p.y) - prey.r <= reach + 6) target = prey;
   // The bite lunges: prey just out of reach in front of you pulls you onto
   // it, untouchable for the instant of the snap.
   if (!target && !arrived && !p.withdrawn && !(p.pullT > 0)) {

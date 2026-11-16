@@ -2532,7 +2532,7 @@ function choiceInfo(p, c) {
     id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, cost: d.cost, malignant: !!d.malignant, cures: !!d.cures, set,
     slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id),
     tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
-    noteLines: c.kind === 'branch' && m ? [MUTATIONS[m.id].name + ' ->', d.name] : null,
+    noteLines: c.kind === 'branch' && m ? [MUTATIONS[m.id].name + ' ->', d.name] : null, quirk: c.quirk || null,
   };
 }
 
@@ -2595,6 +2595,13 @@ function rollLevelUps(p, n) {
 // --- Applying a choice ------------------------------------------------------------
 function applyChoice(p, c) {
   if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + 2); return; }
+  if (c.quirk && QUIRKS[c.quirk] && !p.quirk) { // born with it: this card's birth defect
+    const q = QUIRKS[c.quirk], before = p.maxHp;
+    p.quirk = c.quirk; recomputeStats(p);
+    p.hp = Math.max(1, Math.min(p.maxHp, p.hp + (p.maxHp - before)));
+    p.bornBanner = { text: 'BORN ' + q.name, sub: q.desc.toUpperCase(), color: '#e8a020', t: 3.2 };
+    whisper('You were born ' + q.name.toLowerCase() + '. ' + q.desc);
+  }
   if (c.kind === 'level') { // a part grows a level; at the max, it evolves
     const m = c.part, d = MUTATIONS[m.id];
     m.lvl = (m.lvl || 0) + 1;
@@ -2644,4 +2651,5 @@ function applyChoice(p, c) {
   }
   recomputeStats(p);
   checkApex(p);
+  if (p.bornBanner) { game.banner = p.bornBanner; p.bornBanner = null; }
 }

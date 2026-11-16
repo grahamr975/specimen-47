@@ -597,8 +597,15 @@ try {
     q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
     // Birth defects.
-    window.__quirks = true; newRun(); check(`you're born with a defect, announced, at full health (${game.player.quirk}: ${game.banner && game.banner.text}, hp ${game.player.hp}/${game.player.maxHp})`, !!QUIRKS[game.player.quirk] && game.banner && /^BORN /.test(game.banner.text) && game.player.hp === game.player.maxHp);
-    { const seen = new Set(); for (let i = 0; i < 80; i++) { newRun(); seen.add(game.player.quirk); } check(`defects vary from run to run (${seen.size} different in 80 runs)`, seen.size >= 10); } window.__quirks = false;
+    window.__quirks = true; newRun(); check('you start without a defect', !game.player.quirk);
+    { const z = game.player, v = game.room.pickups.find(k => k.kind === 'vial'); z.x = v.x; z.y = v.y; for (let i = 0; i < 160 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
+      const qs = game.menu ? game.menu.choices.map(c => c.quirk) : [];
+      check(`the first mouth vial pairs each mouth with a different birth defect (${qs.join(', ')})`, qs.length === 3 && new Set(qs).size === 3 && qs.every(k => QUIRKS[k]));
+      game.menu.t = 2; game.menu.stageT = 2; Input.mouse.x = cardX(0, 3) + 10; Input.mouse.y = CARD.y + 20; updateMenu(1 / 60); render();
+      const pickC = game.menu.choices[0]; applyChoice(z, pickC); game.menu = null; game.evolving = false;
+      check(`taking a card: that mouth, born with its defect, announced, at full health (${z.quirk}: ${game.banner && game.banner.text}, hp ${z.hp}/${z.maxHp})`, z.quirk === pickC.quirk && hasMutation(z, pickC.id) && game.banner && /^BORN /.test(game.banner.text) && z.hp === z.maxHp);
+      openEvolution({ loc: 'MOUTH', plain: true, defects: true, title: 'MOUTH VIAL' }); check('only once: later vials carry no defects', game.menu.choices.every(c => !c.quirk)); game.menu = null; }
+    { const seen = new Set(); for (let i = 0; i < 40; i++) { newRun(); openEvolution({ loc: 'MOUTH', plain: true, defects: true, title: 'MOUTH VIAL' }); for (const c of game.menu.choices) seen.add(c.quirk); game.menu = null; } check(`defects vary from run to run (${seen.size} different offered in 40 runs)`, seen.size >= 12); } window.__quirks = false;
     for (const k in QUIRKS) { newRun(); combatRoom(); game.player.quirk = k; recomputeStats(game.player); step(30, true); render(); }
     { newRun(); const z = game.player; z.quirk = 'brittle'; grow(z, 'spike'); const d1 = z.stats.damageMul, h = z.maxHp; z.quirk = null; recomputeStats(z); check(`brittle: harder hitting, frailer (dmg x${d1.toFixed(2)} vs x${z.stats.damageMul.toFixed(2)}, hp ${h} vs ${z.maxHp})`, d1 > z.stats.damageMul && h < z.maxHp); }
     // Wild cards in the first limbs vial too.

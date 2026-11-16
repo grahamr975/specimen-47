@@ -417,7 +417,7 @@ function updatePickups(dt) {
       p.dead = true;
       Sfx.play('gulp');
       floatText(p.x, p.y - 8, p.loc + ' VIAL', vialColor(p.loc));
-      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, title: p.loc + ' VIAL', color: vialColor(p.loc) });
+      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, defects: !!p.defects, title: p.loc + ' VIAL', color: vialColor(p.loc) });
 
     }
   }
