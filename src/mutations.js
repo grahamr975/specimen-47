@@ -12,7 +12,7 @@
 //   BACK:  what happens when you dash or get hurt. As many as you like.
 //   CORE:  your engine. Only planted from devoured boss cores.
 // BOSS PICKS (`boss: true`): the strangest roots (the playstyle mouths,
-// Tentacles, Parasite Brain) are only offered by a devoured boss core.
+// Tentacles, Parasite Brain) are rare finds in colored vials, never level-ups.
 // Fill your slots with mouths for a glass cannon, or backs and cores for a tank.
 //
 // Each part grows ONE path:
@@ -1371,6 +1371,80 @@ const MUTATIONS = {
     cost: 'It still takes 1 max health every 3rd room.',
     apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); },
   },
+
+  // --- Bone Plates: armor you can see, and it fights back ---
+  boneplates: {
+    name: 'Bone Plates', slot: 'CORE', rarity: 'uncommon', icon: ['marrow', 'chitin'],
+    desc: 'Bone plates orbit you and block enemy shots. A plate that breaks bursts into shrapnel. They all regrow in every new room.',
+    apply(s, l) { s.plates = Math.max(s.plates || 0, 2 + l); s.plateShards = Math.max(s.plateShards || 0, 4); },
+  },
+  razorplates: {
+    name: 'Razor Plates', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'horns'],
+    desc: 'The plates have edges: they cut whatever they pass through.',
+    apply(s, l) { s.plateDmg = 1.5 + 0.5 * l; },
+  },
+  bladestorm: {
+    name: 'Bladestorm', from: 'razorplates', rarity: 'rare', icon: ['marrow', 'spines'],
+    desc: 'Two more plates, swinging wider and faster.',
+    apply(s) { s.plates += 2; s.plateWide = true; },
+  },
+  bonemill: {
+    name: 'Bone Mill', from: 'razorplates', rarity: 'rare', icon: ['marrow', 'mitosis'],
+    desc: 'Whatever the plates kill bursts into bone shards.',
+    apply(s) { s.plateMill = 5; },
+  },
+  ossuary: {
+    name: 'Ossuary', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'regrow'],
+    desc: 'Broken plates regrow even in the middle of a fight.',
+    apply(s, l) { s.plateRegrow = 7 - l; },
+  },
+  boneward: {
+    name: 'Bone Ward', from: 'ossuary', rarity: 'rare', icon: ['chitin', 'skull'],
+    desc: 'A plate throws itself in front of any hit meant for you.',
+    apply(s) { s.boneWard = true; },
+  },
+  shrapnelheart: {
+    name: 'Shrapnel Heart', from: 'ossuary', rarity: 'rare', icon: ['spines', 'hemophage'],
+    desc: 'Plates burst into twice the shrapnel, and every 6th plate that breaks heals you.',
+    apply(s) { s.plateShards = 8; s.plateHeal = 6; },
+  },
+
+  // --- Mirror Cyst: throw their shots back ---
+  mirrorcyst: {
+    name: 'Mirror Cyst', slot: 'CORE', rarity: 'rare', icon: ['eyes', 'mitosis'],
+    desc: 'A glassy membrane in front of you throws enemy shots back, twice as hard. It needs a moment to recover after each.',
+    apply(s, l) { s.mirror = { cd: 1.6 - 0.3 * (l - 1), arc: 0.45, mul: 2 }; },
+  },
+  lensskin: {
+    name: 'Lens Skin', from: 'mirrorcyst', rarity: 'uncommon', icon: ['eyes', 'abyssal'],
+    desc: 'Thrown-back shots seek a target and hit twice as hard again.',
+    apply(s) { s.mirror.mul *= 2; s.mirror.homing = 3; },
+  },
+  blindinglens: {
+    name: 'Blinding Lens', from: 'lensskin', rarity: 'rare', icon: ['eyes', 'echo'],
+    desc: 'Thrown-back shots stun whatever they hit.',
+    apply(s) { s.mirror.stun = 1; },
+  },
+  prism: {
+    name: 'Prism', from: 'lensskin', rarity: 'rare', icon: ['abyssal', 'mitosis'],
+    desc: 'Every thrown-back shot splits into three.',
+    apply(s) { s.mirror.split = true; },
+  },
+  mirrorshell: {
+    name: 'Mirror Shell', from: 'mirrorcyst', rarity: 'uncommon', icon: ['chitin', 'eyes'],
+    desc: 'The membrane wraps all the way around you, but recovers slower.',
+    apply(s) { s.mirror.arc = -1; s.mirror.cd *= 1.4; },
+  },
+  echoshell: {
+    name: 'Echo Shell', from: 'mirrorshell', rarity: 'rare', icon: ['echo', 'spines'],
+    desc: 'Every shot it throws back also sends a ring of shards out from you.',
+    apply(s) { s.mirror.ring = 6; },
+  },
+  feedingglass: {
+    name: 'Feeding Glass', from: 'mirrorshell', rarity: 'rare', icon: ['eyes', 'hemophage'],
+    desc: 'Every 6th shot it throws back heals you.',
+    apply(s) { s.mirror.heal = 6; },
+  },
 };
 
 // WHISPERS: the cryptic line that appears when something new grows in you.
@@ -1536,6 +1610,20 @@ const HINTS = {
   cancer: 'It grows every time you win. It takes something every third time.',
   benignmass: 'The growth calms. It still grows, but takes nothing.',
   metastasis: 'It spreads faster now.',
+  boneplates: 'Bone grows outside you now, circling, waiting for something to stop.',
+  razorplates: 'Their edges are sharp.',
+  bladestorm: 'More of them, swinging wider.',
+  bonemill: 'What they grind up, they scatter.',
+  ossuary: 'Bone grows back. It always grows back.',
+  boneward: 'They throw themselves in front of you.',
+  shrapnelheart: 'When they break, you feel it, and it feeds you.',
+  mirrorcyst: 'Something glassy forms in front of you. It does not like being hit.',
+  lensskin: 'It aims what it throws back.',
+  blindinglens: 'It flashes when it throws.',
+  prism: 'One shot in, three out.',
+  mirrorshell: 'It wraps all the way around you now.',
+  echoshell: 'Every throw rings out.',
+  feedingglass: 'It drinks a little of what it throws.',
   ovipositor: 'Something in you is ready to lay. Pick a host.',
   broodhost: 'Some of them hatch hungry for you, and some hatch hungry for them.',
   swarmqueen: 'What carries your young belongs to you.',
@@ -1620,7 +1708,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
+    tags: ['boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -1665,7 +1753,7 @@ const SETS = {
   },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8',
-    tags: ['tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
+    tags: ['mirrorcyst', 'tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
     bonus: [
       { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
       { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },
@@ -1812,7 +1900,7 @@ const TINTS = {
   fins: ['#5a8aa0', 0.5], rootlegs: ['#6a5030', 0.5, 0.1], centipede: ['#7a3a1a', 0.4, 0.1],
   // CORE
   hide: ['#7a5a48', 0.35], marrow: ['#d8ccb0', 0.3], mitosis: ['#c86a9a', 0.4], starving: ['#8a7a6a', 0.4, 0.15],
-  heartwood: ['#6a5030', 0.45], overgrown: ['#9a2030', 0.35],
+  heartwood: ['#6a5030', 0.45], overgrown: ['#9a2030', 0.35], boneplates: ['#d8ccb0', 0.3], mirrorcyst: ['#a8c8e0', 0.35],
 };
 
 // --- Tree helpers -------------------------------------------------------------------
@@ -1863,9 +1951,9 @@ function levelText(m, L) {
   if (m.loc === 'BACK') return `${bumpSign(up)}EFFECT`;
   return `${bumpSign(up)}POWER` + (Math.floor(L / 2) > Math.floor((L - 1) / 2) ? ' ++HEALTH' : ''); // CORE: +1 max health every other level
 }
-const LOWER_IS_BETTER = new Set(['biteDelay', 'lashDelay', 'lungeDelay', 'vomitDelay', 'dashCd', 'grapple', 'shieldCd', 'regen', 'delay', 'every', 'rate', 'glare']);
+const LOWER_IS_BETTER = new Set(['biteDelay', 'lashDelay', 'lungeDelay', 'vomitDelay', 'dashCd', 'grapple', 'shieldCd', 'regen', 'delay', 'every', 'rate', 'glare', 'cd', 'plateRegrow']);
 const NO_LEVEL_SCALE = new Set(['maxHp', 'hitCost', 'starve', 'invulnCap', 'invuln', 'hop', 'dashTime', 'accel', 'drag', 'limbCount', 'hpMul', 'lightMul', 'speedMul', 'dnaMul', 'rateMul', 'damageMul', 'speed', 'dashSpeed', 'fins', 'compound', 'power']);
-const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit']);
+const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit', 'mul']);
 
 // Add one part's whole path to a stat sheet. Each node uses the part's growth level.
 function applyMutation(s, m, p) {
@@ -2004,13 +2092,14 @@ function isMetamorph(p, c) {
 // side, so you see exactly which path you're giving up. The rest mix growing
 // what you have with planting something new: wide or deep, your call.
 // `onlyLoc`: a devoured boss core offers only CORE cards.
-function rollChoices(p, n, minRarity, onlyLoc) {
+function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
   const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
   const luck = r => (r === 'rare' || r === 'legendary') ? 1 + 0.2 * (game.depth - 1) : 1;
   const weight = c => {
     const d = MUTATIONS[c.id];
     let w = RARITY[d.rarity].weight * luck(d.rarity);
     if (d.malignant) w *= 0.7;
+    if (d.boss) w *= 0.03; // boss picks are rare finds (about 1 vial in 4)
     if (RARITY_ORDER.indexOf(d.rarity) < minIdx) w *= 0.02; // a vial strongly prefers rare samples
     return w;
   };
@@ -2028,32 +2117,33 @@ function rollChoices(p, n, minRarity, onlyLoc) {
   if (onlyLoc && onlyLoc !== 'CORE') {
     // A colored vial: only that kind of part. Usually a fork, never two
     // metamorphoses. If nothing of that kind can grow, it's a mixed roll instead.
-    if (!all.length) return rollChoices(p, n, minRarity);
-    const cs = all.slice(), out = [];
+    // The strangest roots (BOSS PICKS) turn up here too, rarely (never in the first room's vial).
+    const cs = all.concat(plain ? [] : bossPicks(p).filter(c => locOf(c.id) === onlyLoc)), out = [];
+    if (!cs.length) return rollChoices(p, n, minRarity);
     const take = c => { if (!out.some(o => o.id === c.id)) out.push(card(c)); };
     const byPart = new Map();
     for (const c of cs) if (c.kind === 'branch') { if (!byPart.has(c.part)) byPart.set(c.part, []); byPart.get(c.part).push(c); }
     const forks = [...byPart.values()].filter(g => g.length === 2);
     if (forks.length && Math.random() < 0.7) forks[Math.floor(Math.random() * forks.length)].forEach(take);
-    let metas = out.filter(c => c.kind === 'meta').length;
+    let metas = out.filter(c => c.kind === 'meta').length, finds = 0;
     while (out.length < n) {
-      const left = cs.filter(c => !out.some(o => o.id === c.id) && (c.kind !== 'meta' || !metas));
+      const left = cs.filter(c => !out.some(o => o.id === c.id) && (c.kind !== 'meta' || !metas) && !(MUTATIONS[c.id].boss && finds));
       if (!left.length) break;
-      const c = pickWeighted(left); if (c.kind === 'meta') metas++;
+      const c = pickWeighted(left); if (c.kind === 'meta') metas++; if (MUTATIONS[c.id].boss) finds++; // at most one rare find per vial
       take(c);
     }
     if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge);
     return out.sort(() => Math.random() - 0.5);
   }
   if (onlyLoc) {
-    // A devoured core: one CORE card (Thick Hide while you can still plant it)
-    // and the rest BOSS PICKS, the strangest parts there are.
-    const cs = all.slice(), picks = bossPicks(p), out = [];
-    const hide = cs.find(c => c.id === 'hide');
-    if (hide) out.push(card(cs.splice(cs.indexOf(hide), 1)[0])); // health is always on the table
-    else if (cs.length) out.push(card(cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0]));
-    while (out.length < n && picks.length) out.push(card(picks.splice(picks.indexOf(pickWeighted(picks)), 1)[0]));
-    while (out.length < n && cs.length) out.push(card(cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0]));
+    // A devoured core: CORE parts only (the core already gave you +1 max health).
+    const cs = all.slice(), out = [];
+    let metas = 0;
+    while (out.length < n && cs.length) {
+      const c = cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0];
+      if (c.kind === 'meta' && metas++) continue;
+      out.push(card(c));
+    }
     if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge); // you can always decline
     return out.sort(() => Math.random() - 0.5);
   }

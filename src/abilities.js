@@ -1190,6 +1190,7 @@ function useActive(p, a) {
 function updateActives(p, dt) {
   p.limbCd -= dt; p.headCd -= dt;
   updateNursery(p, dt);
+  updateDefense(p, dt);
   if (p.blackoutT > 0) p.blackoutT -= dt;
   for (const b of game.actShots) {
     b.life -= dt;
@@ -1283,4 +1284,66 @@ function updateNursery(p, dt) {
     e.nurseryT = every;
     if (kids < 10) { spawnAlly('spiderling', e.x + rand(-4, 4), e.y + rand(-3, 3)); Sfx.play('hatch'); }
   }
+}
+
+// --- Bone Plates & Mirror Cyst: defense you can see ----------------------------------------
+function platePos(p, i, n) {
+  const s = p.stats, a = p.t * (s.plateWide ? 3 : 2.2) + i * Math.PI * 2 / n, r = s.plateWide ? 17 : 13;
+  return { x: p.x + Math.cos(a) * r, y: p.y - 2 + Math.sin(a) * r * 0.8 };
+}
+
+function updateDefense(p, dt) {
+  const s = p.stats;
+  if (p.mirrorT > 0) p.mirrorT -= dt;
+  if (!s.plates) { p.plates = 0; return; }
+  p.plates = Math.min(p.plates, s.plates);
+  if (s.plateRegrow && p.plates < s.plates && (p.plateT -= dt) <= 0) { p.plateT = s.plateRegrow; p.plates++; Sfx.play('clack'); } // Ossuary
+  if (s.plateDmg) for (let i = 0; i < p.plates; i++) { // Razor Plates
+    const q = platePos(p, i, p.plates);
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0 || (e.plateHitT || 0) > game.time || Math.hypot(e.x - q.x, e.y - q.y) > e.r + 3) continue;
+      e.plateHitT = game.time + 0.25;
+      damageEnemy(e, s.plateDmg * s.damage, e.x - p.x, e.y - p.y, true, 60);
+      if (e.dead && s.plateMill) ringFrom(e.x, e.y, s.plateMill); // Bone Mill
+    }
+  }
+}
+
+function breakPlate(p, x, y) {
+  const s = p.stats;
+  p.plates--; p.plateT = s.plateRegrow || 0;
+  ringFrom(x, y, s.plateShards || 4);
+  burst(x, y, '#e8e0c8', 6, 70, 0.3);
+  Sfx.play('clank');
+  if (s.plateHeal && ++p.platesBroken % s.plateHeal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } // Shrapnel Heart
+}
+
+// An enemy shot meets a plate: the plate breaks, the shot is stopped.
+function plateBlocks(b) {
+  const p = game.player;
+  if (!(p.plates > 0) || p.burrowT > 0) return false;
+  for (let i = 0; i < p.plates; i++) {
+    const q = platePos(p, i, p.plates);
+    if (Math.hypot(b.x - q.x, b.y - q.y) < (b.r || 2) + 3) { breakPlate(p, q.x, q.y); return true; }
+  }
+  return false;
+}
+
+// An enemy shot meets the Mirror Cyst: thrown back the way it came, harder.
+function mirrorReflects(b) {
+  const p = game.player, s = p.stats, m = s.mirror;
+  if (!m || p.mirrorT > 0 || p.burrowT > 0) return false;
+  const dx = b.x - p.x, dy = b.y - p.y + 2, d = Math.hypot(dx, dy) || 1;
+  if (d > 15 || d < 3) return false;
+  if (m.arc > -1 && (dx * p.aimX + dy * p.aimY) / d < m.arc) return false;
+  p.mirrorT = m.cd;
+  const sp = (Math.hypot(b.vx, b.vy) || 120) * 1.3, a = Math.atan2(-b.vy, -b.vx);
+  const shoot = ang => spawnBullet({ x: b.x, y: b.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: 2, dmg: (b.dmg || 1) * m.mul * s.damage, life: 1.2, kind: 'shot', round: true, color: '#c8e8ff', homing: m.homing || 0, mirrorStun: m.stun || 0 });
+  shoot(a);
+  if (m.split) { shoot(a - 0.25); shoot(a + 0.25); } // Prism
+  if (m.ring) fireRing(p, m.ring);                    // Echo Shell
+  if (m.heal && ++p.mirrorHits % m.heal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } // Feeding Glass
+  burst(b.x, b.y, '#c8e8ff', 6, 70, 0.25);
+  Sfx.play('shield');
+  return true;
 }

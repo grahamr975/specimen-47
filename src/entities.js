@@ -133,7 +133,7 @@ function updateBullets(dt) {
       }
     } else {
       const p = game.player;
-      if (segmentBlocks(b)) { b.dead = true; continue; }
+      if (segmentBlocks(b) || mirrorReflects(b) || plateBlocks(b)) { b.dead = true; continue; }
       const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
       if (twin && Math.hypot(twin.x - b.x, twin.y - b.y) < twin.r + b.r) { hurtTwin(twin); b.dead = true; continue; }
       if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1) {
@@ -169,6 +169,7 @@ function onPlayerBulletHit(b, enemy) {
     if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) enemy.stunT = Math.max(enemy.stunT || 0, s.darkStun); // Abyss Stare
     if (s.stunChance && Math.random() < s.stunChance) enemy.stunT = Math.max(enemy.stunT || 0, 0.8);    // Brain Worm
   }
+  if (b.mirrorStun && !enemy.dead) enemy.stunT = Math.max(enemy.stunT || 0, b.mirrorStun); // Blinding Lens
   if (b.bleed) { enemy.bleedT = 3; enemy.bleedDps = b.bleed; }
   if (b.slow && !enemy.dead) enemy.slowT = Math.max(enemy.slowT || 0, b.slow); // sticky slime
   if (b.split > 0) spawnFragments(b.x, b.y, Math.atan2(b.vy, b.vx), b.split, b.dmg * 0.5, b.homing, b.acid ? b.acid * 0.6 : 0, enemy);
@@ -371,22 +372,21 @@ function updatePickups(dt) {
       bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 130);
       game.shake = Math.max(game.shake, 4);
       Sfx.play('gulp');
-      pl.hp = Math.min(pl.maxHp, pl.hp + 1);
+      // It always makes you tougher: +1 max health, and it heals you.
+      pl.coreBonus = (pl.coreBonus || 0) + 1;
+      recomputeStats(pl);
+      pl.hp = Math.min(pl.maxHp, pl.hp + 2);
+      floatText(pl.x, pl.y - 30, '+1 MAX HP', PAL.red);
       if (pl.capacity < MAX_SLOTS) { pl.capacity++; floatText(pl.x, pl.y - 24, 'YOUR BODY MAKES ROOM', VIAL_COLOR); }
-      if (bodyOffers(pl, 'CORE').length || bossPicks(pl).length) {
+      if (bodyOffers(pl, 'CORE').length) {
         game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
-
-      } else {
-        pl.coreBonus = (pl.coreBonus || 0) + 1; pl.hp++;
-        recomputeStats(pl);
-        floatText(pl.x, pl.y - 14, '+1 MAX HP', PAL.red);
       }
     } else if (p.kind === 'vial') {
       p.dead = true;
       Sfx.play('gulp');
       floatText(p.x, p.y - 8, p.loc + ' VIAL', vialColor(p.loc));
-      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, title: p.loc + ' VIAL', color: vialColor(p.loc) });
+      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, title: p.loc + ' VIAL', color: vialColor(p.loc) });
 
     }
   }

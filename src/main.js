@@ -56,6 +56,7 @@ function enterRoom(room, side) {
   game.telegraphs = []; game.bombs = []; game.bossName = null;
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
   game.player.tongue = null; game.player.grappleShot = null; game.whips = [];
+  game.player.plates = game.player.stats.plates || 0; // Bone Plates regrow in every room
   for (const a of game.allies) { a.x = game.player.x; a.y = game.player.y; }
 
   const p = game.player;
@@ -74,7 +75,7 @@ function enterRoom(room, side) {
       room.cleared = true;
       if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, { loc: room.vialLoc });
       // You're born with nothing: the first room holds your first mouth (off to one side, out of the way).
-      if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) spawnPickup('vial', ROOM_PX_W / 2 - 40, ROOM_PX_H / 2 - 30, { loc: 'MOUTH', minRarity: null });
+      if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) spawnPickup('vial', ROOM_PX_W / 2 - 40, ROOM_PX_H / 2 - 30, { loc: 'MOUTH', minRarity: null, plain: true });
     }
   }
   game.fade = 0.2;

@@ -301,3 +301,23 @@ function groundCracks(x, y) {
     for (let r = 0; r < len; r += 1.5) { a += rand(-0.35, 0.35); cx += Math.cos(a) * 1.5; cy += Math.sin(a) * 1.0; d.fillRect(Math.round(cx), Math.round(cy), 1, 1); }
   }
 }
+
+// Bone Plates orbiting you; the Mirror Cyst's membrane (bright when ready).
+function drawDefense(ctx, p) {
+  for (let i = 0; i < (p.plates || 0); i++) {
+    const q = platePos(p, i, p.plates), qx = Math.round(q.x), qy = Math.round(q.y);
+    ctx.fillStyle = '#2e2618'; ctx.fillRect(qx - 2, qy - 1, 4, 3);
+    ctx.fillStyle = '#d8ccb0'; ctx.fillRect(qx - 1, qy - 1, 3, 2);
+    ctx.fillStyle = '#f4ecd8'; ctx.fillRect(qx - 1, qy - 1, 1, 1);
+  }
+  const m = p.stats.mirror;
+  if (!m || p.burrowT > 0) return;
+  const ready = !(p.mirrorT > 0), span = m.arc <= -1 ? Math.PI : Math.acos(m.arc), a0 = Math.atan2(p.aimY, p.aimX);
+  ctx.globalAlpha = ready ? 0.75 : 0.2; ctx.fillStyle = '#c8e8ff';
+  for (let k = -10; k <= 10; k++) {
+    if (ready && hash2(k, Math.floor(p.t * 8), 21) < 0.15) continue; // shimmer
+    const a = a0 + span * k / 10;
+    ctx.fillRect(Math.round(p.x + Math.cos(a) * 12), Math.round(p.y - 2 + Math.sin(a) * 12), 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}

@@ -11,12 +11,12 @@ function openEvolution(opts) {
   const p = game.player;
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
-      : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc),
+      : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
     color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS - BOSS PICKS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -181,8 +181,10 @@ function drawHUD(ctx) {
 
   // Hearts (+ chitin shell)
   for (let i = 0; i < p.maxHp; i++) ctx.drawImage(i < p.hp ? SPR.heart : SPR.heartEmpty, 4 + i * 9, 3);
+  if (!SPR.armorHeart) SPR.armorHeart = silhouette(SPR.heart, '#a8a8b8');
+  for (let i = 0; i < (p.armor || 0); i++) ctx.drawImage(SPR.armorHeart, 4 + (p.maxHp + i) * 9, 3); // grey armor hearts
   if (p.stats.shieldCd > 0) {
-    const sx = 6 + p.maxHp * 9;
+    const sx = 6 + (p.maxHp + (p.armor || 0)) * 9;
     ctx.globalAlpha = p.shieldUp ? 1 : 0.3;
     ctx.drawImage(SPR.icons.chitin, sx - 3, 0, 12, 12);
     ctx.globalAlpha = 1;

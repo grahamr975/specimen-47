@@ -451,6 +451,41 @@ try {
     check(`elite vials get a color (${e.loc})`, VIAL_LOCS.includes(e.loc));
     render();
   }
+  { // 0r) Defense: armor hearts from kills, Bone Plates, Mirror Cyst; boss picks in vials.
+    newRun(); combatRoom(); let p = game.player; game.enemies = []; p.inv = 0;
+    for (let i = 0; i < ARMOR_KILLS - 1; i++) { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); }
+    check(`no armor before ${ARMOR_KILLS} kills`, !p.armor);
+    { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); }
+    check(`${ARMOR_KILLS} kills grow an armor heart`, p.armor === 1);
+    render();
+    { const h = p.hp; p.inv = 0; hurtPlayer(1); check(`armor takes the hit instead (hp ${h} -> ${p.hp}, armor ${p.armor})`, p.hp === h && p.armor === 0); }
+    p.armor = ARMOR_MAX; p.armorKills = ARMOR_KILLS - 1; { const r = dummy(30, 1); damageEnemy(r, 9, 0, 0, true); } check(`armor caps at ${ARMOR_MAX}`, p.armor === ARMOR_MAX);
+    // Bone Plates
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; return q; };
+    p = arena(); grow(p, 'boneplates'); combatRoom(); game.enemies = []; game.bullets = []; p.x = 120; p.y = 96;
+    check(`bone plates orbit you (${p.plates})`, p.plates === 3);
+    { let blocked = 0; for (let i = 0; i < 12; i++) { const q = platePos(p, 0, p.plates); const b = spawnBullet({ x: q.x, y: q.y, vx: 0, vy: 0, team: 'enemy', kind: 'enemy', life: 1, dmg: 1 }); const n0 = p.plates; update(1 / 60); Input.endFrame(); if (p.plates < n0) blocked++; game.bullets = game.bullets.filter(x => x.team !== 'enemy'); if (!p.plates) break; }
+      check(`a plate stops a shot and breaks into shrapnel (${blocked} blocked, shards ${game.bullets.filter(b => b.kind === 'spine').length})`, blocked >= 1 && game.bullets.some(b => b.kind === 'spine')); }
+    combatRoom(); check(`they regrow in the next room (${p.plates})`, p.plates === p.stats.plates);
+    render();
+    p = arena(); grow(p, 'razorplates'); p.plates = p.stats.plates; { const q = platePos(p, 0, p.plates); const r = dummy(0); r.x = q.x; r.y = q.y; r.speed = 0; update(1 / 60); Input.endFrame();
+      check(`razor plates cut what they pass through (${(99 - r.hp).toFixed(1)})`, r.hp < 99); }
+    p = arena(); grow(p, 'boneward'); p.plates = p.stats.plates; { const h = p.hp, n0 = p.plates; p.inv = 0; hurtPlayer(1); check('bone ward: a plate takes a hit for you', p.hp === h && p.plates === n0 - 1); }
+    // Mirror Cyst
+    p = arena(); grow(p, 'mirrorcyst'); p.aimX = 1; p.aimY = 0; game.bullets = [];
+    spawnBullet({ x: p.x + 11, y: p.y - 2, vx: -120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
+    check(`the mirror cyst throws a shot back (${game.bullets.map(b => b.team).join(',')})`, game.bullets.some(b => b.team === 'player' && b.vx > 0) && !game.bullets.some(b => b.team === 'enemy') && p.mirrorT > 0);
+    spawnBullet({ x: p.x + 11, y: p.y - 2, vx: -120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
+    check('...then it needs a moment to recover', game.bullets.some(b => b.team === 'enemy'));
+    game.bullets = []; spawnBullet({ x: p.x - 11, y: p.y - 2, vx: 120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); p.mirrorT = 0; update(1 / 60); Input.endFrame();
+    check('it only covers the front', game.bullets.some(b => b.team === 'enemy'));
+    p = arena(); grow(p, 'echoshell'); p.aimX = 1; p.aimY = 0; game.bullets = []; spawnBullet({ x: p.x - 11, y: p.y - 2, vx: 120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
+    check('mirror shell covers you all around (and echo shell rings)', !game.bullets.some(b => b.team === 'enemy') && game.bullets.some(b => b.kind === 'spine'));
+    render();
+    // Boss picks now turn up (rarely) in vials of their kind, never in the first room's vial.
+    { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }
+      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300)`, seen > 30 && seen < 120 && first === 0); }
+  }
   { // 0k) Open slots: fill them however you like.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} empty slots and no attack`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 0 && !p.stats.guns.length && !p.stats.bite && !p.stats.lash);
@@ -565,15 +600,17 @@ try {
     spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check(`eating a core makes room (+1 slot: ${slotCapacity(p)}) and queues a CORE evolution`, p.capacity === START_SLOTS + 1 && game.pendingEvolutions.some(o => o.slot === 'CORE') && evolveReady(p));
     for (let i = 0; i < 130 && !game.menu; i++) { Input.keys.clear(); Input.keys.add('f'); update(1 / 60); Input.endFrame(); } Input.keys.clear();
-    check(`its cards: Thick Hide plus BOSS PICKS (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.some(c => c.id === 'hide') && game.menu.choices.filter(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss).length === 2 && choiceInfo(p, game.menu.choices.find(c => MUTATIONS[c.id].boss)).status === 'BOSS PICK');
+    check(`its cards are CORE parts only (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.choices.length > 0 && game.menu.choices.every(c => c.id === '_gorge' || locOf(c.id) === 'CORE'));
     { const bossRoots = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].boss); let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 6; for (let k = 0; k < 8; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); if (k % 3 === 2) game.depth++; } if (rollChoices(q, 3).some(c => bossRoots.includes(c.id)) || q.parts.some(m => bossRoots.includes(m.path[0]))) seen++; }
       check(`normal evolutions never offer a boss pick (${seen}/200)`, seen === 0); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
     game.menu = null; game.evolving = false;
     grow(p, 'mirrortwin'); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check('with a CORE already grown, a core can plant a second one in the new slot', kindsAt(p, 'CORE', 'root').length > 0 && game.pendingEvolutions.length === 1);
-    { const all = rootsOf('CORE'); p.coreBonus = 0; grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r)), ...Object.keys(MUTATIONS).filter(id => MUTATIONS[id].boss)); game.pendingEvolutions = []; const mh = p.maxHp; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
-      check(`every CORE grown and every boss pick taken: the core makes you tougher instead (+${p.coreBonus} core bonus)`, p.coreBonus === 1 && !game.pendingEvolutions.length); }
+    { p.coreBonus = 0; grow(p, 'spike'); const mh = p.maxHp; game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+      check(`every devoured core gives +1 max health by itself (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && p.coreBonus === 1); }
+    { const all = rootsOf('CORE'); grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r))); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
+      check('every CORE grown: no card screen, just the health', !game.pendingEvolutions.length); }
     newRun(); game.depth = 2; startFloor(); p = game.player;
     enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
     const w = game.enemies.find(e => e.warden);

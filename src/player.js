@@ -4,6 +4,9 @@
 // ---------------------------------------------------------------------------
 
 const BASE_HP = 3; // three hits and you're dead
+// ARMOR: every ARMOR_KILLS kills grows a grey armor heart (up to ARMOR_MAX).
+// It takes a hit for you, and doesn't come back.
+const ARMOR_KILLS = 30, ARMOR_MAX = 2;
 
 function makePlayer() {
   return {
@@ -29,6 +32,7 @@ function makePlayer() {
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
     controlT: 0, twinDead: false, twinLost: 0, leechHits: 0,
     shieldUp: false, shieldT: 0, secondHeartUsed: false,
+    armor: 0, armorKills: 0, plates: 0, plateT: 0, platesBroken: 0, mirrorT: 0, mirrorHits: 0,
   };
 }
 
@@ -1046,6 +1050,18 @@ function hurtPlayer(dmg) {
     Sfx.play('clank');
     return true;
   }
+  if (s.boneWard && p.plates > 0) { // Bone Ward: a plate takes it
+    const q = platePos(p, 0, p.plates); breakPlate(p, q.x, q.y);
+    p.inv = 0.6; floatText(p.x, p.y - 14, 'WARDED', '#d9cfa0');
+    return true;
+  }
+  if (p.armor > 0) { // an armor heart cracks instead
+    p.armor--; p.inv = Math.max(0.6, s.invuln * 0.6);
+    burst(p.x, p.y, '#b8b8c8', 12, 90); gibs(p.x, p.y, 2, ['#b8b8c8', '#7a7a88'], FLUID.blood);
+    floatText(p.x, p.y - 14, 'ARMOR CRACKS', '#b8b8c8');
+    game.shake = Math.max(game.shake, 3); Sfx.play('clank');
+    return true;
+  }
   if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
   p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   p.hp -= dmg * s.hitCost; // Hollow Body: every hit costs double
@@ -1248,6 +1264,7 @@ function drawPlayer(ctx) {
   ctx.restore();
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
   if (tents) drawTentacles(ctx, p, x, y, 'near');
+  drawDefense(ctx, p);
   drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);
   if (p.limbWear > 0 && partAt(p, 'LIMBS')) bloodSpray(p.x, p.y + 2, 0, 0, Math.random() < 0.1 ? 1 : 0, FLUID.blood, 30); // stumps bleed

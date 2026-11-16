@@ -167,6 +167,10 @@ function killEnemy(e) {
     burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
   }
   onSetKill(e, p, s);
+  if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
+    p.armorKills = 0;
+    if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
+  }
   if (p.form === 'PREDATOR' && Math.hypot(e.x - p.x, e.y - p.y) < 60) p.bloodyT = 2.5; // blood on the muzzle
   if (e.eggs) { for (let i = 0; i < e.eggs; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3)); Sfx.play('hatch'); } // Brood Howl
   if (e.infest) hostBurst(e); // the brood inside bursts out
