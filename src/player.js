@@ -449,6 +449,7 @@ function updateCocoon(p, dt) {
     bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 120);
     gibs(p.x, p.y, 6, ['#c8b4a0', '#a8907e', '#5e2229'], FLUID.blood);
     game.shake = Math.max(game.shake, 5);
+    game.cocoonFlash = 0.3; game.cocoonFlashColor = apexCocoon() ? '#fff0c0' : '#f4c8d8'; // it splits: a flash
     Sfx.play('hatch');
   }
   return true;
@@ -1376,36 +1377,6 @@ function drawSpiderLegs(ctx, p, bx, by, which) {
     ctx.fillStyle = hi; ctx.fillRect(Math.round(kx), Math.round(ky) - 1, 1, 1);
     ctx.fillStyle = dark; ctx.fillRect(Math.round(ex), Math.round(ey), 1, 2);        // claw tip
   });
-}
-
-// The cocoon wraps up from the floor as it grows, then pulses before splitting.
-function drawCocoon(ctx, p, x, y) {
-  const k = Math.min(1, p.evolveT / COCOON_TIME);
-  const big = game.pendingEvolutions.some(e => e.apex) ? 1.6 : 1; // the last cocoon: a huge chrysalis
-  const rx = Math.round(8 * STAGE_SCALE[p.stage] * big) + 1, ry = Math.round(10 * STAGE_SCALE[p.stage] * big) + 1;
-  const jx = k > 0.6 ? Math.round(rand(-1, 1) * (k - 0.6) * 2.5) : 0; // it trembles near the end
-  const cx = Math.round(x + jx), cy = Math.round(y + 1);
-  const top = cy + ry - Math.round(2 * ry * k); // wrapped up to here
-  for (let yy = -ry; yy <= ry; yy++) {
-    const py = cy + yy;
-    if (py < top) continue;
-    const half = Math.round(rx * Math.sqrt(1 - (yy / ry) ** 2));
-    for (let xx = -half; xx <= half; xx++) {
-      const edge = Math.abs(xx) >= half || py === top;
-      const strand = (((xx * 2 + yy * 3 + Math.floor(p.evolveT * 6)) % 7) + 7) % 7;
-      ctx.fillStyle = edge ? '#2a1c18' : strand === 0 ? '#8a6a5a' : strand < 3 ? '#a8907e' : '#c8b4a0';
-      ctx.fillRect(cx + xx, py, 1, 1);
-    }
-  }
-  // Veins, and the glow of what's growing inside.
-  if (k > 0.5) {
-    ctx.fillStyle = '#7a1420';
-    for (let i = 0; i < 6; i++) if (cy - 4 + i * 2 >= top) ctx.fillRect(cx - 3 + ((i * 5) % 7), cy - 4 + i * 2, 1, 2);
-  }
-  if (k > 0.75 && Math.floor(p.evolveT * 8) % 2) {
-    ctx.fillStyle = '#c96a8f';
-    ctx.fillRect(cx - 1, cy - 1, 3, 3);
-  }
 }
 
 // Drawn above the darkness: grapple tentacle, shell ring, glowing night eye.

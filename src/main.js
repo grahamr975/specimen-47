@@ -321,6 +321,8 @@ function render() {
   }
   drawLowHealth(ctx);
 
+  drawCocoonPulse(ctx); // the screen throbs with the cocoon's heartbeat
+  if (game.cocoonFlash > 0) game.cocoonFlash -= 1 / 60;
   drawHUD(ctx);
   drawBossBar(ctx);
   drawWhisper(ctx);

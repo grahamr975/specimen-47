@@ -577,6 +577,17 @@ try {
     for (let i = 0; i < 60; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
     check(`a swallowed splitter leaves no spawnlings in your mouth (spawnlings ${game.enemies.filter(e => e.type === 'mini' && !e.dead).length}, hp ${h} -> ${q.hp})`, r.dead && r.swallowed && !game.enemies.some(e => e.type === 'mini' && !e.dead) && q.hp === h);
   }
+  { // 0za) The cocoon fits the body, throbs, and the screen throbs with it.
+    newRun(); combatRoom(); game.enemies = []; game.room.locked = false; const q = game.player; q.x = 140; q.y = 96;
+    const small = bodyBounds(bodyFrames(q).body);
+    grow(q, 'spider', 'spike', 'spines'); q.evolutions = 12; recomputeStats(q); const bigB = bodyBounds(bodyFrames(q).body);
+    check(`the cocoon measures the body it wraps (slug ${small.w}x${small.h}, grown ${bigB.w}x${bigB.h})`, bigB.w * bigB.h > small.w * small.h);
+    gainDna(dnaNeeded(q.level)); let beats = 0, frames = 0;
+    for (let i = 0; i < 160 && !game.menu; i++) { update(1 / 60); Input.endFrame(); if (q.evolveT > 0) { frames++; if (cocoonBeat(q) > 0.9) beats++; render(); } }
+    check(`it throbs on the heartbeat while it grows (${beats} beat frames in ${frames})`, frames > 20 && beats > 0);
+    check('it splits with a flash', game.cocoonFlash > 0 || !!game.menu);
+    game.menu = null; game.evolving = false;
+  }
   { // 0z) Readability: leftover corpses pulse; enemy acid seethes and glows.
     newRun(); combatRoom(); game.enemies = []; game.room.locked = false; const q = game.player;
     game.room.corpses = [{ x: 100, y: 96, r: 5, sprite: 'rat', dna: 2, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }];

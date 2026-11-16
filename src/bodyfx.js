@@ -329,3 +329,94 @@ function drawDefense(ctx, p) {
   }
   ctx.globalAlpha = 1;
 }
+
+// --- The cocoon: wet, pulsing, sized to whatever you are right now -------------------------
+// Bands of flesh and silk wrap up from the floor around the body's actual
+// pixels; your silhouette shifts inside; veins throb with the heartbeat;
+// near the end it splits along a glowing seam.
+const BODY_BOUNDS = new WeakMap();
+function bodyBounds(img) { // the opaque pixels of a body frame (cached)
+  if (BODY_BOUNDS.has(img)) return BODY_BOUNDS.get(img);
+  const w = img.width, h = img.height, d = img.getContext('2d').getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const b = x1 < 0 ? { cx: 0, cy: 0, w: 12, h: 12 } : { cx: (x0 + x1 + 1) / 2 - w / 2, cy: (y0 + y1 + 1) / 2 - h / 2, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  BODY_BOUNDS.set(img, b);
+  return b;
+}
+
+// 0..1: a sharp throb on every heartbeat (the same beat the cocoon's heartbeat sound uses).
+function cocoonBeat(p) {
+  if (!(p.evolveT > 0)) return 0;
+  const beat = p.evolveT > COCOON_TIME * 0.6 ? 0.25 : 0.45, ph = (p.evolveT % beat) / beat;
+  return Math.max(0, 1 - ph * 3.5);
+}
+const apexCocoon = () => game.pendingEvolutions.some(e => e.apex);
+
+function drawCocoon(ctx, p, x, y) {
+  const k = Math.min(1, p.evolveT / COCOON_TIME), beat = cocoonBeat(p);
+  const fb = bodyFrames(p), body = fb[(p.aimX < 0 ? 'body_L' : 'body')] || fb.body, b = bodyBounds(body);
+  const big = apexCocoon() ? 1.5 : 1;
+  const swell = 1 + 0.07 * beat;                       // it throbs with your heart
+  const rx = (b.w / 2 + 2) * big * swell * (p.pose ? p.pose.sx : 1), ry = (b.h / 2 + 2) * big * swell * (p.pose ? p.pose.sy : 1);
+  const jx = k > 0.6 ? rand(-1, 1) * (k - 0.6) * 3 : 0; // it trembles near the end
+  const cx = x + b.cx + jx, cy = y + b.cy - (big - 1) * ry * 0.4;
+  const floor = cy + ry, top = floor - 2 * ry * Math.min(1, k * 1.15); // wrapped up to here
+  const pal = apexCocoon() ? ['#2a1c10', '#7a5a2a', '#b08a40', '#e0c070', '#fff0c0'] : ['#1e1012', '#5a2a2e', '#8a5048', '#b88a78', '#e0c4b0'];
+  // Inside: your silhouette, shifting as you change.
+  const key = 'cocoonSil'; if (!body[key]) body[key] = silhouette(body, '#140608');
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(body[key], Math.round(x - body.width / 2 + Math.sin(p.evolveT * 9) * 0.8), Math.round(y - body.height / 2));
+  ctx.globalAlpha = 1;
+  // The membrane: layered bands wrapping up from the floor, each its own wobble.
+  for (let yy = Math.ceil(top); yy <= floor; yy++) {
+    const v = (yy - cy) / ry; if (Math.abs(v) > 1) continue;
+    const half = rx * Math.sqrt(1 - v * v);
+    const band = Math.floor((floor - yy) / 2.2), wob = Math.sin(band * 1.7 + p.evolveT * 5) * 0.8;
+    for (let xx = -Math.ceil(half); xx <= Math.ceil(half); xx++) {
+      if (Math.abs(xx) > half + wob * 0.5) continue;
+      const edge = Math.abs(xx) >= half - 1 || yy <= Math.ceil(top) + 0.5;
+      const u = xx / (half || 1);                       // -1..1 across: light from the upper left
+      const strand = Math.sin(xx * 0.9 + band * 2.3 + yy * 0.4) > 0.55;
+      let shade = 2 + Math.round(-u * 1.2) + (band % 2 ? 0 : 1) + (strand ? 1 : 0);
+      if (edge) shade = 0;
+      ctx.fillStyle = pal[clamp(shade, 0, 4)];
+      ctx.fillRect(Math.round(cx + xx), yy, 1, 1);
+    }
+  }
+  // Veins: they spread up from the floor and throb on every beat.
+  if (k > 0.3) {
+    ctx.fillStyle = beat > 0.4 ? '#e0304a' : '#7a1420';
+    for (let i = 0; i < 4; i++) {
+      let vx = cx - rx * 0.6 + i * rx * 0.4, vy = floor - 1;
+      const len = (k - 0.3) / 0.7 * ry * 1.6;
+      for (let s = 0; s < len; s++) { vx += Math.sin(i * 3.1 + s * 0.7) * 0.6; vy -= 1; if (vy < top) break; ctx.fillRect(Math.round(vx), Math.round(vy), 1, 1); }
+    }
+  }
+  // Drips off the bottom.
+  if (Math.random() < 0.25) game.particles.push({ x: cx + rand(-rx, rx) * 0.7, y: floor, vx: 0, vy: 18, life: 0.25, color: pick(['#8a5048', '#5e2229', '#c8b4a0']), size: 1, fluid: FLUID.blood });
+  // Near the end: it splits along a seam, and light leaks out.
+  if (k > 0.8) {
+    const open = (k - 0.8) / 0.2;
+    ctx.fillStyle = apexCocoon() ? '#fff0c0' : '#f4a0b8';
+    for (let s = 0; s < ry * 2 * open; s++) ctx.fillRect(Math.round(cx + Math.sin(s * 0.8) * 1.2), Math.round(cy - ry * open + s), 1, 1);
+  }
+}
+
+// The whole screen throbs with the cocoon's heartbeat (gold for the last one),
+// and flashes when it splits.
+function drawCocoonPulse(ctx) {
+  const p = game.player;
+  if (game.cocoonFlash > 0) {
+    ctx.globalAlpha = Math.min(1, game.cocoonFlash / 0.3) * 0.7;
+    ctx.fillStyle = game.cocoonFlashColor || '#f4c8d8'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.globalAlpha = 1;
+  }
+  if (!p || !(p.evolveT > 0)) return;
+  const k = Math.min(1, p.evolveT / COCOON_TIME), beat = cocoonBeat(p), apex = apexCocoon();
+  const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.25, VIEW_W / 2, VIEW_H / 2, VIEW_W * 0.75);
+  const a = (0.18 + 0.4 * beat) * (0.4 + 0.6 * k);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, apex ? `rgba(200,150,40,${a.toFixed(3)})` : `rgba(130,10,30,${a.toFixed(3)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+}
