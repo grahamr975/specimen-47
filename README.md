@@ -73,7 +73,8 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | `src/dna.js` | Corpses, bursting, biomass amounts and the level curve (biomass is called `dna` in the code) |
 | `src/floors.js` | Each floor's name, enemy mix, hazard and boss |
 | `src/bosses.js` | Bosses, telegraphed attacks, floor-specific enemy behaviors, elite affixes |
-| `src/enemies.js` | Enemy stats, behaviors and biomass value |
+| `src/enemies.js` | Enemy stats (`ENEMY_TYPES`) and how each one acts (`ENEMY_BEHAVIOR`: `update`, plus optional `onDeath` / `onHurt`). A new enemy is one row in each, plus a sprite. |
+| `src/status.js` | Status effects (`STATUS`): bleed, stun, slow, web, blind, mark, corrode, pollen, leak, acid mark, chill, net. Apply with `inflict(target, 'bleed', { t: 3, dps: 2 })`, ask with `hasStatus()`. A part makes an attack apply one with `onHit(s, 'lash', 'bleed', { t: 3, dps: 2 })` in its `apply()`. |
 | `src/player.js` | Movement, shooting, dash/charge, bite, tentacles, shield |
 | `src/music.js` | Procedural music: chords, tempo, combat layer |
 | `src/sprites.js` | All sprites, painted from shaded shapes (blobs, tubes, eyes). Tweak the numbers to reshape a creature. |

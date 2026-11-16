@@ -77,7 +77,7 @@ const STATUS = {
   acidMark: { // Acid Maw / Acid Skin: it bursts into bile when it dies
     onKill(e, st, p, s) {
       spawnPuddle(e.x, e.y, 16, 3, 'player');
-      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 22 + o.r) damageEnemy(o, 2 * s.damage, o.x - e.x, o.y - e.y, true);
+      for (const o of enemiesNear(e.x, e.y, 22, e)) damageEnemy(o, 2 * s.damage, o.x - e.x, o.y - e.y, true);
       burst(e.x, e.y, '#b0c040', 14, 100, 0.4);
     },
   },
@@ -148,11 +148,11 @@ function applyHitEffects(e, source, s = game.player.stats) {
   }
 }
 
-// One heal, said out loud. Returns whether it healed.
-function healPlayer(n = 1, label) {
+// One heal, said out loud (never past full). Returns whether it healed.
+function healPlayer(n = 1, color = PAL.red) {
   const p = game.player;
   if (p.hp >= p.maxHp) return false;
   p.hp = Math.min(p.maxHp, p.hp + n);
-  floatText(p.x, p.y - 14, label || `+${n} HP`, PAL.red);
+  floatText(p.x, p.y - 14, `+${n} HP`, color);
   return true;
 }

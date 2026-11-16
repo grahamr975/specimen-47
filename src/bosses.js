@@ -194,7 +194,7 @@ function spawnBoss(id) {
 }
 
 function livingBossParts() {
-  return game.enemies.filter(e => !e.dead && ENEMY_TYPES[e.type].boss);
+  return game.enemies.filter(e => !e.dead && isBoss(e));
 }
 
 // The Mother Culture: births blobs, slams tendrils, and at half health splits in three.

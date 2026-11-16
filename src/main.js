@@ -204,7 +204,7 @@ function update(dt) {
     room.cleared = true;
     Sfx.play('door');
     if (p.stats.roomFruit) { spawnPickup('heart', ROOM_PX_W / 2 - 24, ROOM_PX_H / 2); floatText(p.x, p.y - 14, 'YOUR HEART FRUITS', '#7ab84a'); } // Fruiting Heart
-    if (p.stats.setRoomHeal && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', SETS.ABOMINATION.color); }
+    if (p.stats.setRoomHeal) healPlayer(1, SETS.ABOMINATION.color);
     // Cancerous Growth feeds on every victory.
     if (hasMutation(p, 'cancer')) {
       p.cancerRooms++;

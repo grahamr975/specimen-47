@@ -159,7 +159,7 @@ function igniteCloudAt(x, y) {
   c.life = 0;
   const dmg = 4 * game.player.stats.damage;
   game.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, max: c.r + 10, t: 0.25 });
-  for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r + 10 + e.r) damageEnemy(e, dmg, e.x - c.x, e.y - c.y, true);
+  for (const e of enemiesNear(c.x, c.y, c.r + 10)) damageEnemy(e, dmg, e.x - c.x, e.y - c.y, true);
   for (let i = 0; i < 3; i++) spawnPuddle(c.x + rand(-8, 8), c.y + rand(-8, 8), 10, 2.5, 'player');
   burst(c.x, c.y, '#e8a020', 24, 140, 0.5);
   burst(c.x, c.y, '#b0c040', 14, 90, 0.4);
@@ -188,7 +188,7 @@ function updateDecoy(dt) {
     if (game.player.stats.huskBomb) {
       const d = game.decoy;
       spawnPuddle(d.x, d.y, 22, 3.5, 'player');
-      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - d.x, e.y - d.y) < 30 + e.r) damageEnemy(e, 4 * game.player.stats.damage, e.x - d.x, e.y - d.y, true);
+      for (const e of enemiesNear(d.x, d.y, 30)) damageEnemy(e, 4 * game.player.stats.damage, e.x - d.x, e.y - d.y, true);
       game.shake = Math.max(game.shake, 4);
       Sfx.play('splat');
     }
@@ -336,7 +336,7 @@ function landThrownCorpse(b) {
   c.x = clamp(b.x, TILE + 4, ROOM_PX_W - TILE - 4);
   c.y = clamp(b.y, TILE + 4, ROOM_PX_H - TILE - 4);
   game.room.corpses.push(c);
-  for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < 18 + e.r) damageEnemy(e, b.dmg, e.x - c.x, e.y - c.y, true);
+  for (const e of enemiesNear(c.x, c.y, 18)) damageEnemy(e, b.dmg, e.x - c.x, e.y - c.y, true);
   bileBombAt(c.x, c.y);
   burstCorpse(c);
 }
@@ -352,7 +352,7 @@ function updateThrownEnemy(e, dt) {
     t.hit.add(o);
     damageEnemy(o, t.dmg, t.vx, t.vy, true);
     // Avalanche: what a howled body hits gets flung too.
-    if (t.howled && s.howlChain && !o.dead && !o.thrown && !ENEMY_TYPES[o.type].boss) o.thrown = { vx: t.vx * 0.8, vy: t.vy * 0.8, t: 0.3, dmg: t.dmg * 0.8, hit: new Set([o, e]), howled: true };
+    if (t.howled && s.howlChain && !o.dead && !o.thrown && !isBoss(o)) o.thrown = { vx: t.vx * 0.8, vy: t.vy * 0.8, t: 0.3, dmg: t.dmg * 0.8, hit: new Set([o, e]), howled: true };
     bloodSpray(o.x, o.y, t.vx, t.vy, 8, ENEMY_TYPES[o.type].fluid, 100);
     Sfx.play('ram');
   }
@@ -401,7 +401,7 @@ function updateBurrow(p, dt, ix, iy) {
     }
     if (s.eruptStun) { // Quake
       game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 56, t: 0.35 });
-      for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < 56 + e.r) inflict(e, 'stun', { t: s.eruptStun });
+      for (const e of enemiesNear(p.x, p.y, 56)) inflict(e, 'stun', { t: s.eruptStun });
     }
     if (s.eruptRing) fireRing(p, s.eruptRing);
     if (s.seismicHowl && s.howl) { howl(p, 1.5, true); groundCracks(p.x, p.y + 4); } // Seismic Howl
@@ -423,7 +423,7 @@ function parasiteRisk(p, ax, ay) {
   for (let d = 0; d <= 40; d += 8) {
     const x = p.x + ax * d, y = p.y + ay * d;
     for (const pd of game.puddles) if (pd.team !== 'player' && Math.hypot(x - pd.x, y - pd.y) < pd.r + 5) risk += 3;
-    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(x - e.x, y - e.y) < e.r + (ENEMY_TYPES[e.type].boss ? 22 : 10)) risk += ENEMY_TYPES[e.type].boss ? 6 : 3;
+    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(x - e.x, y - e.y) < e.r + (isBoss(e) ? 22 : 10)) risk += isBoss(e) ? 6 : 3;
     for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(x - b.x, y - b.y) < 8) risk += 1;
   }
   return risk;
@@ -470,7 +470,7 @@ function scream(p) {
     const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
     if (d >= 50 + e.r) continue;
     inflict(e, 'stun', { t: p.stats.echo });
-    if (p.stats.banshee && !ENEMY_TYPES[e.type].boss) { e.kx += (e.x - p.x) / d * 300; e.ky += (e.y - p.y) / d * 300; }
+    if (p.stats.banshee && !isBoss(e)) { e.kx += (e.x - p.x) / d * 300; e.ky += (e.y - p.y) / d * 300; }
   }
   if (p.stats.banshee) { // Banshee: shreds enemy shots out of the air
     for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(b.x - p.x, b.y - p.y) < 60) { b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); }
@@ -524,7 +524,7 @@ function hostBurst(e) {
   bloodSpray(e.x, e.y, 0, 0, 18, ENEMY_TYPES[e.type].fluid, 130);
   Sfx.play('hatch');
   if (s.oviBurst) { // Chestburster
-    for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, s.oviBurst * s.damage, o.x - e.x, o.y - e.y, true);
+    for (const o of enemiesNear(e.x, e.y, 30, e)) damageEnemy(o, s.oviBurst * s.damage, o.x - e.x, o.y - e.y, true);
     game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 });
     game.shake = Math.max(game.shake, 3);
   }
@@ -589,7 +589,7 @@ function howl(p, mul = 1, around = false) {
     damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
     if (e.dead) continue;
     applyHitEffects(e, 'howl');
-    if (ENEMY_TYPES[e.type].boss) continue;
+    if (isBoss(e)) continue;
     const sp = Math.min(380, h.force * mul / enemyMass(e));
     e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
   }
@@ -624,7 +624,7 @@ function polypPop(a) {
   const s = game.player.stats;
   a.dead = true;
   spawnPuddle(a.x, a.y, 14, 3, 'player');
-  for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < 26 + e.r) damageEnemy(e, 4 * s.damage, e.x - a.x, e.y - a.y, true);
+  for (const e of enemiesNear(a.x, a.y, 26)) damageEnemy(e, 4 * s.damage, e.x - a.x, e.y - a.y, true);
   game.fx.push({ kind: 'ring', x: a.x, y: a.y, r: 3, max: 26, t: 0.2 });
   Sfx.play('splat');
 }
@@ -664,7 +664,7 @@ function updatePolyp(a, dt) {
 
 // Feeding Polyps: their kills feed you.
 function polypFed(p) {
-  if (++p.polypKills % p.stats.polypFeed === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+  if (++p.polypKills % p.stats.polypFeed === 0) healPlayer(1);
 }
 
 // Frog Tongue: the tongue shoots out (see updateTongue). Small prey sticks to
@@ -729,7 +729,7 @@ function updateTongue(p, dt) {
       const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && !o.held && !T.hits.includes(o) && Math.hypot(o.x - x, o.y - y) < o.r + 2);
       if (e) {
         T.hits.push(e);
-        if (!T.carry && T.hits.length === 1 && !ENEMY_TYPES[e.type].boss && !e.elite && e.r <= t.size && p.gullet < t.max) {
+        if (!T.carry && T.hits.length === 1 && !isBoss(e) && !e.elite && e.r <= t.size && p.gullet < t.max) {
           T.carry = e; e.held = true; e.kx = e.ky = 0; // stuck to the tongue
           Sfx.play('chomp');
           if (!s.tonguePierce) T.out = false;
@@ -777,7 +777,7 @@ function swallow(p, e) {
   p.eatT = 0.4;
   bloodSpray(p.x + p.aimX * 5, p.y - 2, 0, 0, 6, ENEMY_TYPES[e.type].fluid, 50);
   floatText(p.x, p.y - 16, 'GULP', PAL.red);
-  if (p.hp < p.maxHp && (p.stats.bloodGulp || Math.random() < 0.15)) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); } // Blood Gulp: always
+  if ((p.stats.bloodGulp || Math.random() < 0.15)) healPlayer(1); // Blood Gulp: always
   Sfx.play('gulp');
 }
 
@@ -822,7 +822,7 @@ function updateWebs(dt) {
       if (e.dead || e.spawnT > 0) continue;
       if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
       damageEnemy(e, s.silk.dmg * dt, 0, 0, true);
-      if (ENEMY_TYPES[e.type].boss) continue; // the silk cuts a boss, but can't hold one
+      if (isBoss(e)) continue; // the silk cuts a boss, but can't hold one
       inflict(e, 'web', { t: 0.25 });
       if (w.touched.has(e)) continue;
       w.touched.add(e);
@@ -887,7 +887,7 @@ function updatePlant(p, dt) {
     p.pollenT = s.pollen.every;
     game.fx.push({ kind: 'ring', x: p.x, y: p.y - 6, r: 4, max: s.pollen.r, t: 0.3 });
     burst(p.x, p.y - 8, '#e8d040', 14, 70, 0.7);
-    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < s.pollen.r + e.r) pollinate(e, s);
+    for (const e of enemiesNear(p.x, p.y, s.pollen.r)) pollinate(e, s);
   }
   // Standing still: Root Legs take root; the Plant set photosynthesizes.
   if (!p.moving && p.dashT <= 0 && p.pullT <= 0) p.stillT = (p.stillT || 0) + dt; else p.stillT = 0;
@@ -908,7 +908,7 @@ function updatePlant(p, dt) {
   let rate = p.rooted ? s.rootLegs.heal : 0;
   if (s.setStillRegen && p.stillT > 1) rate = rate ? Math.min(rate, s.setStillRegen) : s.setStillRegen;
   if (rate && p.hp < p.maxHp) {
-    if ((p.stillHealT = (p.stillHealT || 0) + dt) >= rate) { p.stillHealT = 0; p.hp++; floatText(p.x, p.y - 14, '+1 HP', '#7ab84a'); }
+    if ((p.stillHealT = (p.stillHealT || 0) + dt) >= rate) { p.stillHealT = 0; healPlayer(1, '#7ab84a'); }
   } else p.stillHealT = 0;
   if (p.rooted) {
     if (s.taproot) for (const c of game.room.corpses) { // Taproot: the dead dissolve into you
@@ -921,7 +921,7 @@ function updatePlant(p, dt) {
       if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 40 + e.r) continue;
       damageEnemy(e, s.rootDrain * s.damage * dt, 0, 0, true);
       p.drained = (p.drained || 0) + s.rootDrain * dt;
-      if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+      if (p.drained >= 12) { p.drained = 0; healPlayer(1); }
     }
     if (s.rootLash && (p.rootLashT = (p.rootLashT || 0) - dt) <= 0) { // Strangler
       p.rootLashT = s.rootLash;
@@ -1040,7 +1040,7 @@ function updateBranchUpkeep(p, dt) {
   }
   if (s.nightLure && s.lure) { // Nightmare Lure
     const lp = lurePoint(p);
-    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - lp.x, e.y - lp.y) < 20 + e.r && !hasStatus(e, 'blind')) { inflict(e, 'blind', { t: 1.5 }); floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
+    for (const e of enemiesNear(lp.x, lp.y, 20)) if (!hasStatus(e, 'blind')) { inflict(e, 'blind', { t: 1.5 }); floatText(e.x, e.y - 10, '?', '#7a5aa0'); }
   }
   updateMiasma(p, dt);
   updatePlant(p, dt);
@@ -1109,7 +1109,6 @@ function pointedEnemy(p, range) {
   return best;
 }
 
-const isBoss = e => !!ENEMY_TYPES[e.type].boss;
 
 // Right-click / E (key 'limb') or Q (key 'head').
 function tryActive(p, key) {
@@ -1402,7 +1401,7 @@ function breakPlate(p, x, y) {
   ringFrom(x, y, s.plateShards || 4);
   burst(x, y, '#e8e0c8', 6, 70, 0.3);
   Sfx.play('clank');
-  if (s.plateHeal && ++p.platesBroken % s.plateHeal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } // Shrapnel Heart
+  if (s.plateHeal && ++p.platesBroken % s.plateHeal === 0) healPlayer(1); // Shrapnel Heart
 }
 
 // An enemy shot meets a plate: the plate breaks, the shot is stopped.
@@ -1429,7 +1428,7 @@ function mirrorReflects(b) {
   shoot(a);
   if (m.split) { shoot(a - 0.25); shoot(a + 0.25); } // Prism
   if (m.ring) fireRing(p, m.ring);                    // Echo Shell
-  if (m.heal && ++p.mirrorHits % m.heal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } // Feeding Glass
+  if (m.heal && ++p.mirrorHits % m.heal === 0) healPlayer(1); // Feeding Glass
   burst(b.x, b.y, '#c8e8ff', 6, 70, 0.25);
   Sfx.play('shield');
   return true;
@@ -1464,7 +1463,7 @@ function apexKill(p) {
   const n = p.stats.apex && p.stats.apex.PREDATOR;
   if (!n) return;
   p.adrenalT = Math.max(p.adrenalT || 0, 0.6 + 0.4 * n);
-  if (++p.apexKills % Math.max(4, 12 - 2 * n) === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+  if (++p.apexKills % Math.max(4, 12 - 2 * n) === 0) healPlayer(1);
 }
 
 // Barb Flinger: the barbs stuck in an enemy tear out at once.

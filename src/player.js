@@ -233,7 +233,7 @@ function updatePlayer(dt) {
   p.withdrawn = p.withdrawT > 0.25;
   if (p.withdrawn && s.pupa) { // cocoon: slowly heal
     p.cocoonT += dt;
-    if (p.cocoonT > 2.5) { p.cocoonT = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+    if (p.cocoonT > 2.5) { p.cocoonT = 0; healPlayer(1); }
   }
 
   // --- Dash / charge / burrow ---
@@ -377,8 +377,7 @@ function updatePlayer(dt) {
   if (s.regen > 0) {
     if (p.hp >= p.maxHp) p.regenT = 0;
     else if ((p.regenT += dt) >= s.regen) {
-      p.regenT = 0; p.hp++;
-      floatText(p.x, p.y - 14, '+1 HP', PAL.red);
+      p.regenT = 0; healPlayer(1);
     }
   }
   if (s.starve > 0) {
@@ -674,11 +673,11 @@ function drainOne(p, target, dmg, fromX, fromY) {
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
   if (s.drainDna && (p.bloodDna += dmg) >= s.drainDna) { p.bloodDna = 0; gainDna(1); floatText(p.x, p.y - 22, '+BIOMASS', VIAL_COLOR); } // Blood Pump
-  if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+  if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; healPlayer(1); }
   // Bloat: drained to death, it bursts.
   if (target.dead && s.drainBurst) {
     bloodSpray(target.x, target.y, 0, 0, 30, ENEMY_TYPES[target.type].fluid, 160);
-    for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - target.x, e.y - target.y) < 30 + e.r) damageEnemy(e, 3 * s.damage, e.x - target.x, e.y - target.y, true);
+    for (const e of enemiesNear(target.x, target.y, 30)) damageEnemy(e, 3 * s.damage, e.x - target.x, e.y - target.y, true);
     if (s.burstSpores) spawnCloud(target.x, target.y, 26);
     game.shake = Math.max(game.shake, 3);
   }
@@ -772,23 +771,23 @@ function bite(p, dmg, arrived = false, prey = null) {
   if (s.meltBite && inOwnPool(target.x, target.y)) { dmg *= 3; floatText(target.x, target.y - 10, 'MELT', '#b0c040'); }
   const bleeding = hasStatus(target, 'bleed');
   // Devour: a badly wounded enemy is swallowed whole.
-  if (s.devour && !ENEMY_TYPES[target.type].boss && target.hp <= target.maxHp * s.devour) {
+  if (s.devour && !isBoss(target) && target.hp <= target.maxHp * s.devour) {
     floatText(target.x, target.y - 10, 'DEVOURED', PAL.red);
     dmg = target.hp + 1;
   }
   meleeHit(p, target, dmg, target.x - p.x, target.y - p.y);
   // Bitten prey reels: for a moment it can't move, shoot, or hurt you.
-  if (!target.dead && !ENEMY_TYPES[target.type].boss) target.staggerT = Math.max(target.staggerT || 0, BITE_STAGGER);
+  if (!target.dead && !isBoss(target)) target.staggerT = Math.max(target.staggerT || 0, BITE_STAGGER);
   if (s.boneJaws) {
     // Bone Jaws: a spike bursts out through the back of the victim.
     const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;
     spawnBullet({ x: target.x + ux * 4, y: target.y + uy * 4, vx: ux * 190, vy: uy * 190, r: 2, dmg: dmg * 0.8, life: 0.5, pierce: 1, kind: 'shot', color: '#cfc4a4', hitSet: new Set([target]) });
   }
   applyHitEffects(target, 'bite'); // Acid Maw: it bursts into bile when it dies
-  if (s.bleedFeed && bleeding && p.hp < p.maxHp && Math.random() < s.bleedFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
-  if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+  if (s.bleedFeed && bleeding && Math.random() < s.bleedFeed) healPlayer(1);
+  if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; healPlayer(1); }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
-  if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+  if (s.biteHeal && Math.random() < s.biteHeal) healPlayer(1);
   game.fx.push({ kind: 'bite', x: (p.x + target.x) / 2, y: (p.y + target.y) / 2, t: 0.12 });
   Sfx.play('bite');
 }
@@ -866,7 +865,7 @@ function lashHit(p, e) {
     applyHitEffects(e, 'lash'); // Barbed Tendrils, Caustic Tendrils, Strangle
     if (s.lashDrain) {
       p.drained = (p.drained || 0) + s.lashDmg * 0.35;
-      if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
+      if (p.drained >= 12) { p.drained = 0; healPlayer(1); }
     }
     if (s.barbedLash) {
       // Barbed Lash: a bone spike is flung from the victim to the next enemy.
@@ -899,7 +898,7 @@ function lungeBite(p) {
     applyHitEffects(e, 'lunge');
     if (e.dead && s.lungeChain) { p.cd.lunge = 0; floatText(p.x, p.y - 14, 'AGAIN', '#e8a020'); }
     knock(e, p.lungeX, p.lungeY, 120);
-    if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+    if (s.biteHeal && Math.random() < s.biteHeal) healPlayer(1);
     hit++;
   }
   for (const c of corpsesNear(p.x, p.y, 20 + s.reach, p.lungeX, p.lungeY, 0.3)) damageCorpse(c, s.lungeDmg, p.lungeX, p.lungeY);
@@ -1000,7 +999,7 @@ function chargeHits(p) {
     p.dashHit.add(e);
     if (s.bleedBurst && hasStatus(e, 'bleed')) { // Bloodletter: the bleeding ones burst
       bloodSpray(e.x, e.y, p.dashX, p.dashY, 24, ENEMY_TYPES[e.type].fluid, 160);
-      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 28 + o.r) damageEnemy(o, s.dashDmg * 0.7, o.x - e.x, o.y - e.y, true);
+      for (const o of enemiesNear(e.x, e.y, 28, e)) damageEnemy(o, s.dashDmg * 0.7, o.x - e.x, o.y - e.y, true);
       floatText(e.x, e.y - 10, 'BURST', PAL.red);
     }
     const ram = s.batteringRam && p.shieldUp; // Battering Ram
@@ -1013,7 +1012,7 @@ function chargeHits(p) {
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('ram');
-    if (s.juggernaut && !e.dead && !ENEMY_TYPES[e.type].boss) e.thrown = { vx: p.dashX * 260, vy: p.dashY * 260, t: 0.5, dmg: s.dashDmg * 0.6, hit: new Set([e]) };
+    if (s.juggernaut && !e.dead && !isBoss(e)) e.thrown = { vx: p.dashX * 260, vy: p.dashY * 260, t: 0.5, dmg: s.dashDmg * 0.6, hit: new Set([e]) };
     if (e.dead && s.dashReset) { p.dashCd = 0; floatText(p.x, p.y - 14, 'RAMPAGE', '#e8a020'); }
   }
   for (const c of corpsesNear(p.x, p.y, p.r + 2)) if (!p.dashHit.has(c)) { p.dashHit.add(c); damageCorpse(c, s.dashDmg, p.dashX, p.dashY); }

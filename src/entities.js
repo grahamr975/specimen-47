@@ -74,7 +74,7 @@ function updateBullets(dt) {
       // Your spore mortar: flies over everything, bursts where it lands.
       if (b.life <= 0) {
         b.dead = true;
-        for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - b.x, e.y - b.y) < 14 + e.r) damageEnemy(e, b.dmg, e.x - b.x, e.y - b.y, true);
+        for (const e of enemiesNear(b.x, b.y, 14)) damageEnemy(e, b.dmg, e.x - b.x, e.y - b.y, true);
         for (const c of corpsesNear(b.x, b.y, 14)) damageCorpse(c, b.dmg);
         strikeSeal(b.x, b.y, 14);
         if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Bile Mortar
@@ -163,7 +163,7 @@ function onPlayerBulletHit(b, enemy) {
   if (b.acid) spawnPuddle(b.x, b.y, b.acid, 2.2, 'player');
   if (b.venomBurst) { spawnPuddle(b.x, b.y, 14, 3, 'player'); burst(b.x, b.y, '#b0c040', 6, 70, 0.3); } // Venom Barrage
   if (b.bloodBomb) { // Blood Gulp: the spat-back prey bursts
-    for (const o of game.enemies) if (o !== enemy && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - b.x, o.y - b.y) < 26 + o.r) damageEnemy(o, b.bloodBomb, o.x - b.x, o.y - b.y, true);
+    for (const o of enemiesNear(b.x, b.y, 26, enemy)) damageEnemy(o, b.bloodBomb, o.x - b.x, o.y - b.y, true);
     bloodSpray(b.x, b.y, 0, 0, 24, FLUID.blood, 140); game.fx.push({ kind: 'ring', x: b.x, y: b.y, r: 3, max: 26, t: 0.2 }); b.bloodBomb = 0;
   }
   if (b.larva && !enemy.dead) infest(enemy);                 // Ovipositor

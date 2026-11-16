@@ -106,7 +106,7 @@ function updateHazards(dt) {
       if (distToSegment(p.x, p.y, h.x1, h.y1, h.x2, h.y2) < p.r + 1 && p.burrowT <= 0 && room.locked) hurtPlayer(1);
     } else if (h.kind === 'mutagen') {
       for (const e of game.enemies) {
-        if (e.dead || e.spawnT > 0 || ENEMY_TYPES[e.type].boss || Math.hypot(e.x - h.x, e.y - h.y) > h.r + e.r * 0.5 || e.hp >= e.maxHp) continue;
+        if (e.dead || e.spawnT > 0 || isBoss(e) || Math.hypot(e.x - h.x, e.y - h.y) > h.r + e.r * 0.5 || e.hp >= e.maxHp) continue;
         e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.15 * dt); // it knits itself back together
         if (Math.random() < dt * 6) game.particles.push({ x: e.x + rand(-4, 4), y: e.y + rand(-4, 2), vx: 0, vy: -20, life: 0.4, color: '#e8a0b8', size: 1 });
       }

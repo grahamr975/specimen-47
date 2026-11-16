@@ -72,8 +72,7 @@ function burstCorpse(c) {
     recomputeStats(p);
   }
   if (s.hemophage > 0 && p.hp < p.maxHp && Math.random() < s.hemophage) {
-    p.hp++;
-    floatText(p.x, p.y - 20, '+1 HP', PAL.red);
+    healPlayer(1);
   }
   game.shake = Math.max(game.shake, 2);
   Sfx.play('kill');
@@ -129,7 +128,7 @@ function devourCorpse(p, c) {
   Sfx.play('chomp'); Sfx.play('gulp');
   burstCorpse(c);
   for (const o of game.room.orbs) if (Math.hypot(o.x - c.x, o.y - c.y) < 3) { o.x = p.x; o.y = p.y; o.t = 0.36; } // straight into you
-  if (p.stats.corpseHeal && p.hp < p.maxHp && Math.random() < p.stats.corpseHeal) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); } // Gluttonous
+  if (p.stats.corpseHeal && Math.random() < p.stats.corpseHeal) healPlayer(1); // Gluttonous
 }
 
 function updateCorpses(dt) {

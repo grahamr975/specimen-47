@@ -42,6 +42,12 @@ const ENEMY_TYPES = {
   motherling:{ name: 'Mother Culture',  hp: 18, r: 10, speed: 22, dna: 0, corpse: 0, fluid: FLUID.rot, gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [[0, -4]], boss: true },
 };
 
+function isBoss(e) { return !!ENEMY_TYPES[e.type].boss; }
+// Living, hatched enemies within r of (x, y) (measured to their edge), optionally but one.
+function enemiesNear(x, y, r, except) {
+  return game.enemies.filter(e => e !== except && !e.dead && e.spawnT <= 0 && Math.hypot(e.x - x, e.y - y) < r + e.r);
+}
+
 const ENEMY_POOL = ['rat', 'rat', 'drone', 'urchin', 'splitter', 'spitter'];
 
 // THREAT: everything gets a little harder every floor (and keeps going after the
@@ -117,7 +123,7 @@ function onSetKill(e, p, s) {
   if (s.setKillCloud) spawnCloud(e.x, e.y, s.setKillCloud);                         // Fungal
   if (s.setKillBrood && Math.random() < s.setKillBrood) spawnAlly('spiderling', e.x, e.y); // Hive
   if (s.setKillFrenzy) { if (!(p.frenzyT > 0)) { p.frenzyT = 3; recomputeStats(p); } else p.frenzyT = 3; } // Apex
-  if (s.setKillHeal && ++p.setKills % s.setKillHeal === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+  if (s.setKillHeal && ++p.setKills % s.setKillHeal === 0) healPlayer(1);
   if (s.shellOnKills && s.shieldCd > 0 && !p.shieldUp && ++p.armorKills % s.shellOnKills === 0) { p.shieldUp = true; Sfx.play('shieldUp'); floatText(p.x, p.y - 14, 'SHELL REGROWN', '#8a7a5a'); } // Living Armor
 }
 
@@ -149,7 +155,7 @@ function knock(e, dx, dy, force) {
 function moveKnocked(e, vx, vy, dt) {
   const speed = Math.hypot(e.kx, e.ky);
   const bumped = moveEntity(game.room, e, vx * dt, vy * dt);
-  if (bumped && speed > 170 && !ENEMY_TYPES[e.type].boss) {
+  if (bumped && speed > 170 && !isBoss(e)) {
     e.kx = e.ky = 0;
     burst(e.x, e.y, '#5e5450', 6, 60, 0.3);
     game.shake = Math.max(game.shake, 2);
@@ -206,7 +212,7 @@ function killEnemy(e) {
   if (s.gasDeathCloud && Math.hypot(e.x - p.x, e.y - p.y) < (p.gasR || 0) + e.r) game.clouds.push({ x: e.x, y: e.y, r: 16, life: 3.5, toxic: true }); // Rot Halo
   // Stalker: kills out in the dark can heal you.
   if (s.darkHeal && p.hp < p.maxHp && Math.hypot(e.x - p.x, e.y - p.y) > 45 && Math.random() < s.darkHeal) {
-    p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red);
+    healPlayer(1);
   }
   if (e.swallowed) { // Frog Tongue: gone in one gulp, DNA and all
     const n = Math.round((T.dna || 0) * s.dnaMul);
@@ -329,7 +335,7 @@ const ENEMY_BEHAVIOR = {
       game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 }); burst(e.x, e.y, '#aac25a', 24, 140, 0.5);
       spawnPuddle(e.x, e.y, 18, 5, 'enemy'); game.shake = Math.max(game.shake, 4); Sfx.play('blast');
       if (Math.hypot(p.x - e.x, p.y - e.y) < 30 + p.r) hurtPlayer(1);
-      for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 30 + o.r) damageEnemy(o, 4, o.x - e.x, o.y - e.y, true);
+      for (const o of enemiesNear(e.x, e.y, 30, e)) damageEnemy(o, 4, o.x - e.x, o.y - e.y, true);
     },
     update(e, dt, c) { // drifts at you, then swells and bursts
       const { pd, ux, uy } = c;
@@ -571,7 +577,7 @@ function updateEnemies(dt) {
     updateAffixes(e, dt);
 
     const B = ENEMY_BEHAVIOR[e.type];
-    let [mx, my] = B.update(e, ENEMY_TYPES[e.type].boss ? dt * threatRate() : dt, { p, tg, dx, dy, d, pd, ux, uy });
+    let [mx, my] = B.update(e, isBoss(e) ? dt * threatRate() : dt, { p, tg, dx, dy, d, pd, ux, uy });
 
     if (statusFlag(e, 'noShoot') && e.type !== 'urchin') e.timer = Math.max(e.timer, 0.5); // blind things don't shoot
     { const m = statusMoveMul(e); mx *= m; my *= m; } // webbed, slowed
@@ -607,7 +613,7 @@ function updateEnemies(dt) {
         damageEnemy(e, p.stats.flowerBite * p.stats.damage, e.x - p.x, e.y - p.y, true);
         game.fx.push({ kind: 'bite', x: (e.x + p.x) / 2, y: (e.y + p.y) / 2 - 4, t: 0.12 });
         Sfx.play('bite');
-        if (e.dead) { if (p.stats.flowerHeal && p.hp < p.maxHp && Math.random() < p.stats.flowerHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } continue; }
+        if (e.dead) { if (p.stats.flowerHeal && Math.random() < p.stats.flowerHeal) healPlayer(1); continue; }
         if (p.stats.flowerStun) inflict(e, 'stun', { t: p.stats.flowerStun });
       }
       // Briar: hooked thorns fling it back, bleeding (Strangling Briar: and hold it).
