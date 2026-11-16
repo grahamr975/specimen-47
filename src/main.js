@@ -222,6 +222,11 @@ function update(dt) {
 
   // Exit hatch
   if (room.hatch && !game.menu && Math.hypot(p.x - ROOM_PX_W / 2, p.y - ROOM_PX_H / 2) < 9) {
+    // Anything worth taking comes down with you: a core you left, vials, loose biomass.
+    let took = false;
+    for (const k of room.pickups) if (k.kind === 'core' || k.kind === 'vial') { k.x = p.x; k.y = p.y; k.waitForLeave = false; took = true; }
+    if (took) updatePickups(0);
+    if (room.orbs.length) { gainDna(room.orbs.length); room.orbs = []; }
     game.depth++;
     p.hp = Math.min(p.maxHp, p.hp + 1);
     Sfx.play('descend');

@@ -572,6 +572,14 @@ try {
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
   }
+  { // 0ze) Stepping into the hatch takes the core (and vials, biomass) with you.
+    newRun(); const q = game.player; const exit = game.floor.rooms.find(r => r.type === 'exit'); enterRoom(exit, 'up');
+    game.enemies = []; exit.locked = false; exit.cleared = true; exit.hatch = true; exit.pickups = []; exit.orbs = [];
+    spawnPickup('core', 40, 40); exit.orbs.push({ x: 50, y: 50, vx: 0, vy: 0, t: 1 }, { x: 52, y: 50, vx: 0, vy: 0, t: 1 });
+    const cb = q.coreBonus || 0, d0 = q.dna; q.x = ROOM_PX_W / 2; q.y = ROOM_PX_H / 2; update(1 / 60); Input.endFrame();
+    check(`step into the hatch past the core: it comes with you (floor ${game.depth}, +${(q.coreBonus || 0) - cb} core, +${q.dna - d0} biomass, ${game.pendingEvolutions.filter(e => e.slot === 'CORE').length} core screen waiting)`, game.depth === 2 && q.coreBonus === cb + 1 && q.dna >= d0 + 2 && game.pendingEvolutions.some(e => e.slot === 'CORE'));
+    game.pendingEvolutions = [];
+  }
   { // 0zd) Starting variety: new mouths and limbs, birth defects, wild cards.
     check(`more starting mouths and limbs (${rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length} mouths, ${rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length} limbs)`, rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length >= 8 && rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length >= 7);
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.quirk = null; recomputeStats(z); return z; };
