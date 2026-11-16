@@ -669,7 +669,7 @@ function drainBeam(p) {
 function drainOne(p, target, dmg, fromX, fromY) {
   const s = p.stats;
   damageEnemy(target, dmg, 0, 0, true);
-  if (s.beamBleed) { inflict(target, 'bleed', { t: 2, dps: s.beamBleed }); }
+  applyHitEffects(target, 'beam');
   if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
@@ -721,8 +721,7 @@ function meleeHit(p, e, dmg, dx, dy) {
   // Melee shoves much harder than shots, but keeps prey just inside your reach.
   damageEnemy(e, dmg, dx, dy, true, 50 + dmg * 12);
   hitstop(0.02 + Math.min(0.04, dmg * 0.003));
-  if (s.gnaw && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.gnaw }); } // Rat Incisors
-  if (s.stunChance && !e.dead && Math.random() < s.stunChance) inflict(e, 'stun', { t: 0.8 });
+  applyHitEffects(e, 'melee'); applyHitEffects(e, 'any'); // Rat Incisors, Brain Worm...
   bloodSpray(e.x, e.y, dx, dy, 8, ENEMY_TYPES[e.type].fluid, 110);
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
 }
@@ -785,7 +784,7 @@ function bite(p, dmg, arrived = false, prey = null) {
     const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;
     spawnBullet({ x: target.x + ux * 4, y: target.y + uy * 4, vx: ux * 190, vy: uy * 190, r: 2, dmg: dmg * 0.8, life: 0.5, pierce: 1, kind: 'shot', color: '#cfc4a4', hitSet: new Set([target]) });
   }
-  if (s.acidMaw) inflict(target, 'acidMark', { t: Infinity }); // Acid Maw: it bursts into bile when it dies
+  applyHitEffects(target, 'bite'); // Acid Maw: it bursts into bile when it dies
   if (s.bleedFeed && bleeding && p.hp < p.maxHp && Math.random() < s.bleedFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
   if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
@@ -864,9 +863,7 @@ function lashHit(p, e) {
       spawnFragments(e.x, e.y, Math.atan2(e.y - p.y, e.x - p.x), 5, s.lashDmg * 0.4, 0, 0, e);
       bloodSpray(e.x, e.y, e.x - p.x, e.y - p.y, 12, ENEMY_TYPES[e.type].fluid, 140);
     }
-    if (s.lashBleed) { inflict(e, 'bleed', { t: 3, dps: s.lashBleed }); }
-    if (s.caustic) inflict(e, 'leak', { t: 3 }); // Caustic Tendrils: it leaks burning bile as it crawls
-    if (s.lashStun && !e.dead) inflict(e, 'stun', { t: s.lashStun });
+    applyHitEffects(e, 'lash'); // Barbed Tendrils, Caustic Tendrils, Strangle
     if (s.lashDrain) {
       p.drained = (p.drained || 0) + s.lashDmg * 0.35;
       if (p.drained >= 12) { p.drained = 0; if (p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); } }
@@ -899,7 +896,7 @@ function lungeBite(p) {
     if (d > 20 + e.r + s.reach) continue;
     if (d > 6 && (dx * p.lungeX + dy * p.lungeY) / d < 0.3) continue;
     for (let k = 0; k < (s.doubleBite ? 2 : 1); k++) if (!e.dead) meleeHit(p, e, s.lungeDmg, dx, dy);
-    if (s.lungeBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.lungeBleed }); }
+    applyHitEffects(e, 'lunge');
     if (e.dead && s.lungeChain) { p.cd.lunge = 0; floatText(p.x, p.y - 14, 'AGAIN', '#e8a020'); }
     knock(e, p.lungeX, p.lungeY, 120);
     if (s.biteHeal && p.hp < p.maxHp && Math.random() < s.biteHeal) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
@@ -1012,7 +1009,7 @@ function chargeHits(p) {
     if (ram && !e.dead) { inflict(e, 'stun', { t: 1.2 }); burst(e.x, e.y, '#8a7a5a', 8, 90); }
     if (ram) burst(e.x, e.y, '#ffd070', 6, 120, 0.2); // sparks off the shell
     hitstop(0.045);
-    if (s.bleed > 0) { inflict(e, 'bleed', { t: 3, dps: s.bleed }); }
+    applyHitEffects(e, 'dash'); // Gore Horns
     bloodSpray(e.x, e.y, p.dashX, p.dashY, 10, ENEMY_TYPES[e.type].fluid, 140);
     game.shake = Math.max(game.shake, 3);
     Sfx.play('ram');
@@ -1032,8 +1029,7 @@ function slam(p) {
     const d = Math.hypot(e.x - p.x, e.y - p.y);
     if (d < s.slamR + e.r) {
       damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, 260); // shockwave flings them outward
-      if (s.slamStun && !e.dead) inflict(e, 'stun', { t: s.slamStun });
-      if (s.slamBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.slamBleed }); } // Impaler
+      applyHitEffects(e, 'slam'); // Impaler, ...
     }
   }
   for (const c of corpsesNear(p.x, p.y, s.slamR)) damageCorpse(c, s.slamDmg, c.x - p.x, c.y - p.y);

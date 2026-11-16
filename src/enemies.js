@@ -522,7 +522,7 @@ function updateEnemies(dt) {
         if (p.stats.eggPods) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Egg Pods
         Sfx.play('splat');
       }
-      if (p.stats.contactMark) inflict(e, 'acidMark', { t: Infinity }); // Acid Skin
+      applyHitEffects(e, 'contact'); // Acid Skin, Sap
       // Venus Maw: the flower on your head bites.
       if (p.stats.flowerBite && !(e.flowerT > game.time)) {
         e.flowerT = game.time + 0.6;
@@ -539,7 +539,6 @@ function updateEnemies(dt) {
         inflict(e, 'bleed', { t: 3, dps: 1.5 });
         if (p.stats.briarHold) inflict(e, 'stun', { t: p.stats.briarHold });
       }
-      if (p.stats.sapSlow) inflict(e, 'slow', { t: p.stats.sapSlow }); // Sap
       // Urchin Hide: touching you sets off your shard ring.
       if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
       // Thorned Plate: your shell shreds whatever touches it.

@@ -397,7 +397,7 @@ function updateBurrow(p, dt, ix, iy) {
     for (const e of game.enemies) {
       if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) >= 24 + e.r) continue;
       damageEnemy(e, s.burrowDmg, (e.x - p.x) || 1, e.y - p.y, true);
-      if (s.burrowBleed && !e.dead) { inflict(e, 'bleed', { t: 3, dps: s.burrowBleed }); }
+      applyHitEffects(e, 'burrow');
     }
     if (s.eruptStun) { // Quake
       game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 56, t: 0.35 });
@@ -506,7 +506,7 @@ function updateInfested(dt) {
     inf.t -= dt; inf.carried += dt;
     damageEnemy(e, s.ovi.dps * dt, 0, 0, true);
     if (e.dead || !e.infest) continue; // its death already burst it
-    if (s.oviConfuse) { inflict(e, 'blind', { t: 0.4 }); inflict(e, 'slow', { t: 0.3 }); }
+    applyHitEffects(e, 'ovi'); // Confuse
     if (s.oviCharm) { // Swarm Queen: it savages its own kind
       for (const o of game.enemies) if (o !== e && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < o.r + e.r + 3) damageEnemy(o, 3 * s.damage * dt, 0, 0, true);
     }
@@ -550,9 +550,7 @@ function updateMiasma(p, dt) {
     e.gasT = (e.gasT || 0) + dt;
     const ramp = s.gasRamp ? 1 + Math.min(3, e.gasT * 0.6) : 1; // Caustic Lungs
     damageEnemy(e, s.miasma.dps * ramp * dt, 0, 0, true);
-    if (s.gasHide) inflict(e, 'blind', { t: 0.4 });
-    if (s.gasCorrode) inflict(e, 'corrode', { t: 0.3 });
-    if (s.gasChoke) inflict(e, 'slow', { t: 0.3 });
+    applyHitEffects(e, 'gas'); // Hide, Corrode, Choke
     if (s.toxicBloom) pollinate(e, s); // Toxic Bloom: the gas carries pollen
   }
   strikeSeal(p.x, p.y, r); // the gas eats through hazmat seals (one hit at a time)
@@ -590,8 +588,7 @@ function howl(p, mul = 1, around = false) {
     if (s.broodHowl) e.eggs = s.broodHowl; // Brood Howl: laid with eggs
     damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
     if (e.dead) continue;
-    if (s.howlStun) inflict(e, 'stun', { t: s.howlStun });
-    if (s.howlBleed) { inflict(e, 'bleed', { t: 3, dps: s.howlBleed }); }
+    applyHitEffects(e, 'howl');
     if (ENEMY_TYPES[e.type].boss) continue;
     const sp = Math.min(380, h.force * mul / enemyMass(e));
     e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
@@ -738,7 +735,7 @@ function updateTongue(p, dt) {
           if (!s.tonguePierce) T.out = false;
         } else {
           damageEnemy(e, t.dmg * T.mul, p.x - e.x, p.y - e.y, true, 160); // yanked toward you
-          if (s.tongueVenom && !e.dead) { inflict(e, 'bleed', { t: 3, dps: 2 }); inflict(e, 'slow', { t: 1.5 }); }
+          applyHitEffects(e, 'tongue');
           if (!s.tonguePierce) {
             T.out = false;
             if (s.tongueYank && !e.dead && !T.carry) { reelIn(p, e.x, e.y, e); return; } // too big: it reels YOU in
@@ -829,8 +826,7 @@ function updateWebs(dt) {
       inflict(e, 'web', { t: 0.25 });
       if (w.touched.has(e)) continue;
       w.touched.add(e);
-      if (s.webHold) { inflict(e, 'stun', { t: s.webHold }); floatText(e.x, e.y - 10, 'STUCK', '#e0d8d0'); } // Sticky Web
-      if (s.webAcid) inflict(e, 'leak', { t: 3 });  // Acid Silk
+      applyHitEffects(e, 'silk'); // Sticky Web, Acid Silk
       if (s.webSnap) snapWeb(w);   // Tripwire
     }
   }
@@ -871,8 +867,7 @@ function drawWebs(ctx) {
 // --- The Plant path ------------------------------------------------------------------------
 function pollinate(e, s) {
   inflict(e, 'pollen', { t: 4 });
-  if (s.pollenBlind) inflict(e, 'blind', { t: s.pollenBlind }); // Spore Bloom
-  if (s.pollenSlow) inflict(e, 'slow', { t: s.pollenSlow });    // Hay Fever
+  applyHitEffects(e, 'pollen'); // Spore Bloom, Hay Fever
 }
 
 // A polyp sprouting from the ground around you (Grove, Seedfall, Overgrowth).
@@ -1481,7 +1476,7 @@ function ripBarbs(e) {
   damageEnemy(e, per * n, -dx / d, -dy / d, false, 120);
   bloodSpray(e.x, e.y, dx / d, dy / d, 8 + 4 * n, ENEMY_TYPES[e.type].fluid, 140);
   if (!e.dead && s.barbPull && !isBoss(e)) knock(e, dx / d, dy / d, 260);                         // Fishhooks
-  if (!e.dead && s.barbBleed) { inflict(e, 'bleed', { t: 3, dps: s.barbBleed }); } // Gut Hooks
+  applyHitEffects(e, 'barb'); // Gut Hooks
   if (s.barbChain) { // Chain Hooks: on into the next one
     let o = null, bd = 80;
     for (const q of game.enemies) { if (q === e || q.dead || q.spawnT > 0) continue; const qd = Math.hypot(q.x - e.x, q.y - e.y); if (qd < bd) { bd = qd; o = q; } }

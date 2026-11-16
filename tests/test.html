@@ -609,6 +609,20 @@ try {
     check(`every status entry uses known fields (${bad.map(b => b[0]).join(',') || 'all good'})`, !bad.length);
     let threw = null; try { inflict(r, 'bleeding', { t: 1 }); } catch (err) { threw = err.message; }
     check(`a typo'd status is caught (${threw})`, !!threw);
+
+    check('the status list in mutations.js matches STATUS', JSON.stringify([...STATUS_IDS].sort()) === JSON.stringify(Object.keys(STATUS).sort()));
+    const SOURCES = ['melee', 'any', 'bite', 'lash', 'lunge', 'dash', 'slam', 'howl', 'beam', 'burrow', 'barb', 'tongue', 'silk', 'pollen', 'gas', 'ovi', 'contact'];
+    const wrong = [];
+    for (const id of [...Object.keys(MUTATIONS), ...Object.keys(SPLICES)]) {
+      const st = baseStats(); try { (MUTATIONS[id] || SPLICES[id]).apply(st, 3); } catch (err) { continue; } // (some need a body; the bot runs cover them)
+      for (const src in st.onHit) if (!SOURCES.includes(src)) wrong.push(id + ':' + src);
+    }
+    check(`every part's on-hit effects name a real attack (${wrong.join(',') || 'all good'})`, !wrong.length);
+    q = arena(); grow(q, 'tentacles'); q.stats.onHit = {}; onHit(q.stats, 'lash', 'bleed', { t: 3, dps: 2 }); onHit(q.stats, 'lash', 'bleed', { t: 1, dps: 5 });
+    r = dummy(30, 99); r.speed = 0; lashHit(q, r);
+    check(`declared on-hit effects land, merged (lash bleed ${statusOf(r, 'bleed') && statusOf(r, 'bleed').dps}dps for ${statusT(r, 'bleed').toFixed(1)}s)`, statusOf(r, 'bleed') && statusOf(r, 'bleed').dps === 5 && statusT(r, 'bleed') === 3);
+    const g = baseStats(); onHit(g, 'dash', 'bleed', { t: 3, dps: 1.5 }, {}, 'add'); onHit(g, 'dash', 'bleed', { t: 3, dps: 3 }, {}, 'add');
+    check(`additive effects add up (Gore Horns: ${g.onHit.dash[0].opts.dps}dps)`, g.onHit.dash[0].opts.dps === 4.5);
   }
   { // 0zg) Floor bosses 2-5, and threat that rises floor by floor.
     for (const [d, id] of [[2, 'colossus'], [3, 'biotank'], [4, 'archive'], [5, 'director']]) {

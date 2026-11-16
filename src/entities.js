@@ -173,7 +173,7 @@ function onPlayerBulletHit(b, enemy) {
   if (b.kind === 'frag' && enemy.dead && s.clutch) { spawnAlly('maggot', enemy.x, enemy.y); Sfx.play('hatch'); }
   if (!enemy.dead) {
     if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) inflict(enemy, 'stun', { t: s.darkStun }); // Abyss Stare
-    if (s.stunChance && Math.random() < s.stunChance) inflict(enemy, 'stun', { t: 0.8 });    // Brain Worm
+    applyHitEffects(enemy, 'any'); // Brain Worm
   }
   if (b.barb && !enemy.dead) { enemy.barbs = (enemy.barbs || 0) + 1; enemy.barbDmg = b.barb; enemy.barbT = 0.8; } // a barb sticks
   if (b.blind && !enemy.dead) inflict(enemy, 'blind', { t: b.blind });                              // Spore Sneeze

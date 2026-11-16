@@ -138,6 +138,16 @@ function drawStatuses(ctx, t) {
   if (t.status && !t.dead) for (const id in t.status) { const st = t.status[id], f = STATUS[id].draw; if (st.t > 0 && f) f(ctx, t, st); }
 }
 
+// Apply what your parts say this attack leaves behind (see onHit() in mutations.js).
+function applyHitEffects(e, source, s = game.player.stats) {
+  const list = s.onHit && s.onHit[source];
+  if (!list || e.dead) return;
+  for (const h of list) {
+    if (h.chance !== undefined && Math.random() >= h.chance) continue;
+    if (inflict(e, h.id, h.opts) && h.say) floatText(e.x, e.y - 10, h.say[0], h.say[1]);
+  }
+}
+
 // One heal, said out loud. Returns whether it healed.
 function healPlayer(n = 1, label) {
   const p = game.player;
