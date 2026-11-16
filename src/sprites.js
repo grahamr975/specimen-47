@@ -14,6 +14,7 @@ const R = RAMPS;
 // grotesque with every evolution. Stage 3 is the "full" grotesque design.
 const SPECIMEN = { w: 24, h: 24, eye: [18.2, 13.4], cuteEye: [18.9, 14], anchor: [12, 22] };
 const STAGE_SCALE = [0.72, 0.8, 0.87, 0.94, 1.0];
+const NUCLEUS = ['#1a1016', '#2a1a22', '#3a2630', '#4a3440', '#5a4250']; // dark, grainy cell nuclei
 const STAGE_RAMP = [
   ['#5a3a44', '#a06a78', '#d898a4', '#f4c0c4', '#fff0ee'], // 0: soft pastel pink
   ['#4a2a32', '#8a5a62', '#c08a8c', '#e4b0aa', '#f8dad2'], // 1: paler, blotchier
@@ -306,8 +307,8 @@ const OVERLAY_PAINT = {
     P.blob(9, 17.6, 3.2, 1.9, R.muscle, { spec: 1 });
     for (let k = -2; k <= 2; k++) P.scratch([[9 + k * 1.2 - 0.6, 16.2], [9 + k * 1.2 + 0.6, 19]], '#d8705a');
   },
-  mitosis: P => { // a dividing cyst on the back
-    P.blob(6.5, 15.4, 2.4, 2, R.cyst, { spec: 1 }).blob(4.4, 16.5, 1.5, 1.4, R.cyst, { spec: 1 });
+  mitosis: P => { // a cluster of budding cysts on the back
+    P.blob(6.6, 15.2, 2.4, 2, R.cyst, { spec: 1, noise: 0.12 }).blob(4.2, 16.6, 1.5, 1.3, R.cyst, { spec: 1, noise: 0.12 }).blob(8.2, 17, 1.1, 1, R.cyst, { noise: 0.12 });
   },
   thirdeye: P => { // abyssal eye on the brow
     P.blob(20.2, 12.4, 2.2, 1.8, R.socket, { noise: 0.05 });
@@ -825,10 +826,10 @@ const ICON_PAINT = {
     for (const [x, y] of [[4, 12.5], [7, 9.5], [10, 6.5]]) P.dot(x, y, '#d09a90');
     P.tube([[12, 4], [14, 2], [14.5, 4]], 0.8, 0.4, R.bone);
   },  // CORE
-  mitosis: P => {
-    P.blob(5.5, 8, 4.4, 4.4, R.cyst, { spec: 1 }).blob(10.5, 8, 4.4, 4.4, R.cyst, { spec: 1 });
-    P.blob(5, 8, 1.6, 1.5, R.urchin, { noise: 0.05 }).blob(11, 8, 1.6, 1.5, R.urchin, { noise: 0.05 });
-    P.scratch([[8, 4.5], [8, 11.5]], '#2a1020');
+  mitosis: P => { // a cluster of unequal cells budding off one another
+    P.blob(6, 9.4, 4.6, 4.2, R.cyst, { spec: 1, noise: 0.12 }).blob(11.4, 6, 3.3, 3.1, R.cyst, { spec: 1, noise: 0.12 }).blob(12, 12.2, 2.5, 2.3, R.cyst, { spec: 1, noise: 0.12 });
+    P.blob(7, 10, 1.5, 1.1, NUCLEUS, { noise: 0.3 }).blob(10.8, 6.6, 1.1, 0.9, NUCLEUS, { noise: 0.3 }).blob(12.4, 12.4, 0.8, 0.7, NUCLEUS, { noise: 0.3 });
+    P.scratch([[8, 9.2], [10.4, 7]], '#4a2a3a').scratch([[8.2, 10.6], [11, 11.8]], '#4a2a3a');
   },
   hide: P => {
     P.blob(8, 12, 6.6, 2.6, R.flesh, { shift: -0.15 }).blob(8, 8.5, 6.8, 2.8, R.flesh).blob(8, 5, 6.2, 2.6, R.flesh, { spec: 1 });
@@ -1018,13 +1019,15 @@ const GRUB = ['#1a1814', '#3a3428', '#6a5e48', '#9a8c70', '#c4b898'];
 
 function paintCulture(swollen) {
   const P = new Painter(20, 16, swollen ? 52 : 51);
-  if (swollen) { // pinching in two, about to divide
-    P.blob(6.5, 9, 5, 4.8, CULTURE, { spec: 1, noise: 0.08 }).blob(13.5, 9, 5, 4.8, CULTURE, { spec: 1, noise: 0.08 });
-    P.blob(6, 9, 1.8, 1.6, R.cyst, { noise: 0 }).blob(14, 9, 1.8, 1.6, R.cyst, { noise: 0 });
-    P.scratch([[10, 5], [10, 13]], '#5a4048');
+  if (swollen) { // pinching in two, about to divide: an uneven, lumpy peanut of a cell
+    P.blob(7, 8.2, 5.4, 4.4, CULTURE, { spec: 1, noise: 0.12 }).blob(13.4, 10, 4.4, 3.8, CULTURE, { spec: 1, noise: 0.12 });
+    P.blob(10.2, 9.2, 2.6, 3, CULTURE, { noise: 0.12 }); // the pinched waist
+    // Two dark, ragged nuclei pulling apart, strung together by spindle threads.
+    P.blob(8.4, 8.6, 1.6, 1.1, NUCLEUS, { noise: 0.3 }).blob(12.2, 9.8, 1.3, 1, NUCLEUS, { noise: 0.3 });
+    P.scratch([[8.8, 8.8], [10.2, 9.2], [11.8, 9.8]], '#6a4a56').scratch([[8.6, 9.6], [10.4, 10], [11.6, 10.6]], '#6a4a56');
   } else {
-    P.blob(10, 9, 5.5, 4.6, CULTURE, { spec: 1, noise: 0.08 });
-    P.blob(10, 9, 2, 1.8, R.cyst, { noise: 0 });
+    P.blob(10, 9, 5.5, 4.6, CULTURE, { spec: 1, noise: 0.12 });
+    P.blob(11.2, 8.4, 1.8, 1.3, NUCLEUS, { noise: 0.3 }); // an off-center nucleus
   }
   for (let i = 0; i < 4; i++) P.dot(5 + hash2(i, 1, 51) * 10, 6 + hash2(i, 2, 51) * 6, '#e0c8c8');
   return P.outline().toCanvas();
