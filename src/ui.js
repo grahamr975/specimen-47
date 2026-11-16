@@ -214,6 +214,7 @@ function drawHUD(ctx) {
     const urgent = p.hungerT > p.stats.starve - 6;
     if (!urgent || Math.floor(game.time * 4) % 2) drawText(ctx, urgent ? 'STARVING' : 'HUNGRY', 48, 21, COST_COLOR);
   } else if (Sfx.muted) drawText(ctx, 'MUTED', 48, 21, PAL.slate);
+  else if (QUIRKS[p.quirk]) drawText(ctx, QUIRKS[p.quirk].name, 48, 21, '#8a6a3a'); // your birth defect
 
   // Room status message
   const room = game.room;
@@ -470,6 +471,7 @@ function drawGameOver(ctx) {
     drawText(ctx, label, VIEW_W / 2 + 8, 130 + i * row, mutColor(p, m.id));
   });
   if (p.parts.length > 6) drawText(ctx, `+${p.parts.length - 6} MORE`, VIEW_W / 2 + 8, 130 + 6 * row, PAL.slate);
+  if (QUIRKS[p.quirk]) drawText(ctx, 'BORN ' + QUIRKS[p.quirk].name, VIEW_W / 2, 112, '#e8a020', 1, 'center');
   if (p.splices.length) drawText(ctx, 'SPLICED: ' + p.splices.map(k => SPLICES[k].name.toUpperCase()).join(', '), VIEW_W / 2, 182, VIAL_COLOR, 1, 'center');
 
   if (game.overT > 1 && Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK TO TRY AGAIN', VIEW_W / 2, 200, PAL.white, 1, 'center');

@@ -35,7 +35,8 @@
 const LOCS = ['MOUTH', 'HEAD', 'BACK', 'LIMBS', 'CORE'];
 const LOC_MAX = { HEAD: 1, LIMBS: 1 }; // one head, one way of moving
 const START_SLOTS = 3;                  // you start with all of them empty
-const MAX_SLOTS = 5;                    // the hard cap: a finished body is 5 parts, not a hodgepodge
+const MAX_SLOTS = 5;
+const WILD_CHANCE = 0.15;              // the first vials' chance of a rare find                    // the hard cap: a finished body is 5 parts, not a hodgepodge
 const LEVEL_MAX = 3;                    // levels before a part evolves
 // POWER IS EARNED. A fresh body hits at 70%; every fully grown part and every
 // splice adds +6%. A finished body ends up far stronger than it started.
@@ -123,7 +124,7 @@ function finalizeStats(s) {
   s.speed *= s.speedMul;
   // Hind legs only hop if they're your only limbs; with others you walk and still pounce.
   if (s.hop && s.limbCount > 1) s.hop = 0;
-  s.slimeTrail = s.slug || s.fins > 0 || s.shell; // slugs, snails and pseudopods leave slime
+  s.slimeTrail = s.slug || s.fins > 0 || s.shell || !!s.alwaysSlime; // slugs, snails, pseudopods (and the Sticky) leave slime
   // A limbless slug can only manage a short, weak lurch.
   if (s.slug) { s.dashSpeed = 190; s.dashCd *= 1.25; s.dashTime = Math.min(s.dashTime, 0.12); }
   // Firing styles. Charge wins over stream (stream then adds pellets to the blast).
@@ -1446,6 +1447,188 @@ const MUTATIONS = {
     apply(s) { s.mirror.heal = 6; },
   },
 
+  // ================= NEW STARTING MOUTHS =================
+  barbs: {
+    name: 'Barb Flinger', slot: 'MOUTH', rarity: 'common', icon: ['spike', 'barbs'],
+    desc: 'Fling barbed hooks that stick in what they hit, then rip out a moment later for more damage.',
+    apply(s, l) { gun(s, { id: 'barbs', dmg: 0.8 + 0.25 * l, delay: 0.7, speed: 150, r: 2, barb: 1.6 + 0.6 * l, color: '#d8ccb0', sound: 'spine' }); },
+  },
+  fishhook: {
+    name: 'Fishhooks', from: 'barbs', rarity: 'uncommon', icon: ['barbs', 'grapple'],
+    desc: 'When the barbs rip out, they drag their victim toward you.',
+    apply(s) { s.barbPull = true; },
+  },
+  chainhook: {
+    name: 'Chain Hooks', from: 'fishhook', rarity: 'rare', icon: ['barbs', 'tentacles'],
+    desc: 'A barb that rips out flies on into the next enemy.',
+    apply(s) { s.barbChain = true; },
+  },
+  guthook: {
+    name: 'Gut Hooks', from: 'fishhook', rarity: 'rare', icon: ['barbs', 'hemophage'],
+    desc: 'Ripped-out barbs leave their victims bleeding badly.',
+    apply(s) { s.barbBleed = 3; },
+  },
+  barbvolley: {
+    name: 'Barb Volley', from: 'barbs', rarity: 'uncommon', icon: ['barbs', 'spines'],
+    desc: 'Fling three barbs at once.',
+    apply(s) { const g = s.guns.find(g => g.id === 'barbs'); if (g) { g.count = 3; g.spread = 0.12; } },
+  },
+  thornstorm: {
+    name: 'Thornstorm', from: 'barbvolley', rarity: 'rare', icon: ['barbs', 'thornbark'],
+    desc: 'Five barbs, flung faster.',
+    apply(s) { const g = s.guns.find(g => g.id === 'barbs'); if (g) { g.count = 5; g.spread = 0.16; g.delay *= 0.85; } },
+  },
+  seekbarbs: {
+    name: 'Seeking Barbs', from: 'barbvolley', rarity: 'rare', icon: ['barbs', 'eyes'],
+    desc: 'Your barbs curve toward prey.',
+    apply(s) { s.homing += 3; },
+  },
+
+  sneeze: {
+    name: 'Spore Sneeze', slot: 'MOUTH', rarity: 'common', icon: ['membrane', 'toxic'],
+    desc: 'A short, wide sneeze of spores. Whatever it hits is blinded for a moment.',
+    apply(s, l) { gun(s, { id: 'sneeze', dmg: 0.45 + 0.15 * l, delay: 0.6, speed: 115, range: 0.34, count: 5, spread: 0.32, r: 1.5, blind: 1.1 + 0.2 * l, round: true, fade: true, color: '#c4cca4', sound: 'spray' }); },
+  },
+  allergen: {
+    name: 'Allergen', from: 'sneeze', rarity: 'uncommon', icon: ['toxic', 'eyes'],
+    desc: 'Blinded enemies take more damage from everything.',
+    apply(s) { s.allergen = 0.4; },
+  },
+  hives: {
+    name: 'Hives', from: 'allergen', rarity: 'rare', icon: ['toxic', 'mitosis'],
+    desc: 'Whatever dies blinded bursts into a spore cloud.',
+    apply(s) { s.hivesCloud = true; },
+  },
+  histamine: {
+    name: 'Histamine', from: 'allergen', rarity: 'rare', icon: ['toxic', 'slime'],
+    desc: 'Your sneezes also slow what they hit to a crawl.',
+    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.slow = 1.4; },
+  },
+  sneezefit: {
+    name: 'Sneezing Fit', from: 'sneeze', rarity: 'uncommon', icon: ['membrane', 'twitch'],
+    desc: 'Sneeze twice as often, wider.',
+    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) { g.delay *= 0.55; g.spread += 0.1; } },
+  },
+  pollenstorm: {
+    name: 'Pollen Storm', from: 'sneezefit', rarity: 'rare', icon: ['membrane', 'bloom'],
+    desc: 'Your sneezes pollinate what they hit: it takes more damage.',
+    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.pollen = true; if (!s.pollen) s.pollen = { r: 0, every: 99 }; },
+  },
+  mucus: {
+    name: 'Mucus', from: 'sneezefit', rarity: 'rare', icon: ['membrane', 'bile'],
+    desc: 'Your sneezes are thick with burning mucus.',
+    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) { g.acid = 6; g.acidChance = 0.3; } },
+  },
+
+  leechspit: {
+    name: 'Leech Spitter', slot: 'MOUTH', rarity: 'uncommon', icon: ['proboscis', 'hemophage'],
+    desc: 'Spit leeches that latch on and bleed their victims. Bled-out kills sometimes heal you.',
+    apply(s, l) { gun(s, { id: 'leech', dmg: 0.6 + 0.2 * l, delay: 0.65, speed: 130, r: 2, bleed: 1 + 0.4 * l, round: true, color: '#5e2229', sound: 'splat' }); s.leechFeed = Math.max(s.leechFeed || 0, 0.08); },
+  },
+  fatleech: {
+    name: 'Fat Leeches', from: 'leechspit', rarity: 'uncommon', icon: ['hemophage', 'overgrown'],
+    desc: 'Swollen leeches: they bleed their victims much harder.',
+    apply(s) { const g = s.guns.find(g => g.id === 'leech'); if (g) g.bleed *= 1.6; },
+  },
+  leechswarm: {
+    name: 'Leech Swarm', from: 'fatleech', rarity: 'rare', icon: ['hemophage', 'eggsac'],
+    desc: 'Whatever bleeds to death releases maggots that fight for you.',
+    apply(s) { s.leechBrood = 2; },
+  },
+  bloodpact: {
+    name: 'Blood Pact', from: 'fatleech', rarity: 'rare', icon: ['hemophage', 'secondheart'],
+    desc: 'Bled-out kills heal you far more often.',
+    apply(s) { s.leechFeed = 0.25; },
+  },
+  leechspray: {
+    name: 'Leech Spray', from: 'leechspit', rarity: 'uncommon', icon: ['proboscis', 'spines'],
+    desc: 'Spit three smaller leeches at once.',
+    apply(s) { const g = s.guns.find(g => g.id === 'leech'); if (g) { g.count = 3; g.spread = 0.2; g.dmg *= 0.7; } },
+  },
+  anticoag: {
+    name: 'Anticoagulant', from: 'leechspray', rarity: 'rare', icon: ['hemophage', 'toxic'],
+    desc: 'Bleeding enemies take more damage from everything.',
+    apply(s) { s.anticoag = 0.3; },
+  },
+  hungryleech: {
+    name: 'Hungry Leeches', from: 'leechspray', rarity: 'rare', icon: ['hemophage', 'eyes'],
+    desc: 'Your leeches seek out prey.',
+    apply(s) { s.homing += 3; },
+  },
+
+  // ================= NEW STARTING LIMBS =================
+  crablegs: {
+    name: 'Crab Legs', slot: 'LIMBS', rarity: 'common', icon: ['spider', 'chitin'],
+    desc: 'Quick, armored legs. Right-click: snap a pincer shut on whatever is in front of you.',
+    apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 80 + 6 * l); s.limbActive = { kind: 'pincer', l }; },
+  },
+  carapacelegs: {
+    name: 'Carapace Legs', from: 'crablegs', rarity: 'uncommon', icon: ['chitin', 'hide'],
+    desc: '+1 max health, and the pincer stuns for longer.',
+    apply(s) { s.maxHp += 1; s.pincerStun = 1.4; },
+  },
+  kingcrab: {
+    name: 'King Crab', from: 'carapacelegs', rarity: 'rare', icon: ['chitin', 'horns'],
+    desc: 'A huge pincer: it crushes everything in front of you, harder.',
+    apply(s) { s.pincerWide = true; s.pincerMul = 1.5; },
+  },
+  boxercrab: {
+    name: 'Pistol Shrimp', from: 'carapacelegs', rarity: 'rare', icon: ['chitin', 'slam'],
+    desc: 'The pincer snaps so hard it fires a shockwave forward.',
+    apply(s) { s.pincerShock = true; },
+  },
+  scuttle: {
+    name: 'Scuttle', from: 'crablegs', rarity: 'uncommon', icon: ['spider', 'twitch'],
+    desc: 'Faster, and your dash recovers quicker.',
+    apply(s) { s.speed += 12; s.dashCd *= 0.7; },
+  },
+  sidestep: {
+    name: 'Sidestep', from: 'scuttle', rarity: 'rare', icon: ['spider', 'membrane'],
+    desc: 'Dashing through enemy shots destroys them.',
+    apply(s) { s.dashEat = true; },
+  },
+  coconutcrab: {
+    name: 'Coconut Crab', from: 'scuttle', rarity: 'rare', icon: ['chitin', 'adrenal'],
+    desc: 'A pincer kill refreshes the pincer and your dash.',
+    apply(s) { s.pincerReset = true; },
+  },
+
+  haunches: {
+    name: 'Haunches', slot: 'LIMBS', rarity: 'uncommon', icon: ['hindlegs', 'feral'],
+    desc: 'Powerful hopping legs; your dash is a pounce. Right-click: leap to where you point and land with a shockwave.',
+    apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.limbActive = { kind: 'leap', l }; },
+  },
+  pouncer: {
+    name: 'Pouncer', from: 'haunches', rarity: 'uncommon', icon: ['hindlegs', 'slam'],
+    desc: 'You land harder, and the shockwave stuns.',
+    apply(s) { s.slamDmg += 2; s.slamStun = Math.max(s.slamStun || 0, 0.8); },
+  },
+  gorepounce: {
+    name: 'Gore Pounce', from: 'pouncer', rarity: 'rare', icon: ['hindlegs', 'hemophage'],
+    desc: 'Everything you land on bleeds.',
+    apply(s) { s.slamBleed = Math.max(s.slamBleed || 0, 3); },
+  },
+  killerleap: {
+    name: 'Killing Leap', from: 'pouncer', rarity: 'rare', icon: ['hindlegs', 'adrenal'],
+    desc: 'A landing that kills lets you leap again at once.',
+    apply(s) { s.leapReset = true; },
+  },
+  longstride: {
+    name: 'Long Stride', from: 'haunches', rarity: 'uncommon', icon: ['hindlegs', 'wings'],
+    desc: 'No more hopping: a fast, smooth run, and your leap reaches much further.',
+    apply(s) { s.hop = 0; s.speed = Math.max(s.speed, 118); s.leapRange = 125; },
+  },
+  sprinter: {
+    name: 'Sprinter', from: 'longstride', rarity: 'rare', icon: ['hindlegs', 'twitch'],
+    desc: 'Faster still, and your dash recovers quicker.',
+    apply(s) { s.speed += 20; s.dashCd *= 0.8; },
+  },
+  antelope: {
+    name: 'Antelope', from: 'longstride', rarity: 'rare', icon: ['hindlegs', 'membrane'],
+    desc: 'Nothing can touch you for the whole leap, and a moment after.',
+    apply(s) { s.leapInv = true; },
+  },
+
   // ================= TRAITS: you are what you eat =================
   // Torn from elites you devour (see GRAFT_OF). Never offered otherwise.
   // Complete as they are: no branches, but they level like any part.
@@ -1642,6 +1825,41 @@ const HINTS = {
   cancer: 'It grows every time you win. It takes something every third time.',
   benignmass: 'The growth calms. It still grows, but takes nothing.',
   metastasis: 'It spreads faster now.',
+  barbs: 'Your spit grows hooks.',
+  fishhook: 'The hooks pull them in when they tear free.',
+  chainhook: 'A hook never stops at one.',
+  guthook: 'They come out with pieces attached.',
+  barbvolley: 'More hooks, all at once.',
+  thornstorm: 'A storm of hooks.',
+  seekbarbs: 'The hooks look for meat.',
+  sneeze: 'Something itches deep in your sinuses.',
+  allergen: 'They choke on you.',
+  hives: 'What chokes, blooms.',
+  histamine: 'They swell and slow.',
+  sneezefit: 'You cannot stop sneezing.',
+  pollenstorm: 'You sneeze pollen now.',
+  mucus: 'It burns coming out.',
+  leechspit: 'Something wriggles in your throat, hungry.',
+  fatleech: 'Your leeches grow fat.',
+  leechswarm: 'They breed in what they drain.',
+  bloodpact: 'What they drink, you drink.',
+  leechspray: 'They come out in clumps now.',
+  anticoag: 'Their blood will not stop.',
+  hungryleech: 'They can smell blood.',
+  crablegs: 'Hard, jointed legs, and something that snaps.',
+  carapacelegs: 'Your legs armor over.',
+  kingcrab: 'One claw grows huge.',
+  boxercrab: 'Your claw snaps faster than sound.',
+  scuttle: 'You scuttle.',
+  sidestep: 'Shots break against your legs.',
+  coconutcrab: 'Every crushed thing makes you hungrier.',
+  haunches: 'Your hind legs coil, ready to spring.',
+  pouncer: 'You land like a hammer.',
+  gorepounce: 'You land claws first.',
+  killerleap: 'Kill, and leap again.',
+  longstride: 'You stop hopping. You run.',
+  sprinter: 'Faster.',
+  antelope: 'Nothing catches you in the air.',
   ratincisors: 'You took its teeth.',
   urchinquills: 'Its quills grew back in your skin.',
   toadgullet: 'Its gullet is yours now. It still wants to spit.',
@@ -1745,7 +1963,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['urchinquills', 'boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
+    tags: ['barbs', 'crablegs', 'urchinquills', 'boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -1754,7 +1972,7 @@ const SETS = {
   },
   FUNGAL: {
     name: 'FUNGAL', color: '#9aae50',
-    tags: ['toadgullet', 'culturejelly', 'bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
+    tags: ['sneeze', 'toadgullet', 'culturejelly', 'bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a blinding spore cloud.', apply(s) { s.setKillCloud = 18; } },
       { name: 'Fruiting Body', desc: 'Kills burst into clouds, you release spores every few seconds, and your clouds eat flesh.', apply(s) { s.setKillCloud = 22; s.setSporeAura = 4; s.cloudDps = Math.max(s.cloudDps || 0, 1.5); } },
@@ -1772,7 +1990,7 @@ const SETS = {
   },
   PREDATOR: {
     name: 'PREDATOR', color: '#d04848',
-    tags: ['ratincisors', 'proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
+    tags: ['leechspit', 'haunches', 'ratincisors', 'proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
     bonus: [
       { name: 'Blood Scent', desc: '+35% damage to wounded prey.', apply(s) { s.setWounded = 0.35; } },
       { name: 'Apex', desc: 'Wounded prey takes +50%, every kill sends you into a frenzy, and every 8th kill heals you.', apply(s) { s.setWounded = 0.5; s.setKillFrenzy = true; s.setKillHeal = 8; } },
@@ -1942,6 +2160,27 @@ const TINTS = {
   // CORE
   hide: ['#7a5a48', 0.35], marrow: ['#d8ccb0', 0.3], mitosis: ['#c86a9a', 0.4], starving: ['#8a7a6a', 0.4, 0.15],
   heartwood: ['#6a5030', 0.45], overgrown: ['#9a2030', 0.35], boneplates: ['#d8ccb0', 0.3], mirrorcyst: ['#a8c8e0', 0.35],
+};
+
+// ===========================================================================
+// BIRTH DEFECTS. Every run, you're born with one at random: a twist (good,
+// bad, or both) so the same start never plays quite the same.
+// ===========================================================================
+const QUIRKS = {
+  brittle:       { name: 'BRITTLE',        desc: '+20% damage, -1 max health.',                                apply(s) { s.damageMul *= 1.2; s.maxHp -= 1; } },
+  thickskin:     { name: 'THICK-SKINNED',  desc: '+1 max health, but a little slower.',                         apply(s) { s.maxHp += 1; s.speedMul *= 0.9; } },
+  twitchy:       { name: 'TWITCHY',        desc: 'Your dash recovers much faster; you attack a little slower.', apply(s) { s.dashCd *= 0.6; s.rateMul *= 1.12; } },
+  hungry:        { name: 'HUNGRY',         desc: 'Biomass comes 25% faster, but you starve if you go too long without eating.', apply(s) { s.dnaMul *= 1.25; s.starve = s.starve ? Math.min(s.starve, 50) : 50; } },
+  albino:        { name: 'ALBINO',         desc: 'A much bigger light, but 10% less biomass.',                 apply(s) { s.lightMul *= 1.4; s.dnaMul *= 0.9; } },
+  secondstomach: { name: 'SECOND STOMACH', desc: 'You devour corpses from further away, and they give 15% more biomass.', apply(s) { s.devourReach = 8; s.dnaMul *= 1.15; } },
+  racingheart:   { name: 'RACING HEART',   desc: 'You attack 12% faster, but recover from hits faster too (less time untouchable).', apply(s) { s.rateMul *= 0.88; s.invuln *= 0.7; } },
+  bloated:       { name: 'BLOATED',        desc: '+2 max health, but slower, and slower to dash.',              apply(s) { s.maxHp += 2; s.speedMul *= 0.85; s.dashCd *= 1.25; } },
+  lucky:         { name: 'LUCKY MUTANT',   desc: 'Rare and legendary mutations turn up more. -1 max health.',  apply(s) { s.luck = 1.6; s.maxHp -= 1; } },
+  sticky:        { name: 'STICKY',         desc: 'You leave slime everywhere, and enemies stick in it. A little slower.', apply(s) { s.alwaysSlime = true; s.slimeSlow = Math.max(s.slimeSlow || 0, 0.45); s.speedMul *= 0.95; } },
+  spiteful:      { name: 'SPITEFUL',       desc: 'Getting hurt bursts bone shards out of you. 5% less damage.', apply(s) { s.hurtRing = (s.hurtRing || 0) + 6; s.damageMul *= 0.95; } },
+  gluttonous:    { name: 'GLUTTONOUS',     desc: 'Corpses you devour sometimes heal you. -1 max health.',      apply(s) { s.corpseHeal = 0.25; s.maxHp -= 1; } },
+  nocturnal:     { name: 'NOCTURNAL',      desc: '+30% damage to enemies in the dark, but a smaller light.',  apply(s) { s.nightEyes += 0.3; s.lightMul *= 0.8; } },
+  swift:         { name: 'SWIFT',          desc: '15% faster, 8% less damage.',                                 apply(s) { s.speedMul *= 1.15; s.damageMul *= 0.92; } },
 };
 
 // --- Tree helpers -------------------------------------------------------------------
@@ -2145,7 +2384,7 @@ function isMetamorph(p, c) {
 // `onlyLoc`: a devoured boss core offers only CORE cards.
 function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
   const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
-  const luck = r => (r === 'rare' || r === 'legendary') ? 1 + 0.2 * (game.depth - 1) : 1;
+  const luck = r => (r === 'rare' || r === 'legendary') ? (1 + 0.2 * (game.depth - 1)) * (p.stats.luck || 1) : 1; // (Lucky Mutant)
   const weight = c => {
     const d = MUTATIONS[c.id];
     let w = RARITY[d.rarity].weight * luck(d.rarity);
@@ -2182,6 +2421,11 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
       if (!left.length) break;
       const c = pickWeighted(left); if (c.kind === 'meta') metas++; if (MUTATIONS[c.id].boss) finds++; // at most one rare find per vial
       take(c);
+    }
+    // The first vials (the first room's mouth, floor 1's limbs) sometimes hold a WILD CARD: a rare find.
+    if (plain && out.length && Math.random() < WILD_CHANCE) {
+      const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(GRAFT_OF).map(t => GRAFT_OF[t]).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlots(p) >= 1).map(id => ({ id, kind: 'root' })));
+      if (wild.length) { const w = pick(wild); out[Math.floor(Math.random() * out.length)] = card(w); out.wild = true; }
     }
     if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge);
     return out.sort(() => Math.random() - 0.5);

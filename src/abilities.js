@@ -1088,6 +1088,8 @@ const ACTIVES = {
   blackout:    { name: 'BLACKOUT',     key: 'head', cd: l => 10 - l },
   mindspike:   { name: 'MIND SPIKE',   key: 'head', cd: l => 4.6 - 0.3 * l },
   pollenburst: { name: 'POLLEN BURST', key: 'head', cd: l => 6 - 0.5 * l },
+  pincer:      { name: 'PINCER',       key: 'limb', cd: l => 2.8 - 0.2 * l },
+  leap:        { name: 'LEAP',         key: 'limb', cd: l => 3.4 - 0.3 * l },
 };
 
 // Where you're pointing, at most `range` away (mouse, or the arrow-key aim).
@@ -1121,7 +1123,10 @@ function tryActive(p, key) {
   if (key === 'limb' && p.limbWear > 0) { floatText(p.x, p.y - 18, 'LIMBS TORN', COST_COLOR); return; }
   const cdKey = key === 'limb' ? 'limbCd' : 'headCd';
   if (p[cdKey] > 0) return;
-  if (useActive(p, a)) { p[cdKey] = ACTIVES[a.kind].cd(a.l) * (key === 'limb' ? s.limbCdMul : s.headCdMul); p[cdKey + 'Max'] = p[cdKey]; }
+  if (useActive(p, a)) {
+    p[cdKey] = ACTIVES[a.kind].cd(a.l) * (key === 'limb' ? s.limbCdMul : s.headCdMul); p[cdKey + 'Max'] = p[cdKey];
+    if (p.pincerRefresh) { p.pincerRefresh = false; p[cdKey] = 0; p.dashCd = 0; floatText(p.x, p.y - 14, 'CRUSHED', '#e8a020'); } // Coconut Crab
+  }
 }
 
 function useActive(p, a) {
@@ -1223,6 +1228,33 @@ function useActive(p, a) {
       game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 6, x2: e.x, y2: e.y, t: 0.15 });
       burst(e.x, e.y, '#b464c8', 8, 60, 0.3);
       Sfx.play('scream');
+      return true;
+    }
+    case 'pincer': { // Crab Legs: a pincer snaps shut on what's in front of you
+      const reach = s.pincerWide ? 30 : 22, cone = s.pincerWide ? -0.2 : 0.3;
+      let hit = false;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > reach + e.r || (dx * p.aimX + dy * p.aimY) / d < cone) continue;
+        damageEnemy(e, (4 + 2 * l) * dmg * (s.pincerMul || 1), dx / d, dy / d, false, isBoss(e) ? 40 : 220);
+        if (!e.dead) e.stunT = Math.max(e.stunT || 0, isBoss(e) ? 0.2 : (s.pincerStun || 0.8));
+        else if (s.pincerReset) p.pincerRefresh = true;
+        game.fx.push({ kind: 'bite', x: e.x, y: e.y, t: 0.12 });
+        hit = true;
+      }
+      if (s.pincerShock) spawnBullet({ x: p.x + p.aimX * 8, y: p.y - 2 + p.aimY * 8, vx: p.aimX * 230, vy: p.aimY * 230, r: 3, dmg: 3 * dmg, life: 0.45, pierce: 3, kind: 'shot', color: '#d8ccb0' }); // Pistol Shrimp
+      if (hit) { hitstop(0.04); game.shake = Math.max(game.shake, 3); }
+      game.fx.push({ kind: 'bite', x: p.x + p.aimX * 14, y: p.y + p.aimY * 14, t: 0.12 });
+      Sfx.play('bite'); Sfx.play('ram');
+      return true;
+    }
+    case 'leap': { // Haunches: spring to where you point; you land with a shockwave
+      const pt = aimPoint(p, s.leapRange || 85), dx = pt.x - p.x, dy = pt.y - p.y, d = Math.hypot(dx, dy) || 1;
+      p.dashX = dx / d; p.dashY = dy / d; p.dashT = Math.max(0.1, Math.min(0.32, d / Math.max(150, s.dashSpeed)));
+      p.inv = Math.max(p.inv, p.dashT + (s.leapInv ? 0.35 : 0.05)); p.dashHit.clear();
+      burst(p.x, p.y + 4, '#3a3230', 6, 50, 0.3);
+      Sfx.play('dash');
       return true;
     }
     case 'pollenburst': { // Bloom: the flower bursts, dusting everything around you
@@ -1437,4 +1469,22 @@ function apexKill(p) {
   if (!n) return;
   p.adrenalT = Math.max(p.adrenalT || 0, 0.6 + 0.4 * n);
   if (++p.apexKills % Math.max(4, 12 - 2 * n) === 0 && p.hp < p.maxHp) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+}
+
+// Barb Flinger: the barbs stuck in an enemy tear out at once.
+function ripBarbs(e) {
+  const p = game.player, s = p.stats, n = e.barbs || 1, per = e.barbDmg || 1;
+  e.barbs = 0;
+  if (e.dead) return;
+  const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+  damageEnemy(e, per * n, -dx / d, -dy / d, false, 120);
+  bloodSpray(e.x, e.y, dx / d, dy / d, 8 + 4 * n, ENEMY_TYPES[e.type].fluid, 140);
+  if (!e.dead && s.barbPull && !isBoss(e)) knock(e, dx / d, dy / d, 260);                         // Fishhooks
+  if (!e.dead && s.barbBleed) { e.bleedT = 3; e.bleedDps = Math.max(e.bleedDps || 0, s.barbBleed); } // Gut Hooks
+  if (s.barbChain) { // Chain Hooks: on into the next one
+    let o = null, bd = 80;
+    for (const q of game.enemies) { if (q === e || q.dead || q.spawnT > 0) continue; const qd = Math.hypot(q.x - e.x, q.y - e.y); if (qd < bd) { bd = qd; o = q; } }
+    if (o) { const ox = o.x - e.x, oy = o.y - e.y, od = Math.hypot(ox, oy) || 1; spawnBullet({ x: e.x, y: e.y, vx: ox / od * 190, vy: oy / od * 190, r: 2, dmg: 0.5 * s.damage, life: 0.6, kind: 'shot', color: '#d8ccb0', barb: per, hitSet: new Set([e]) }); }
+  }
+  Sfx.play('chomp');
 }

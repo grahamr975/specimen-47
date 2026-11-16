@@ -15,6 +15,7 @@ function makePlayer() {
     // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
     // You're born with nothing at all: the first room holds a MOUTH vial.
     parts: [], capacity: START_SLOTS,
+    quirk: pick(Object.keys(QUIRKS)), // your birth defect
     limbCd: 0, headCd: 0,
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
     moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,
@@ -41,6 +42,7 @@ function makePlayer() {
 function recomputeStats(p) {
   const s = baseStats();
   for (const m of p.parts) applyMutation(s, m, p);
+  if (p.quirk && QUIRKS[p.quirk]) QUIRKS[p.quirk].apply(s); // your birth defect
   if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
   // Set bonus: 3 (or 5) parts of the same set.
   const set = activeSet(p);
@@ -608,6 +610,7 @@ function fireGun(p, g, mul = 1) {
       acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
       venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
       venomBurst: g.id === 'spike' && s.venomBarrage, // Venom Barrage: bursts into bile
+      barb: g.barb ? g.barb * s.damage * mul : 0, blind: g.blind || 0, pollen: g.pollen || undefined, // Barb Flinger, Spore Sneeze
       flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
       kind: 'shot', round: g.round, fade: g.fade, color: shotColor(s, g),
     });
@@ -1012,7 +1015,7 @@ function chargeHits(p) {
 }
 
 function slam(p) {
-  const s = p.stats;
+  const s = p.stats, k0 = game.kills;
   landing(p, 1);
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: s.slamR, t: 0.25 });
   strikeSeal(p.x, p.y, s.slamR);
@@ -1030,6 +1033,7 @@ function slam(p) {
   game.shake = Math.max(game.shake, 5);
   hitstop(0.06);
   Sfx.play('slam');
+  if (s.leapReset && game.kills > k0) { p.limbCd = 0; floatText(p.x, p.y - 14, 'AGAIN', '#e8a020'); } // Killing Leap
 }
 
 // --- Getting hurt -------------------------------------------------------------

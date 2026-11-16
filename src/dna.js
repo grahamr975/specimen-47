@@ -129,13 +129,14 @@ function devourCorpse(p, c) {
   Sfx.play('chomp'); Sfx.play('gulp');
   burstCorpse(c);
   for (const o of game.room.orbs) if (Math.hypot(o.x - c.x, o.y - c.y) < 3) { o.x = p.x; o.y = p.y; o.t = 0.36; } // straight into you
+  if (p.stats.corpseHeal && p.hp < p.maxHp && Math.random() < p.stats.corpseHeal) { p.hp++; floatText(p.x, p.y - 22, '+1 HP', PAL.red); } // Gluttonous
 }
 
 function updateCorpses(dt) {
   const p = game.player;
   for (const c of game.room.corpses) { c.t += dt; c.shake -= dt; }
   if (p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
-    const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1);
+    const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1 + (p.stats.devourReach || 0));
     if (c) devourCorpse(p, c);
   }
 

@@ -76,6 +76,8 @@ function step(n, god) {
     autoMenu();
   }
 }
+// Tests start without a birth defect (they'd make results random) unless window.__quirks is set.
+const __newRun = newRun; newRun = function () { __newRun(); if (!window.__quirks) { game.player.quirk = null; recomputeStats(game.player); game.player.hp = game.player.maxHp; } };
 const combatRoom = () => { enterRoom(game.floor.rooms.find(r => r.type === 'combat') || game.floor.rooms[1], 'up'); };
 // The path from a root down to `id`.
 function pathTo(id) { const out = [id]; while (MUTATIONS[out[0]].from) out.unshift(MUTATIONS[out[0]].from); return out; }
@@ -489,7 +491,7 @@ try {
     render();
     // Boss picks now turn up (rarely) in vials of their kind, never in the first room's vial.
     { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }
-      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300)`, seen > 30 && seen < 120 && first === 0); }
+      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300 wild cards)`, seen > 30 && seen < 120 && first > 10 && first < 100); }
   }
   { // 0s) The Ultimate Metamorphosis.
     newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
@@ -569,6 +571,26 @@ try {
     newRun(); combatRoom(); Input.pressed.add('p'); update(1 / 60); Input.endFrame(); Input.pressed.add('j'); update(1 / 60); Input.endFrame(); render();
     check('it opens while paused too', game.paused && !!game.journal);
     game.journal = null; game.paused = false;
+  }
+  { // 0zd) Starting variety: new mouths and limbs, birth defects, wild cards.
+    check(`more starting mouths and limbs (${rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length} mouths, ${rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length} limbs)`, rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length >= 8 && rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length >= 7);
+    const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.quirk = null; recomputeStats(z); return z; };
+    let q = arena(); grow(q, 'barbs'); let r = dummy(40, 99); r.speed = 0; fireFor(22); const h1 = r.hp; for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`barb flinger: barbs stick, then rip out for more (${(99 - h1).toFixed(1)} on hit, ${(99 - r.hp).toFixed(1)} after the rip)`, h1 < 99 && r.hp < h1 - 1);
+    q = arena(); grow(q, 'sneeze'); r = dummy(25, 99); r.speed = 0; fireFor(18); check(`spore sneeze blinds (blind ${(r.blindT || 0).toFixed(1)}s)`, r.blindT > 0.3);
+    q = arena(); grow(q, 'leechspit'); r = dummy(40, 99); r.speed = 0; fireFor(30); check('leech spitter: they bleed', r.bleedT > 0);
+    q = arena(); grow(q, 'crablegs'); r = dummy(16, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.mouse.rightClicked = true; update(1 / 60); Input.endFrame();
+    check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && r.stunT > 0);
+    q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
+    // Birth defects.
+    window.__quirks = true; newRun(); check(`you're born with a defect, announced, at full health (${game.player.quirk}: ${game.banner && game.banner.text}, hp ${game.player.hp}/${game.player.maxHp})`, !!QUIRKS[game.player.quirk] && game.banner && /^BORN /.test(game.banner.text) && game.player.hp === game.player.maxHp);
+    { const seen = new Set(); for (let i = 0; i < 80; i++) { newRun(); seen.add(game.player.quirk); } check(`defects vary from run to run (${seen.size} different in 80 runs)`, seen.size >= 10); } window.__quirks = false;
+    for (const k in QUIRKS) { newRun(); combatRoom(); game.player.quirk = k; recomputeStats(game.player); step(30, true); render(); }
+    { newRun(); const z = game.player; z.quirk = 'brittle'; grow(z, 'spike'); const d1 = z.stats.damageMul, h = z.maxHp; z.quirk = null; recomputeStats(z); check(`brittle: harder hitting, frailer (dmg x${d1.toFixed(2)} vs x${z.stats.damageMul.toFixed(2)}, hp ${h} vs ${z.maxHp})`, d1 > z.stats.damageMul && h < z.maxHp); }
+    // Wild cards in the first limbs vial too.
+    { let wild = 0, bad = 0; for (let i = 0; i < 300; i++) { newRun(); const z = game.player; const cs = rollChoices(z, 3, null, 'LIMBS', true); if (cs.some(c => MUTATIONS[c.id] && (MUTATIONS[c.id].boss || MUTATIONS[c.id].graft))) wild++; if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== 'LIMBS')) bad++; }
+      check(`floor 1's limbs vial: any limbs, sometimes a wild card (${wild}/300), always limbs (${bad} off)`, wild > 10 && wild < 100 && bad === 0); }
   }
   { // 0zc) Root Legs: a root zone that defends you, and an uproot burst.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;

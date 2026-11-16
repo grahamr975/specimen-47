@@ -138,6 +138,8 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.stunT > 0 && game.player.stats.stunBreak) dmg *= 2; // Shatter Scream
   if (e.corrodeUntil > game.time) dmg *= 1.5;                // Corrode
   if (e.markUntil > game.time) dmg *= 1 + (e.markMul || 0.4);  // Mark Prey
+  if (ps && ps.allergen && e.blindT > 0) dmg *= 1 + ps.allergen;  // Allergen
+  if (ps && ps.anticoag && e.bleedT > 0) dmg *= 1 + ps.anticoag;  // Anticoagulant
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
@@ -172,6 +174,11 @@ function killEnemy(e) {
   }
   onSetKill(e, p, s);
   apexKill(p);
+  if (s.hivesCloud && e.blindT > 0) spawnCloud(e.x, e.y, 14);   // Hives
+  if (e.bleedT > 0) { // Leech Spitter: bled-out kills feed you
+    if (s.leechFeed && p.hp < p.maxHp && Math.random() < s.leechFeed) { p.hp++; floatText(p.x, p.y - 14, '+1 HP', PAL.red); }
+    for (let i = 0; i < (s.leechBrood || 0); i++) spawnAlly('maggot', e.x + rand(-3, 3), e.y + rand(-3, 3));
+  }
   if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
     p.armorKills = 0;
     if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
@@ -247,6 +254,7 @@ function updateEnemies(dt) {
     if (e.dead) continue;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
     e.t += dt; e.flash -= dt; e.timer -= dt; e.blindT -= dt;
+    if (e.barbT > 0 && (e.barbT -= dt) <= 0) ripBarbs(e); // barbs tear out
     if (e.hp < e.maxHp * 0.5 && !ENEMY_TYPES[e.type].robot && Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + e.r * 0.6, ENEMY_TYPES[e.type].fluid, 1); // badly hurt: it drips
     // Held in your hands, flying through the air, or stunned: no thinking.
     if (e.held) continue;

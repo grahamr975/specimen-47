@@ -22,6 +22,7 @@ function newRun() {
   game.kills = 0;
   game.player = makePlayer();
   recomputeStats(game.player);
+  game.player.hp = game.player.maxHp; // born whole (after your birth defect)
   game.state = 'play';
   game.menu = null;
   game.pendingEvolutions = [];
@@ -30,6 +31,8 @@ function newRun() {
   game.allies = [];
   game.paused = false;
   startFloor();
+  const q = QUIRKS[game.player.quirk]; // your birth defect, announced
+  if (q) { game.banner = { text: 'BORN ' + q.name, sub: q.desc.toUpperCase(), color: '#e8a020', t: 3.2 }; whisper('You were born ' + q.name.toLowerCase() + '. ' + q.desc); }
 }
 
 function startFloor() {
@@ -73,7 +76,7 @@ function enterRoom(room, side) {
       Sfx.play('door');
     } else {
       room.cleared = true;
-      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, { loc: room.vialLoc });
+      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, game.depth === 1 && room.vialLoc === 'LIMBS' ? { loc: 'LIMBS', minRarity: null, plain: true } : { loc: room.vialLoc }); // floor 1's limbs: any limbs, and maybe a wild card
       // You're born with nothing: the first room holds your first mouth (off to one side, out of the way).
       if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) spawnPickup('vial', ROOM_PX_W / 2 - 40, ROOM_PX_H / 2 - 30, { loc: 'MOUTH', minRarity: null, plain: true });
     }
@@ -333,6 +336,8 @@ function render() {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     drawText(ctx, 'PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, PAL.white, 3, 'center');
     drawText(ctx, 'PRESS P TO RESUME  -  J: SPLICE JOURNAL', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
+    const bq = QUIRKS[game.player.quirk];
+    if (bq) { drawText(ctx, 'BORN ' + bq.name, VIEW_W / 2, VIEW_H / 2 + 34, '#e8a020', 1, 'center'); wrapText(bq.desc.toUpperCase(), 70).forEach((l, i) => drawText(ctx, l, VIEW_W / 2, VIEW_H / 2 + 44 + i * 8, PAL.slate, 1, 'center')); }
   }
   if (game.journal) drawJournal(ctx);
   if (game.state === 'dead') drawGameOver(ctx);

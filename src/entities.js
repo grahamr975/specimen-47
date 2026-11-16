@@ -58,6 +58,7 @@ function updateBullets(dt) {
     // Compound Eyes: enemy shots crawl when they get close to you.
     let bdt = dt;
     if (b.team === 'enemy' && game.player.stats.compound && Math.hypot(b.x - game.player.x, b.y - game.player.y) < 42) bdt *= game.player.stats.compound;
+    if (b.team === 'enemy' && game.player.dashT > 0 && game.player.stats.dashEat && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.r + b.r + 4) { b.dead = true; burst(b.x, b.y, '#c8c0b0', 4, 60, 0.2); continue; } // Sidestep
     if (b.team === 'enemy' && game.player.rootZone > 0 && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.rootZone) bdt *= 0.5; // Root Legs: shots wade through the roots
     if (b.team === 'enemy' && game.player.stats.gasChoke && Math.hypot(b.x - game.player.x, b.y - game.player.y) < (game.player.gasR || 0)) bdt *= 0.4; // Choke
     b.x += b.vx * bdt;
@@ -170,6 +171,8 @@ function onPlayerBulletHit(b, enemy) {
     if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) enemy.stunT = Math.max(enemy.stunT || 0, s.darkStun); // Abyss Stare
     if (s.stunChance && Math.random() < s.stunChance) enemy.stunT = Math.max(enemy.stunT || 0, 0.8);    // Brain Worm
   }
+  if (b.barb && !enemy.dead) { enemy.barbs = (enemy.barbs || 0) + 1; enemy.barbDmg = b.barb; enemy.barbT = 0.8; } // a barb sticks
+  if (b.blind && !enemy.dead) enemy.blindT = Math.max(enemy.blindT || 0, b.blind);                              // Spore Sneeze
   if (b.mirrorStun && !enemy.dead) enemy.stunT = Math.max(enemy.stunT || 0, b.mirrorStun); // Blinding Lens
   if (b.bleed) { enemy.bleedT = 3; enemy.bleedDps = b.bleed; }
   if (b.slow && !enemy.dead) enemy.slowT = Math.max(enemy.slowT || 0, b.slow); // sticky slime
