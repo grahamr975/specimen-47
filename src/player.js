@@ -297,8 +297,9 @@ function updatePlayer(dt) {
       if (s.slamDmg > 0) slam(p);
       if (s.diveBomb) diveBomb(p);
       if (s.dashJelly) { // Culture Jelly
-        for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && !isBoss(e) && Math.hypot(e.x - p.x, e.y - p.y) < 22 + e.r) inflict(e, 'web', { t: s.dashJelly });
-        for (let i = 0; i < 10; i++) stainPx(p.x + rand(-10, 10), p.y + rand(-6, 8), ['#38503f', '#4a6a5a', '#223028'], 2);
+        const jr = s.jellyR || 22; // (Digesting Jelly: wider)
+        for (const e of enemiesNear(p.x, p.y, jr)) { inflict(e, 'web', { t: s.dashJelly }); applyHitEffects(e, 'jelly'); } // (bosses tear free of the web, but still get digested)
+        for (let i = 0; i < jr / 2.2; i++) stainPx(p.x + rand(-jr * 0.45, jr * 0.45), p.y + rand(-jr * 0.27, jr * 0.36), ['#38503f', '#4a6a5a', '#223028'], 2);
         burst(p.x, p.y + 3, '#7a9a7a', 10, 60, 0.3); Sfx.play('splat');
       }
     }
@@ -637,7 +638,7 @@ function lobAt(p, g, scatter, mul = 1) {
   const flight = clamp(Math.hypot(tx - p.x, ty - p.y) / 120, 0.3, 1.1);
   spawnBullet({
     x: p.x, y: p.y, vx: (tx - p.x) / flight, vy: (ty - p.y) / flight, r: g.r, life: flight, maxLife: flight,
-    dmg: g.dmg * mul, spore: g.cloud * (s.cloudMul || 1), lobAcid: s.lobAcid || 0, kind: 'lob', color: g.color,
+    dmg: g.dmg * mul, spore: g.cloud * (s.cloudMul || 1), lobAcid: Math.max(s.lobAcid || 0, g.acid || 0), bounce: g.bounce || 0, kind: 'lob', color: g.color,
   });
 }
 
@@ -785,6 +786,11 @@ function bite(p, dmg, arrived = false, prey = null) {
   }
   applyHitEffects(target, 'bite'); // Acid Maw: it bursts into bile when it dies
   if (s.bleedFeed && bleeding && Math.random() < s.bleedFeed) healPlayer(1);
+  if (s.plagueTeeth && bleeding) { // Plague Teeth: the bleeding spreads to everything near it
+    let n = 0;
+    for (const o of enemiesNear(target.x, target.y, 36, target)) if (inflict(o, 'bleed', { t: 3, dps: 2 })) { n++; bloodSpray(o.x, o.y, o.x - target.x, o.y - target.y, 3, ENEMY_TYPES[o.type].fluid, 60); }
+    if (n) floatText(target.x, target.y - 12, 'IT SPREADS', PAL.red);
+  }
   if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; healPlayer(1); }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
   if (s.biteHeal && Math.random() < s.biteHeal) healPlayer(1);
@@ -1123,6 +1129,7 @@ function hurtPlayer(dmg) {
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
+  if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
   if (s.hurtBrood) { for (let i = 0; i < s.hurtBrood; i++) spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out

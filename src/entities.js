@@ -77,8 +77,14 @@ function updateBullets(dt) {
         for (const e of enemiesNear(b.x, b.y, 14)) damageEnemy(e, b.dmg, e.x - b.x, e.y - b.y, true);
         for (const c of corpsesNear(b.x, b.y, 14)) damageCorpse(c, b.dmg);
         strikeSeal(b.x, b.y, 14);
-        if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Bile Mortar
+        if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Bile Mortar, Toad Gullet
         burst(b.x, b.y, '#7a8a52', 8, 60);
+        if (b.bounce > 0) { // Bullfrog: it bounces on, and bursts again
+          const fl = Math.max(0.25, (b.maxLife || 0.6) * 0.5);
+          const tx = clamp(b.x + b.vx * fl * 0.6, TILE + 6, ROOM_PX_W - TILE - 6), ty = clamp(b.y + b.vy * fl * 0.6, TILE + 6, ROOM_PX_H - TILE - 6);
+          spawnBullet(Object.assign({}, b, { dead: false, vx: (tx - b.x) / fl, vy: (ty - b.y) / fl, life: fl, maxLife: fl, dmg: b.dmg * 0.7, bounce: b.bounce - 1, hitSet: undefined }));
+          Sfx.play('splat');
+        }
         endPlayerBullet(b);
       }
       continue;

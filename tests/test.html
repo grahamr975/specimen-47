@@ -107,8 +107,11 @@ try {
     check('every mutation has a whisper' + (missing.length ? ' (missing: ' + missing.join(',') + ')' : ''), !missing.length);
     const tooLong = Object.keys(HINTS).filter(id => HINTS[id].length > 140);
     check('whispers fit in two lines' + (tooLong.length ? ' (too long: ' + tooLong.join(',') + ')' : ''), !tooLong.length);
-    const bad = ids.filter(id => !MUTATIONS[id].part && !MUTATIONS[id].graft && pathTo(id).length < 3 && childrenOf(id).length !== 2);
+    const traitTree = id => !!MUTATIONS[rootOf(id)].graft; // devoured traits evolve once, no branching
+    const bad = ids.filter(id => !MUTATIONS[id].part && !traitTree(id) && pathTo(id).length < 3 && childrenOf(id).length !== 2);
     check('every root and tier-1 branch splits in two' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
+    const badTraits = ids.filter(id => MUTATIONS[id].graft && (childrenOf(id).length !== 1 || childrenOf(childrenOf(id)[0] || id).length));
+    check('every devoured trait evolves exactly once' + (badTraits.length ? ' (' + badTraits.join(',') + ')' : ''), !badTraits.length);
     const deep = ids.filter(id => pathTo(id).length > 3);
     check('paths are 3 deep at most', !deep.length);
     const noIcon = ids.filter(id => (!MUTATIONS[id].part || id === 'slime') && !mutIcon(id));
@@ -611,7 +614,7 @@ try {
     check(`a typo'd status is caught (${threw})`, !!threw);
 
     check('the status list in mutations.js matches STATUS', JSON.stringify([...STATUS_IDS].sort()) === JSON.stringify(Object.keys(STATUS).sort()));
-    const SOURCES = ['melee', 'any', 'bite', 'lash', 'lunge', 'dash', 'slam', 'howl', 'beam', 'burrow', 'barb', 'tongue', 'silk', 'pollen', 'gas', 'ovi', 'contact'];
+    const SOURCES = ['melee', 'any', 'bite', 'lash', 'lunge', 'dash', 'slam', 'howl', 'beam', 'burrow', 'barb', 'tongue', 'silk', 'pollen', 'gas', 'ovi', 'contact', 'jelly'];
     const wrong = [];
     for (const id of [...Object.keys(MUTATIONS), ...Object.keys(SPLICES)]) {
       const st = baseStats(); try { (MUTATIONS[id] || SPLICES[id]).apply(st, 3); } catch (err) { continue; } // (some need a body; the bot runs cover them)
@@ -636,6 +639,38 @@ try {
     { arena(); const sp = spawnEnemy('splitter', 200, 96); sp.spawnT = 0; damageEnemy(sp, 999, 0, 0, true); const minis = game.enemies.filter(o => o.type === 'mini' && !o.dead);
       minis.forEach(m => damageEnemy(m, 999, 0, 0, true));
       check(`splitters split in two, and their halves don't split again (${minis.length} -> ${game.enemies.filter(o => o.type === 'mini' && !o.dead).length})`, minis.length === 2 && !game.enemies.some(o => o.type === 'mini' && !o.dead)); }
+  }
+  { // 0zi) Devoured traits evolve once, fully grown.
+    const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.allies = []; game.puddles = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.inv = 99; z.quirk = null; return z; };
+    for (const [trait, evo] of [['ratincisors', 'plagueteeth'], ['urchinquills', 'pincushion'], ['toadgullet', 'bullfrog'], ['splittercells', 'mitosis2'], ['culturejelly', 'digestjelly']]) {
+      const q = arena(); q.parts.push(newPart(trait)); const m = q.parts[q.parts.length - 1]; recomputeStats(q);
+      game.pendingEvolutions = [];
+      for (let i = 0; i < LEVEL_MAX; i++) applyChoice(q, { kind: 'level', part: m });
+      const pend = game.pendingEvolutions.find(x => x.evolve === m);
+      const ok = !!pend && JSON.stringify(childrenOf(trait)) === JSON.stringify([evo]);
+      if (pend) { applyChoice(q, { id: evo, kind: 'branch', part: m }); }
+      check(`${MUTATIONS[trait].name}: fully grown, it evolves into ${MUTATIONS[evo].name} (now ${MUTATIONS[m.id].name}, set ${setOf(m.id)})`, ok && m.id === evo && setOf(evo) === setOf(trait));
+    }
+    let q = arena(), r, o; q.parts.push({ id: 'plagueteeth', path: ['ratincisors', 'plagueteeth'], loc: 'MOUTH', lvl: 0 }); recomputeStats(q);
+    r = dummy(14, 99); r.speed = 0; o = spawnEnemy('rat', r.x + 14, r.y + 6); o.spawnT = 0; o.speed = 0; o.affixes = []; o.hp = o.maxHp = 99;
+    inflict(r, 'bleed', { t: 9, dps: 0.01 }); q.aimX = 1; q.aimY = 0; fireFor(30);
+    check(`plague teeth: biting a bleeding one spreads it (neighbor bleeding: ${hasStatus(o, 'bleed')})`, hasStatus(o, 'bleed'));
+    q = arena(); q.parts.push({ id: 'pincushion', path: ['urchinquills', 'pincushion'], loc: 'BACK', lvl: 0 }); recomputeStats(q);
+    q.inv = 0; game.bullets = []; hurtPlayer(1);
+    check(`pincushion: getting hurt fires your quills (${game.bullets.filter(b => b.team === 'player').length} spines)`, game.bullets.filter(b => b.team === 'player').length >= 10);
+    q = arena(); q.parts.push({ id: 'toadgullet', path: ['toadgullet'], loc: 'MOUTH', lvl: 0 }); recomputeStats(q);
+    q.aimX = 1; q.aimY = 0; fireFor(90);
+    check(`toad gullet: its globs leave burning puddles (${game.puddles.filter(pd => pd.team === 'player').length})`, game.puddles.some(pd => pd.team === 'player'));
+    q = arena(); q.parts.push({ id: 'bullfrog', path: ['toadgullet', 'bullfrog'], loc: 'MOUTH', lvl: 0 }); recomputeStats(q);
+    lobAt(q, q.stats.guns.find(g => g.id === 'toad'), 0); let lands = 0, seen = new Set();
+    for (let i = 0; i < 120; i++) { const before = game.bullets.filter(b => b.kind === 'lob' && !b.dead).length; update(1 / 60); Input.endFrame(); game.bullets.filter(b => b.kind === 'lob').forEach(b => seen.add(b)); }
+    check(`bullfrog: a glob bounces once, bursting twice (${seen.size} globs, ${game.puddles.filter(pd => pd.team === 'player').length} puddles)`, seen.size === 2 && game.puddles.filter(pd => pd.team === 'player').length >= 2);
+    q = arena(); q.parts.push({ id: 'mitosis2', path: ['splittercells', 'mitosis2'], loc: 'CORE', lvl: 0 }); recomputeStats(q);
+    dummy(150, 99); game.room.locked = true; for (let i = 0; i < 60 * 8; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    check(`runaway mitosis: in a fight, pieces split off on their own (${game.allies.filter(a => a.kind === 'maggot').length} so far)`, game.allies.some(a => a.kind === 'maggot'));
+    q = arena(); q.parts.push({ id: 'digestjelly', path: ['culturejelly', 'digestjelly'], loc: 'BACK', lvl: 0 }); recomputeStats(q);
+    r = dummy(30, 99); r.speed = 0; q.dashT = 0.01; update(1 / 60); Input.endFrame();
+    check(`digesting jelly: wider, and what it holds bleeds and stays slowed (web ${hasStatus(r, 'web')}, bleed ${hasStatus(r, 'bleed')}, slow ${hasStatus(r, 'slow')})`, hasStatus(r, 'web') && hasStatus(r, 'bleed') && hasStatus(r, 'slow'));
   }
   { // 0zg) Floor bosses 2-5, and threat that rises floor by floor.
     for (const [d, id] of [[2, 'colossus'], [3, 'biotank'], [4, 'archive'], [5, 'director']]) {

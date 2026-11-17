@@ -144,7 +144,7 @@ function finalizeStats(s) {
 
 // What an attack leaves behind: onHit(s, 'lash', 'bleed', { t: 3, dps: 2 }) makes
 // every lash bleed. Sources: melee, any (every shot and melee hit), bite, lash,
-// lunge, dash, slam, howl, beam, burrow, barb, tongue, silk, pollen, gas, ovi, contact.
+// lunge, dash, slam, howl, beam, burrow, barb, tongue, silk, pollen, gas, ovi, contact, jelly.
 // Extras: chance (0-1), say ([text, color] floated when it lands). Two parts giving
 // the same status to the same source keep the stronger of each value, or with
 // mode 'add', add up their magnitudes (Gore Horns' bleed grows with its level).
@@ -1648,7 +1648,7 @@ const MUTATIONS = {
 
   // ================= TRAITS: you are what you eat =================
   // Torn from elites you devour (see GRAFT_OF). Never offered otherwise.
-  // Complete as they are: no branches, but they level like any part.
+  // They level like any part, and at full growth each evolves once.
   ratincisors: {
     name: 'Rat Incisors', slot: 'MOUTH', graft: 'rat', rarity: 'uncommon', icon: ['mandibles', 'hemophage'],
     desc: 'Gnawing teeth: quick little bites that leave whatever you bite bleeding.',
@@ -1673,6 +1673,32 @@ const MUTATIONS = {
     name: 'Culture Jelly', slot: 'BACK', graft: 'culture', rarity: 'uncommon', icon: ['regrow', 'bile'],
     desc: 'Where your dash ends, a sticky jelly bursts out and holds everything near.',
     apply(s, l) { s.dashJelly = 1.2 + 0.2 * l; },
+  },
+  // ...and what each becomes, fully grown.
+  plagueteeth: {
+    name: 'Plague Teeth', from: 'ratincisors', rarity: 'rare', icon: ['hemophage', 'toxic'],
+    desc: 'Faster bites, and biting something that bleeds spreads its bleeding to everything near it.',
+    apply(s) { s.biteDelay *= 0.8; s.plagueTeeth = true; },
+  },
+  pincushion: {
+    name: 'Pincushion', from: 'urchinquills', rarity: 'rare', icon: ['barbs', 'spines'],
+    desc: 'A thicker ring of quills, and they also fire every time you are hurt.',
+    apply(s) { s.quillCount = Math.max(s.quillCount || 0, 10); s.quillOnHurt = true; },
+  },
+  bullfrog: {
+    name: 'Bullfrog', from: 'toadgullet', rarity: 'rare', icon: ['toxic', 'overgrown'],
+    desc: 'Bigger, heavier globs that bounce once on landing, bursting twice.',
+    apply(s) { const g = s.guns.find(x => x.id === 'toad'); if (g) { g.r = 4; g.dmg *= 1.3; g.acid = 16; g.bounce = 1; } },
+  },
+  mitosis2: {
+    name: 'Runaway Mitosis', from: 'splittercells', rarity: 'rare', icon: ['mitosis', 'overgrown'],
+    desc: 'More of you splits off when you are hurt, and in a fight a piece splits off on its own every few seconds.',
+    apply(s) { s.hurtBrood = (s.hurtBrood || 0) + 1; s.splitPulse = 7; },
+  },
+  digestjelly: {
+    name: 'Digesting Jelly', from: 'culturejelly', rarity: 'rare', icon: ['bile', 'regrow'],
+    desc: 'A wider jelly that digests what it holds: they bleed, and stay slowed after it lets go.',
+    apply(s) { s.jellyR = 34; onHit(s, 'jelly', 'bleed', { t: 3, dps: 2.5 }); onHit(s, 'jelly', 'slow', { t: 2.5 }); },
   },
 };
 
@@ -1882,6 +1908,11 @@ const HINTS = {
   toadgullet: 'Its gullet is yours now. It still wants to spit.',
   splittercells: 'Its cells did not stop dividing inside you.',
   culturejelly: 'You are a little bit culture now.',
+  plagueteeth: 'What you bite rots, and the rot does not stay put.',
+  pincushion: 'Touch you, and you bristle.',
+  bullfrog: 'Your throat swells. What comes up comes up twice.',
+  mitosis2: 'You cannot stop dividing. You do not want to.',
+  digestjelly: 'The jelly is hungry too.',
   boneplates: 'Bone grows outside you now, circling, waiting for something to stop.',
   razorplates: 'Their edges are sharp.',
   bladestorm: 'More of them, swinging wider.',
