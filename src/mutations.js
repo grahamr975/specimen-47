@@ -2323,7 +2323,14 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
       const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(GRAFT_OF).map(t => GRAFT_OF[t]).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlotsAt(p, onlyLoc) >= 1).map(id => ({ id, kind: 'root' })));
       if (wild.length) { const w = pick(wild); out[Math.floor(Math.random() * out.length)] = card(w); out.wild = true; }
     }
-    if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge);
+    // Nothing new can grow (no free slot, nothing to branch)? Then the vial
+    // feeds the part already there, and you can always pass on a swap.
+    if (!out.some(c => c.kind === 'root' || c.kind === 'branch' || c.kind === 'replace')) {
+      out.splice(1); // keep one swap at most
+      const feed = partsAt(p, onlyLoc).filter(m => !m.starter).sort((a, b) => (a.lvl || 0) - (b.lvl || 0))[0];
+      if (feed) out.push({ id: feed.id, kind: 'level', part: feed });
+      out.push(gorge);
+    }
     return out.sort(() => Math.random() - 0.5);
   }
   if (onlyLoc) {

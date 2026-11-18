@@ -871,6 +871,19 @@ try {
     const br = choiceInfo(p, { id: childrenOf(partAt(p, 'CORE').id)[0], kind: 'branch', part: partAt(p, 'CORE') });
     check(`a branch card says it keeps the part (${br.note})`, br.note === 'KEEPS ' + MUTATIONS[partAt(p, 'CORE').id].name);
   }
+  { // 0j1b) A vial with no room and nothing to branch feeds the part you have, and you can always pass.
+    let bad = 0, fed = 0, ok = 0;
+    for (let i = 0; i < 30; i++) {
+      newRun(); combatRoom(); const p = game.player; game.enemies = [];
+      grow(p, leaves().find(l => rootOf(l) === 'toadgullet' && !childrenOf(l).length) || 'toadgullet', 'spider');
+      p.capacity = slotsUsed(p); // the second WEAPON is still locked
+      const cs = rollChoices(p, 3, 'uncommon', 'MOUTH');
+      if (!cs.some(c => c.id === '_gorge')) bad++;
+      if (cs.some(c => c.kind === 'level' && locOf(c.id) === 'MOUTH')) fed++;
+      if (cs.length <= 3) ok++;
+    }
+    check(`a weapon vial with no room: Gorge always (${30 - bad}/30), a level for your weapon (${fed}/30), 3 cards max (${ok}/30)`, !bad && fed === 30 && ok === 30);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
