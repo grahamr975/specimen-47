@@ -944,6 +944,17 @@ try {
     p = arena(); grow(p, 'grapple'); r = dummy(60); aimAt(p, r.x, r.y); press('rmb');
     check('tentacles keep their grapple on right-click', !!p.grappleShot || p.pullT > 0);
   }
+  { // Gore on you: kill something up close and you wear it, until you walk it off.
+    newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96;
+    const far = dummy(120, 1); damageEnemy(far, 5, 0, 0, true);
+    check('a kill across the room leaves you clean', !(q.gore && q.gore.length));
+    const near = dummy(12, 1); damageEnemy(near, 5, 0, 0, true); render();
+    check(`a close kill splatters you (${q.gore ? q.gore.length : 0} splats)`, q.gore && q.gore.length >= 3);
+    const n0 = q.gore.length; for (let i = 0; i < 25; i++) { Input.keys.clear(); Input.keys.add('d'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check(`...walking starts to clean it off (${n0} -> ${q.gore.reduce((a, g) => a + g.life, 0).toFixed(1)} left)`, q.gore.reduce((a, g) => a + g.life, 0) < n0 * 0.95);
+    for (let i = 0; i < 400 && q.gore.length; i++) { Input.keys.clear(); Input.keys.add(i % 120 < 60 ? 'd' : 'a'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check('...and enough walking cleans you up', !q.gore.length);
+  }
   { // The Bone set: blocks, breaks enemy shots, and leaves bone behind.
     const arena = (...ids) => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.aimX = 1; q.aimY = 0; q.inv = 0; grow(q, ...ids); return q; };
     const shotAt = (q, dx) => spawnBullet({ x: q.x + dx, y: q.y, vx: -40, vy: 0, team: 'enemy', kind: 'enemy', life: 3, dmg: 1 });

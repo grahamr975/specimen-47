@@ -202,6 +202,41 @@ function updateSetFx(p, dt) {
 }
 
 // Drawn with the body (under the darkness): flies, cracks, extra eyes, splice marks.
+// --- Gore on you: kill something up close and you wear it ----------------------------------
+// Splats sit on the body (u, v in -1..1 across it), mostly on the side facing the kill.
+// They wear off as you walk (and slowly on their own), dripping a trail as they go.
+const GORE_RANGE = 30, GORE_MAX = 28, GORE_CLEAN_DIST = 260, GORE_FADE_TIME = 45;
+function splatterPlayer(p, e, fluid) {
+  const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+  if (d > GORE_RANGE + e.r) return;
+  const side = Math.sign(dx) || 1, n = 3 + Math.round(4 * (1 - d / (GORE_RANGE + e.r)) + e.r / 4); // closer and bigger: messier
+  p.gore = p.gore || [];
+  for (let i = 0; i < n; i++) {
+    p.gore.push({ u: clamp(side * rand(-0.2, 1) , -1, 1), v: clamp((dy / (d || 1)) * 0.4 + rand(-0.8, 0.8), -1, 1), size: Math.random() < 0.3 ? 2 : 1, color: pick(fluid), life: rand(0.7, 1) });
+  }
+  if (p.gore.length > GORE_MAX) p.gore.splice(0, p.gore.length - GORE_MAX);
+}
+function updatePlayerGore(p, dt) {
+  if (!p.gore || !p.gore.length) { p.goreX = p.x; p.goreY = p.y; return; }
+  const walked = Math.hypot(p.x - (p.goreX ?? p.x), p.y - (p.goreY ?? p.y));
+  p.goreX = p.x; p.goreY = p.y;
+  const wear = walked / GORE_CLEAN_DIST + dt / GORE_FADE_TIME;
+  for (const g of p.gore) g.life -= wear * rand(0.6, 1.4);
+  p.gore = p.gore.filter(g => g.life > 0);
+  // Dripping: you leave a trail while you're wet with it.
+  if (walked > 0 && Math.random() < walked * 0.12 * Math.min(1, p.gore.length / 8)) stainPx(p.x + rand(-3, 3), p.y + rand(3, 5), [pick(p.gore).color], 1);
+}
+function drawPlayerGore(ctx, p, x, y, body) {
+  if (!p.gore || !p.gore.length) return;
+  const hw = body.width * 0.28, hh = body.height * 0.2;
+  for (const g of p.gore) {
+    ctx.globalAlpha = clamp(g.life * 1.5, 0, 1);
+    ctx.fillStyle = g.color;
+    ctx.fillRect(Math.round(x + g.u * hw), Math.round(y + 1 + g.v * hh), g.size, g.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawBodyMarks(ctx, p, x, y) {
   const f = p.form, s = p.stats;
   if (f === 'HIVE') for (let i = 0; i < 3; i++) { // a few insects orbit you

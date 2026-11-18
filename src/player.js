@@ -197,6 +197,7 @@ function updatePlayer(dt) {
   const il = Math.hypot(ix, iy);
   if (il) { ix /= il; iy /= il; }
   p.moving = il > 0;
+  updatePlayerGore(p, dt);
   p.inX = ix; p.inY = iy; // (a boss lair's door checks you're walking into it)
 
   // --- Aim: arrow keys (Isaac-style) or mouse ---
@@ -1360,6 +1361,7 @@ function drawPlayer(ctx) {
     ctx.drawImage(body, Math.round(x - body.width * sx / 2), Math.round(y - body.height * sy / 2 + body.height * (1 - sy) / 2), Math.round(body.width * sx), Math.round(body.height * sy));
   } else drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !limbOverlayHidden(p, ov)) drawCentered(ctx, ovSet[ov], x, y);
+  drawPlayerGore(ctx, p, x, y, body); // blood from close kills
   drawBodyMarks(ctx, p, x, y);
   if (limbsOk) drawLimbDetails(ctx, p, x, y);
   ctx.restore();
