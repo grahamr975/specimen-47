@@ -179,14 +179,7 @@ function updateBodyFx(p, dt) {
     else if (root === 'burrow') { p.stepT = 0.22; Sfx.play('scrape'); for (let i = 0; i < 3; i++) stainPx(p.x - (p.inX || 0) * 4 + rand(-3, 3), p.y + 5 + i, ['#141010', '#1e1818'], 1); } // claw scratches
     else if (root === 'fins') { p.stepT = 0.31; Sfx.play('squelch'); }                    // each reach
     else if (s.centipede) { p.stepT = 0.08; if (Math.random() < 0.5) Sfx.play('skitter'); }
-    else if (root === 'rootlegs') { p.stepT = 0.3; Sfx.play('thudsoft'); }
   }
-  // Root Legs: taking root creaks, and roots spread over the floor.
-  if (p.rooted && !p.wasRooted) {
-    Sfx.play('creak');
-    for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + rand(-0.3, 0.3); for (let r = 4; r < 11; r += 1.5) stainPx(p.x + Math.cos(a) * r, p.y + 6 + Math.sin(a) * r * 0.5, ['#1e140a', '#2a1c10'], 1); }
-  }
-  p.wasRooted = p.rooted;
   // Dive Bomb: wind streaks off the dive.
   if (s.diveBomb && p.dashT > 0) for (let i = 0; i < 2; i++) game.particles.push({ x: p.x + rand(-5, 5), y: p.y + rand(-6, 2), vx: -p.dashX * 160, vy: -p.dashY * 160, life: 0.12, color: '#c8c0d8', size: 1 });
   updateSetFx(p, dt);
@@ -556,27 +549,6 @@ function drawDiggingClaws(ctx, p, bx, by, which) {
   }
 }
 
-// --- Root Legs: gnarled roots that step like legs, then spread and dig in when you root ------
-const ROOT_LEGS = [
-  { hx: -3, hy: 1, fx: -9, fy: 2, near: false, g: 0 }, { hx: 3, hy: 1, fx: 9, fy: 2, near: false, g: 1 },
-  { hx: -2, hy: 3, fx: -6, fy: 7, near: true, g: 1 }, { hx: 2, hy: 3, fx: 6, fy: 7, near: true, g: 0 },
-];
-function drawRootWalker(ctx, p, bx, by, which) {
-  if (!p.roots) return;
-  const k = STAGE_SCALE[p.stage] * 1.1;
-  p.roots.forEach((f, i) => {
-    const L = ROOT_LEGS[i]; if (L.near !== (which === 'near')) return;
-    let fx = f.x, fy = f.y;
-    if (p.rooted) { const sp = Math.min(1, (p.rootedFor || 0) / 0.3); fx += (fx - p.x) * 0.6 * sp; fy += 2 * sp; } // splayed wide when rooted
-    const lift = f.t > 0 ? Math.sin((1 - f.t / 0.11) * Math.PI) * 2 : 0, hx = bx + L.hx * k, hy = by + 3 + L.hy * k;
-    const mx = (hx + fx) / 2 + Math.sin(i * 2.1 + p.t * 2) * 1.2, my = (hy + fy) / 2 - 2;
-    pxLine(ctx, hx, hy + 1, mx, my + 1, '#140c06', 3, 0.4); pxLine(ctx, mx, my + 1, fx, fy - lift + 1, '#140c06', 2, 0.4);
-    pxLine(ctx, hx, hy, mx, my, '#5a4024', 2, 0.4); pxLine(ctx, mx, my, fx, fy - lift, '#6a5030', 1, 0.4);
-    ctx.fillStyle = '#8a6a40'; ctx.fillRect(Math.round(mx), Math.round(my) - 1, 1, 1); // a knot in the bark
-    if (p.rooted) { ctx.fillStyle = '#140c06'; for (const d of [-1, 1]) ctx.fillRect(Math.round(fx + d * 2), Math.round(fy + 1), 1, 2); } // rootlets digging in
-  });
-}
-
 // --- Bone Stilts: two long bone legs taking slow, swaying strides --------------------------
 function drawStiltLegs(ctx, p, bx, by) {
   const stride = p.moving ? Math.sin(p.t * 9) : 0;
@@ -606,14 +578,12 @@ function drawProceduralLimbs(ctx, p, x, y, which) {
   drawCrab(ctx, p, x, y, which);
   drawHaunches(ctx, p, x, y, which);
   drawDiggingClaws(ctx, p, x, y, which);
-  drawRootWalker(ctx, p, x, y, which);
   if (which === 'far') { if (movement(p).stilts) drawStiltLegs(ctx, p, x, y); if (limbRootIs(p, 'fins')) drawPseudopodNubs(ctx, p, x, y); }
 }
 
 function updateProceduralLimbs(p, dt) {
   if (p.pincerAnimT > 0) p.pincerAnimT -= dt;
   updateWalker(p, 'crab', CRAB_LEGS, limbRootIs(p, 'crablegs') && !p.flying, 10, 0.07, dt, (f) => { if (Math.random() < 0.3) Sfx.play('clack'); if (Math.random() < 0.3) stainPx(f.x, f.y, ['#141010'], 1); });
-  updateWalker(p, 'roots', ROOT_LEGS, limbRootIs(p, 'rootlegs'), 9, 0.11, dt, (f) => { if (Math.random() < 0.4) stainPx(f.x, f.y, ['#1e140a', '#2a1c10'], 1); });
   if (limbRootIs(p, 'burrow') && p.moving && Math.random() < 0.35) { const f = p.aimX < 0 ? -1 : 1; game.particles.push({ x: p.x + f * 4, y: p.y + 5, vx: -f * rand(30, 70), vy: rand(-50, -15), life: 0.3, color: Math.random() < 0.5 ? '#3a3230' : '#5a4a3a', size: 1 }); } // dirt flung back
 }
 

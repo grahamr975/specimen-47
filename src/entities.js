@@ -60,7 +60,6 @@ function updateBullets(dt) {
     let bdt = dt;
     if (b.team === 'enemy' && game.player.stats.compound && Math.hypot(b.x - game.player.x, b.y - game.player.y) < 42) bdt *= game.player.stats.compound;
     if (b.team === 'enemy' && game.player.dashT > 0 && game.player.stats.dashEat && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.r + b.r + 4) { b.dead = true; burst(b.x, b.y, '#c8c0b0', 4, 60, 0.2); continue; } // Sidestep
-    if (b.team === 'enemy' && game.player.rootZone > 0 && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.rootZone) bdt *= 0.5; // Root Legs: shots wade through the roots
     if (b.team === 'enemy' && game.player.stats.gasChoke && Math.hypot(b.x - game.player.x, b.y - game.player.y) < (game.player.gasR || 0)) bdt *= 0.4; // Choke
     b.x += b.vx * bdt;
     b.y += b.vy * bdt;

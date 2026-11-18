@@ -556,7 +556,7 @@ const MUTATIONS = {
   },
 
   silk: {
-    name: 'Silk Spinner', slot: 'MOUTH', boss: true, rarity: 'uncommon',
+    name: 'Silk Spinner', slot: 'MOUTH', rarity: 'uncommon',
     desc: 'Fire spins a line of sticky web across the floor. Anything caught in it is stuck, and the silk cuts.',
     apply(s, l) { s.silk = { delay: 0.8, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.2 + 0.6 * l }; },
   },
@@ -1885,7 +1885,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['barbs', 'crablegs', 'urchinquills', 'boneplates', 'spike', 'skull', 'spines', 'marrow', 'hooks', 'flay', 'thornplate', 'needles', 'spinedsegs', 'meteor', 'eruption', 'quake', 'stilts', 'shell', 'calcified', 'hollow', 'regurgitate', 'wallbreaker', 'razorsilk'],
+    tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'chitin', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'mirrorcyst', 'barbs', 'crablegs', 'urchinquills'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -1894,7 +1894,7 @@ const SETS = {
   },
   FUNGAL: {
     name: 'FUNGAL', color: '#9aae50',
-    tags: ['bloom', 'mycelialweb', 'sneeze', 'toadgullet', 'culturejelly', 'bile', 'fins', 'venomspike', 'caustic', 'sporesac', 'brainworm', 'venomquills', 'huskbomb', 'eggpods', 'venombrood', 'toxic', 'carrionfly', 'bileline', 'bilebomb', 'maggotburst', 'bacteria', 'miasma', 'sporepolyp', 'acidgut'],
+    tags: ['culturejelly', 'venomspike', 'bile', 'caustic', 'sporesac', 'miasma', 'sporepolyp', 'acidgut', 'acidsilk', 'glare', 'bloom', 'venomquills', 'huskbomb', 'eggpods', 'toxic', 'cropduster', 'bileline', 'bilebomb', 'fins', 'maggotburst', 'bacteria', 'sneeze', 'toadgullet', 'digestjelly'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a blinding spore cloud.', apply(s) { s.setKillCloud = 18; } },
       { name: 'Fruiting Body', desc: 'Kills burst into clouds, you release spores every few seconds, and your clouds eat flesh.', apply(s) { s.setKillCloud = 22; s.setSporeAura = 4; s.cloudDps = Math.max(s.cloudDps || 0, 1.5); } },
@@ -1903,7 +1903,7 @@ const SETS = {
   },
   HIVE: {
     name: 'HIVE', color: '#e0a830',
-    tags: ['polyp', 'graspingbed', 'feedingpolyps', 'mandibles', 'chitin', 'eggsac', 'spider', 'wings', 'longtube', 'compound', 'antennae', 'silktendril', 'jitter', 'tunnelbrood', 'brood', 'ovipositor', 'silk'],
+    tags: ['ovipositor', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
     bonus: [
       { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling.', apply(s) { s.setKillBrood = 0.35; } },
       { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, and your brood lives twice as long.', apply(s) { s.setKillBrood = 1; s.allyLife = 2; } },
@@ -1912,7 +1912,7 @@ const SETS = {
   },
   PREDATOR: {
     name: 'PREDATOR', color: '#d04848',
-    tags: ['leechspit', 'haunches', 'ratincisors', 'proboscis', 'nighteyes', 'twitch', 'burrow', 'hide', 'starving', 'feral', 'leech', 'lashdrain', 'horns', 'evileye', 'berserkhost', 'huntsman', 'hemophage', 'howl', 'tongue'],
+    tags: ['mandibles', 'leech', 'devour', 'hemorrhage', 'rupture', 'tongue', 'eyes', 'horns', 'nighteyes', 'twitch', 'huntsman', 'burrow', 'hindlegs', 'hemophage', 'starving', 'guthook', 'leechspit', 'haunches', 'ratincisors'],
     bonus: [
       { name: 'Blood Scent', desc: '+35% damage to wounded prey.', apply(s) { s.setWounded = 0.35; } },
       { name: 'Apex', desc: 'Wounded prey takes +50%, every kill sends you into a frenzy, and every 8th kill heals you.', apply(s) { s.setWounded = 0.5; s.setKillFrenzy = true; s.setKillHeal = 8; } },
@@ -1921,7 +1921,7 @@ const SETS = {
   },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8',
-    tags: ['tendrilpolyp', 'splittercells', 'mirrorcyst', 'tentacles', 'eyes', 'parasite', 'grapple', 'mitosis', 'barbedlash', 'vomit', 'mawtendrils', 'bloodbattery', 'bloat', 'banshee', 'lightless', 'splitquills', 'lure', 'biters', 'cilia', 'slipstream', 'secondheart', 'regrow', 'overgrown', 'cancer', 'bloodworm'],
+    tags: ['mawtendrils', 'tentacles', 'writhing', 'strangle', 'lashdrain', 'proboscis', 'bloodworm', 'tendrilpolyp', 'fractured', 'lightless', 'parasite', 'splitquills', 'angler', 'rage', 'biters', 'grapple', 'shredpull', 'secondheart', 'regrow', 'overgrown', 'mitosis', 'cancer', 'splittercells'],
     bonus: [
       { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
       { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },

@@ -27,7 +27,7 @@ function makePlayer() {
     regenT: 0, adrenalT: 0, dripT: 0, chompT: 0,
     lungeT: 0, lungeX: 1, lungeY: 0, hungerT: 0, cancerRooms: 0,
     chargeT: 0, dmgBoost: 1, evolveT: 0, form: null, lastSet: null, gullet: 0, polypKills: 0, venting: false, gasR: 0,
-    stillT: 0, rooted: false, guardHits: 0,
+    stillT: 0,
     mvx: 0, mvy: 0, hopT: 0, hopAir: 0, hopX: 0, hopY: 0, slimeT: 0, flying: false,
     grappleCd: 0, pullT: 0, pull: null,
     limbWear: 0, withdrawT: 0, withdrawn: false, cocoonT: 0, burrowT: 0, trail: [], held: null,
@@ -491,7 +491,6 @@ function attackRate(p) {
   if (s.adrenalRage && p.adrenalT > 0) rate *= 0.5;
   if (s.parasiteFrenzy && p.controlT > 0) rate *= 0.5;
   if (s.slimeRate && (onSlime(p.x, p.y + 3, 6) || inOwnPool(p.x, p.y))) rate *= s.slimeRate;
-  if (p.rooted) rate *= s.rootLegs.rate; // Root Legs
   return rate;
 }
 
@@ -1096,11 +1095,6 @@ function hurtPlayer(dmg) {
     Sfx.play('shield');
     return true;
   }
-  // Ironwood: rooted, every other hit glances off.
-  if (s.rootGuard && p.rooted && ++p.guardHits % 2 === 0) {
-    p.inv = 0.6; burst(p.x, p.y, '#5a4024', 10, 70); floatText(p.x, p.y - 14, 'GLANCED', '#a8844a'); Sfx.play('clank');
-    return true;
-  }
   // Bone Cage: every third hit glances off.
   if (s.hitIgnore && ++p.hitsTaken % s.hitIgnore === 0) {
     p.inv = 0.6;
@@ -1300,8 +1294,7 @@ function drawPlayer(ctx) {
   const tents = limbsOk && !!p.tents; // real, gripping tentacles replace the painted ones
   if (tents) drawTentacles(ctx, p, x, y, 'far');
   if (limbsOk) drawPseudopod(ctx, p, x, y);
-  drawRootZone(ctx, p);
-  if (limbsOk) drawProceduralLimbs(ctx, p, x, y, 'far'); // crab legs, haunches, claws, roots, stilts (bodyfx.js)
+  if (limbsOk) drawProceduralLimbs(ctx, p, x, y, 'far'); // crab legs, haunches, claws, stilts (bodyfx.js)
   // Squash, stretch and tilt the body around its feet.
   const ay = y + 8;
   ctx.save(); ctx.translate(x, ay); if (pose.rot) ctx.rotate(pose.rot); ctx.scale(pose.sx, pose.sy); ctx.translate(-x, -ay);

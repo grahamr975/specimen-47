@@ -616,13 +616,6 @@ function updateEnemies(dt) {
         if (e.dead) { if (p.stats.flowerHeal && Math.random() < p.stats.flowerHeal) healPlayer(1); continue; }
         if (p.stats.flowerStun) inflict(e, 'stun', { t: p.stats.flowerStun });
       }
-      // Briar: hooked thorns fling it back, bleeding (Strangling Briar: and hold it).
-      if (p.stats.briar && !(e.briarT > game.time)) {
-        e.briarT = game.time + 0.5;
-        knock(e, e.x - p.x, e.y - p.y, 260);
-        inflict(e, 'bleed', { t: 3, dps: 1.5 });
-        if (p.stats.briarHold) inflict(e, 'stun', { t: p.stats.briarHold });
-      }
       // Urchin Hide: touching you sets off your shard ring.
       if (p.stats.urchinHide && p.stats.ring > 0 && !(p.urchinT > game.time)) { p.urchinT = game.time + 0.6; fireRing(p, p.stats.ring); }
       // Thorned Plate: your shell shreds whatever touches it.

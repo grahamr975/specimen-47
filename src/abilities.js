@@ -49,7 +49,7 @@ function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
   a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
-  if (kind === 'polyp') { const pp = game.player.stats.polyp || game.player.stats.grovePolyp; a.r = 4; a.life = pp ? pp.life : 10; }
+  if (kind === 'polyp') { const pp = game.player.stats.polyp; a.r = 4; a.life = pp ? pp.life : 10; }
   game.allies.push(a);
   return a;
 }
@@ -631,7 +631,7 @@ function polypPop(a) {
 
 function updatePolyp(a, dt) {
   const p = game.player, s = p.stats;
-  const pp = s.polyp || s.grovePolyp; // Polyp Seeder, or a grove growing around you
+  const pp = s.polyp; // Polyp Seeder
   if (!pp) { a.dead = true; return; }
   a.shootT -= dt;
   if (s.polypBurst) for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1) { polypPop(a); return; }
@@ -870,20 +870,10 @@ function drawWebs(ctx) {
   }
 }
 
-// --- The Plant path ------------------------------------------------------------------------
+// --- Bloom: pollen ------------------------------------------------------------------------
 function pollinate(e, s) {
   inflict(e, 'pollen', { t: 4 });
-  applyHitEffects(e, 'pollen'); // Spore Bloom, Hay Fever
-}
-
-// A polyp sprouting from the ground around you (Grove, Seedfall, Overgrowth).
-function sproutPolyp(p, x, y) {
-  if (pointSolid(game.room, x, y)) return;
-  const grown = game.allies.filter(a => a.kind === 'polyp' && a.grove && !a.dead);
-  if (grown.length >= 3) witherPolyp(grown[0]);
-  const a = spawnAlly('polyp', x, y);
-  a.grove = true; a.shootT = 0.5;
-  burst(x, y + 3, '#4e3a20', 6, 40);
+  applyHitEffects(e, 'pollen'); // Hay Fever and friends
 }
 
 function updatePlant(p, dt) {
@@ -895,100 +885,8 @@ function updatePlant(p, dt) {
     burst(p.x, p.y - 8, '#e8d040', 14, 70, 0.7);
     for (const e of enemiesNear(p.x, p.y, s.pollen.r)) pollinate(e, s);
   }
-  // Standing still: Root Legs take root; the Plant set photosynthesizes.
+  // How long you've stood still (Snail Shell and friends read it).
   if (!p.moving && p.dashT <= 0 && p.pullT <= 0) p.stillT = (p.stillT || 0) + dt; else p.stillT = 0;
-  const was = p.rooted;
-  p.rooted = !!(s.rootLegs && !(p.limbWear > 0) && p.stillT >= s.rootLegs.delay);
-  if (p.rooted && !was) { burst(p.x, p.y + 5, '#3a2a18', 8, 40); Sfx.play('chomp'); }
-  if (!p.rooted && was) burst(p.x, p.y + 5, '#3a2a18', 6, 60);
-  // Uproot: tear free of the roots after a real stand, and they fling you onward.
-  if (!p.rooted && was && p.rootedFor > 0.4 && p.moving && p.dashT <= 0) uproot(p);
-  p.rootedFor = p.rooted ? (p.rootedFor || 0) + dt : 0;
-  // The root zone: roots spread out around you, snaring and wearing down anything that steps in.
-  p.rootZone = p.rooted ? s.rootLegs.zone * Math.min(1, p.rootedFor / 0.35) : 0;
-  if (p.rootZone > 0) for (const e of game.enemies) {
-    if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > p.rootZone + e.r) continue;
-    inflict(e, 'web', { t: 0.15 });
-    damageEnemy(e, s.rootLegs.dps * s.damage * dt, 0, 0, true);
-  }
-  let rate = p.rooted ? s.rootLegs.heal : 0;
-  if (s.setStillRegen && p.stillT > 1) rate = rate ? Math.min(rate, s.setStillRegen) : s.setStillRegen;
-  if (rate && p.hp < p.maxHp) {
-    if ((p.stillHealT = (p.stillHealT || 0) + dt) >= rate) { p.stillHealT = 0; healPlayer(1, '#7ab84a'); }
-  } else p.stillHealT = 0;
-  if (p.rooted) {
-    if (s.taproot) for (const c of game.room.corpses) { // Taproot: the dead dissolve into you
-      if (c.dead || Math.hypot(c.x - p.x, c.y - p.y) > s.taproot + c.r) continue;
-      c.hp -= 1.5 * dt; c.shake = 0.1;
-      if (Math.random() < dt * 6) game.particles.push({ x: c.x + rand(-3, 3), y: c.y, vx: (p.x - c.x) * 2, vy: (p.y - c.y) * 2, life: 0.4, color: '#5e2229', size: 1 });
-      if (c.hp <= 0) burstCorpse(c);
-    }
-    if (s.rootDrain) for (const e of game.enemies) { // Leech Roots
-      if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 40 + e.r) continue;
-      damageEnemy(e, s.rootDrain * s.damage * dt, 0, 0, true);
-      p.drained = (p.drained || 0) + s.rootDrain * dt;
-      if (p.drained >= 12) { p.drained = 0; healPlayer(1); }
-    }
-    if (s.rootLash && (p.rootLashT = (p.rootLashT || 0) - dt) <= 0) { // Strangler
-      p.rootLashT = s.rootLash;
-      for (const e of game.enemies) {
-        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 36 + e.r) continue;
-        game.fx.push({ kind: 'whip', x1: p.x, y1: p.y + 2, x2: e.x, y2: e.y, t: 0.12 });
-        damageEnemy(e, Math.max(2, s.thorns) * 0.8, e.x - p.x, e.y - p.y, true);
-      }
-    }
-  }
-  // Grove / Overgrowth: polyps sprout around you while you stand still.
-  if (s.grove && (p.rooted || (s.groveAnywhere && p.stillT > 1)) && game.room.locked && (p.groveT = (p.groveT ?? 1) - dt) <= 0) {
-    p.groveT = s.grove;
-    const a = rand(0, Math.PI * 2);
-    sproutPolyp(p, p.x + Math.cos(a) * 16, p.y + Math.sin(a) * 12);
-  }
-  // Seedfall: seeds drop as you walk.
-  if (s.seedfall && p.moving && game.room.locked && (p.seedT = (p.seedT ?? s.seedfall) - dt) <= 0) {
-    p.seedT = s.seedfall;
-    sproutPolyp(p, p.x, p.y + 2);
-  }
-}
-
-// Root Legs: knotted roots for legs; when you stand still they dig into the floor.
-// Torn free: the roots fling you forward, untouchable for a moment.
-function uproot(p) {
-  p.dashT = 0.13; p.dashX = p.inX || p.aimX; p.dashY = p.inY || p.aimY;
-  p.inv = Math.max(p.inv, 0.25); p.dashHit.clear();
-  for (let i = 0; i < 8; i++) game.particles.push({ x: p.x + rand(-6, 6), y: p.y + rand(2, 6), vx: rand(-60, 60), vy: rand(-80, -10), life: 0.4, color: i % 2 ? '#3a2a18' : '#5a4024', size: 2 });
-  stain(p.x, p.y + 5, 3, ['#1e140a', '#2a1c10']);
-  Sfx.play('creak'); Sfx.play('dash');
-}
-
-// The root zone on the floor: tendrils reaching out to its edge.
-function drawRootZone(ctx, p) {
-  if (!(p.rootZone > 0)) return;
-  const z = p.rootZone;
-  ctx.globalAlpha = 0.55;
-  pxRing(ctx, p.x, p.y + 4, z, '#2a1c10');
-  for (let i = 0; i < 12; i++) {
-    const a = i * Math.PI / 6 + Math.sin(i * 2.3) * 0.2, wob = Math.sin(p.t * 2 + i) * 1.5;
-    pxLine(ctx, p.x, p.y + 5, p.x + Math.cos(a) * z, p.y + 4 + Math.sin(a) * z * 0.7 + wob, i % 2 ? '#3a2a18' : '#5a4024', 1, 1.5);
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawRootLegs(ctx, p, x, y) {
-  drawRootZone(ctx, p);
-  const dark = '#140c06', bark = '#5a4024', moving = p.moving && !p.rooted;
-  for (let k = 0; k < 5; k++) {
-    const hx = x - 4 + k * 2, hy = y + 4;
-    let fx, fy;
-    if (p.rooted) { fx = x - 10 + k * 5; fy = p.y + 7 + (k % 2); }
-    else { fx = x - 5 + k * 2.5 + (moving ? Math.sin(p.t * 12 + k * 1.7) * 2 : 0); fy = p.y + 5; }
-    pxLine(ctx, hx, hy + 1, fx, fy + 1, dark, 1, 0.5);
-    pxLine(ctx, hx, hy, fx, fy, bark, 1, 0.5);
-    if (p.rooted) { // tendrils into the floor
-      ctx.fillStyle = dark;
-      ctx.fillRect(Math.round(fx + (k % 2 ? 1 : -1)), Math.round(fy + 1), 1, 2);
-    }
-  }
 }
 
 // --- Branch upkeep: things that tick along while you play --------------------------------

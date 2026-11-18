@@ -124,6 +124,17 @@ try {
     const noIcon = ids.filter(id => (!MUTATIONS[id].part || id === 'slime') && !mutIcon(id));
     check('every node has art' + (noIcon.length ? ' (' + noIcon.join(',') + ')' : ''), !noIcon.length);
     log.push(`tree: ${SLOTS.map(s => s + ' ' + rootsOf(s).length + ' roots').join(', ')}; ${leaves().length} end forms; ${ids.length} nodes`);
+    { // Nothing points at a part that no longer exists, and every offered part belongs to a set.
+      const missing = [];
+      for (const k in SPLICES) for (const ids of SPLICES[k].parts) for (const id of ids) if (!MUTATIONS[id]) missing.push('splice ' + k + ':' + id);
+      for (const k in HINTS) if (!MUTATIONS[k]) missing.push('hint ' + k);
+      for (const k in SETS) for (const id of SETS[k].tags) if (!MUTATIONS[id]) missing.push('set ' + k + ':' + id);
+      for (const id in MUTATIONS) if (MUTATIONS[id].from && !MUTATIONS[MUTATIONS[id].from]) missing.push('parent of ' + id);
+      check('no splice, hint, set or branch refers to a missing part' + (missing.length ? ' (' + missing.join(', ') + ')' : ''), !missing.length);
+      const setless = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && !setOf(id));
+      check('every offered part belongs to a set' + (setless.length ? ' (' + setless.join(',') + ')' : ''), !setless.length);
+      const lonely = Object.keys(MUTATIONS).filter(id => childrenOf(id).length === 1 && !MUTATIONS[rootOf(id)].graft); // (devoured traits evolve once, on purpose)
+      check('no fork offers only one way to go' + (lonely.length ? ' (' + lonely.join(',') + ')' : ''), !lonely.length); }
 
     newRun(); combatRoom(); let p = game.player;
     applyChoice(p, { id: 'spines' });
@@ -503,7 +514,7 @@ try {
     render();
     // Boss picks now turn up (rarely) in vials of their kind, never in the first room's vial.
     { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }
-      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300 wild cards)`, seen > 30 && seen < 120 && first > 10 && first < 100); }
+      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300 wild cards)`, seen > 15 && seen < 120 && first > 10 && first < 100); }
   }
   { // 0s) The Ultimate Metamorphosis.
     newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
