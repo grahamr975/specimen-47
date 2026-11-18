@@ -79,7 +79,7 @@ function baseStats() {
     guns: [],     // projectile weapons (see gun() below)
     rangeAdd: 0, speedAdd: 0, // extra shot range / speed (Extra Eyes, Bone Lance)
     bite: false, biteDmg: 0, biteDelay: 9, biteReach: 18, biteAcid: 0, biteHeal: 0, doubleBite: false, leech: 0,
-    lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, pull: false,
+    lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, mawTendrils: 0,
     lunge: false, lungeDmg: 0, lungeDelay: 9,
     beam: 0, beamRange: 70, vomit: 0, vomitDmg: 0, vomitDelay: 9,
     // Firing style: WHAT you fire comes from MOUTH; HOW can be changed by a
@@ -286,8 +286,8 @@ const MUTATIONS = {
   },
   mawtendrils: {
     name: 'Maw Tendrils', from: 'mandibles', rarity: 'rare', overlay: ['tentacles'], icon: ['mandibles', 'tentacles'],
-    desc: 'Tendrils too, and they drag prey straight into your jaws.',
-    apply(s, l) { MUTATIONS.tentacles.apply(s, 1); s.pull = true; s.biteReach += 6; },
+    desc: 'Mouths grow on tendrils from your throat. Every bite sends two after the nearest other prey around you, and they bite too (half damage).',
+    apply(s) { s.mawTendrils = 2; },
   },
   leech: {
     name: 'Leech Mouth', from: 'mawtendrils', rarity: 'uncommon', overlay: ['leech'], icon: ['mandibles', 'hemophage'],
@@ -1623,7 +1623,7 @@ const HINTS = {
   feral: 'You no longer want to wait for them. You want to pounce.',
   apexjaws: 'Every leap ends twice. Every kill, you leap again.',
   rending: 'What you leap on, you open. What is open feeds you.',
-  mawtendrils: 'Something long uncoils in your throat. It brings food to your jaws.',
+  mawtendrils: 'Something long uncoils in your throat. It has teeth.',
   leech: 'A ring of tiny teeth. Every small taste comes back to you.',
   devour: 'Your jaw unhinges. The weak ones fit.',
   tentacles: 'Something long uncoils in your throat, reaching.',

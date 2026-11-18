@@ -798,8 +798,17 @@ function bite(p, dmg, arrived = false, prey = null) {
     else strikeSeal(p.x + p.aimX * reach * 0.6, p.y + p.aimY * reach * 0.6, reach * 0.6);
     game.fx.push({ kind: 'bite', x: c ? (p.x + c.x) / 2 : fx, y: c ? (p.y + c.y) / 2 : fy, t: 0.1 });
     Sfx.play('bite');
+    if (s.mawTendrils) sendMawTendrils(p, dmg, null);
     return;
   }
+  biteLand(p, target, dmg);
+  if (s.mawTendrils) sendMawTendrils(p, dmg, target);
+}
+
+// Where a bite sinks in: your own jaws, or the mouth on a Maw Tendril
+// (a tendril bite staggers for less, and doesn't burst Bone Jaws spikes).
+function biteLand(p, target, dmg, tendril = false) {
+  const s = p.stats;
   if (s.meltBite && inOwnPool(target.x, target.y)) { dmg *= 3; floatText(target.x, target.y - 10, 'MELT', '#b0c040'); }
   const bleeding = hasStatus(target, 'bleed');
   // Devour: a badly wounded enemy is swallowed whole.
@@ -809,8 +818,8 @@ function bite(p, dmg, arrived = false, prey = null) {
   }
   meleeHit(p, target, dmg, target.x - p.x, target.y - p.y);
   // Bitten prey reels: for a moment it can't move, shoot, or hurt you.
-  if (!target.dead && !isBoss(target)) target.staggerT = Math.max(target.staggerT || 0, BITE_STAGGER);
-  if (s.boneJaws) {
+  if (!target.dead && !isBoss(target)) target.staggerT = Math.max(target.staggerT || 0, tendril ? BITE_STAGGER * 0.5 : BITE_STAGGER);
+  if (s.boneJaws && !tendril) {
     // Bone Jaws: a spike bursts out through the back of the victim.
     const d = Math.hypot(target.x - p.x, target.y - p.y) || 1, ux = (target.x - p.x) / d, uy = (target.y - p.y) / d;
     spawnBullet({ x: target.x + ux * 4, y: target.y + uy * 4, vx: ux * 190, vy: uy * 190, r: 2, dmg: dmg * 0.8, life: 0.5, pierce: 1, kind: 'shot', color: '#cfc4a4', hitSet: new Set([target]) });
@@ -825,8 +834,21 @@ function bite(p, dmg, arrived = false, prey = null) {
   if (s.leech && ++p.leechHits >= s.leech) { p.leechHits = 0; healPlayer(1); }
   if (s.biteAcid) spawnPuddle(target.x, target.y, s.biteAcid, 2, 'player');
   if (s.biteHeal && Math.random() < s.biteHeal) healPlayer(1);
-  game.fx.push({ kind: 'bite', x: (p.x + target.x) / 2, y: (p.y + target.y) / 2, t: 0.12 });
+  game.fx.push({ kind: 'bite', x: tendril ? target.x : (p.x + target.x) / 2, y: tendril ? target.y : (p.y + target.y) / 2, t: 0.12 });
   Sfx.play('bite');
+}
+
+// Maw Tendrils: every bite also sends mouthed tendrils after the nearest
+// other prey around you (any direction). Each bites when it arrives, and
+// counts as a bite (Leech Mouth, Devour, Acid Maw...).
+const MAW_RANGE = 70, MAW_DMG = 0.5;
+function sendMawTendrils(p, dmg, skip) {
+  const s = p.stats, boost = p.dmgBoost || 1;
+  const prey = game.enemies
+    .filter(e => e !== skip && !e.dead && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) - e.r < MAW_RANGE)
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))
+    .slice(0, s.mawTendrils);
+  for (const e of prey) game.whips.push({ tx: e.x, ty: e.y, target: e, len: 0, out: true, boost, maw: true, dmg: dmg * MAW_DMG });
 }
 
 // Tentacles: lash the nearest few enemies in front of you.
@@ -871,6 +893,10 @@ function updateWhips(dt) {
 
 function whipLands(p, w) {
   const s = p.stats;
+  if (w.maw) { // a mouthed tendril bites what it reaches
+    if (w.target && !w.target.dead) { const keep = p.dmgBoost; p.dmgBoost = w.boost; biteLand(p, w.target, w.dmg, true); p.dmgBoost = keep; }
+    return;
+  }
   if (w.target && !w.target.dead) {
     const keep = p.dmgBoost; p.dmgBoost = w.boost; // a charged lash keeps its charge in flight
     lashHit(p, w.target);
@@ -886,6 +912,13 @@ function drawWhips(ctx) {
     const x2 = p.x + (w.tx - p.x) / d * w.len, y2 = p.y + (w.ty - p.y) / d * w.len;
     pxLine(ctx, p.x, p.y, x2, y2, '#120a0e', 2);
     pxLine(ctx, p.x, p.y, x2, y2, '#a8534f', 1);
+    if (w.maw) { // a little mouth on the tip: jaws open on the way out, shut on the way back
+      const ux = (w.tx - p.x) / d, uy = (w.ty - p.y) / d, gape = w.out ? 2 : 0.5;
+      ctx.fillStyle = '#120a0e'; ctx.fillRect(Math.round(x2) - 2, Math.round(y2) - 2, 4, 4);
+      ctx.fillStyle = '#e8dcc0';
+      ctx.fillRect(Math.round(x2 + ux - uy * gape), Math.round(y2 + uy + ux * gape), 1, 1);
+      ctx.fillRect(Math.round(x2 + ux + uy * gape), Math.round(y2 + uy - ux * gape), 1, 1);
+    }
   }
 }
 
@@ -914,11 +947,6 @@ function lashHit(p, e) {
       }
     }
     if (s.lashAcid) spawnPuddle(e.x, e.y, s.lashAcid, 2, 'player');
-    if (s.pull && !e.dead) {
-      // Drag them in toward your jaws.
-      const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-      e.kx -= (e.x - p.x) / d * 260; e.ky -= (e.y - p.y) / d * 260;
-    }
   }
 }
 

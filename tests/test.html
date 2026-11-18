@@ -229,6 +229,15 @@ try {
     let r = dummy(12);
     p.aimX = 1; p.aimY = 0; fireFor(70); const before = r.hp; fireFor(1, false);
     check(`charged bite hits harder (${(before - r.hp).toFixed(1)} dmg vs ${p.stats.biteDmg.toFixed(1)} normal)`, before - r.hp > p.stats.biteDmg * 2);
+    // Maw Tendrils: a bite sends mouthed tendrils after other prey, and they bite (not lash).
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.whips = [];
+    grow(p, 'mandibles', 'mawtendrils');
+    r = dummy(12); const behind = dummy(-40), far = dummy(-150);
+    p.aimX = 1; p.aimY = 0; bite(p, p.stats.biteDmg);
+    check(`maw tendrils: a bite sends mouths after other prey (${game.whips.filter(w => w.maw).length})`, game.whips.length === 1 && game.whips[0].maw && game.whips[0].target === behind);
+    check('maw tendrils add no lash weapon', !p.stats.lash);
+    for (let i = 0; i < 20; i++) { p.hp = p.maxHp; p.inv = 1; updateWhips(1 / 60); }
+    check(`...and the tendril mouth bites what's behind you (${(99 - behind.hp).toFixed(1)} dmg), out of range is safe`, behind.hp < 99 && 99 - behind.hp < p.stats.biteDmg && far.hp === 99);
     // Weapons stack on their own timers; Bone Jaws is now a splice (Bone Spike + Mandibles).
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = [];
     grow(p, 'shotgun', 'mandibles'); r = dummy(14);
