@@ -15,7 +15,6 @@ function makePlayer() {
     // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
     // You're born with nothing at all: the first room holds a MOUTH vial.
     parts: [], capacity: START_SLOTS,
-    quirk: null, // your birth defect: chosen with your first mouth
     limbCd: 0, headCd: 0,
     cd: {}, twinT: 0,         // per-weapon cooldowns (every weapon fires on its own timer)
     moltT: 0, ringT: 0, glareT: 0, frenzyT: 0, ambushT: 0, hitsTaken: 0, setKills: 0, setKey: '', splices: [], armorKills: 0, bloodDna: 0,
@@ -42,7 +41,6 @@ function makePlayer() {
 function recomputeStats(p) {
   const s = baseStats();
   for (const m of p.parts) applyMutation(s, m, p);
-  if (p.quirk && QUIRKS[p.quirk]) QUIRKS[p.quirk].apply(s); // your birth defect
   if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
   // Set bonus: 3 (or 5) parts of the same set.
   const set = activeSet(p);

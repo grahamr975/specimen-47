@@ -76,11 +76,58 @@ function enterRoom(room, side) {
     } else {
       room.cleared = true;
       if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, game.depth === 1 && room.vialLoc === 'LIMBS' ? { loc: 'LIMBS', minRarity: null, plain: true } : { loc: room.vialLoc }); // floor 1's limbs: any limbs, and maybe a wild card
-      // You're born with nothing: the first room holds your first mouth (off to one side, out of the way).
-      if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) spawnPickup('vial', ROOM_PX_W / 2 - 40, ROOM_PX_H / 2 - 30, { loc: 'MOUTH', minRarity: null, plain: true, defects: true });
+      // You're born with nothing, sealed in a containment cell with your first weapon's vial.
+      // Eat it and the glass gives way.
+      if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) {
+        const cx = ROOM_PX_W / 2, cy = ROOM_PX_H / 2;
+        room.cage = { x0: cx - CAGE_W / 2, y0: cy - CAGE_H / 2, x1: cx + CAGE_W / 2, y1: cy + CAGE_H / 2 };
+        p.x = cx - 12; p.y = cy;
+        spawnPickup('vial', cx + 14, cy, { loc: 'MOUTH', minRarity: null, plain: true });
+      }
     }
   }
   game.fade = 0.2;
+}
+
+// --- The containment cell you wake up in ------------------------------------------
+const CAGE_W = 56, CAGE_H = 40;
+function holdInCage(p) {
+  const c = game.room && game.room.cage;
+  if (!c) return;
+  const m = p.r + 2;
+  p.x = clamp(p.x, c.x0 + m, c.x1 - m);
+  p.y = clamp(p.y, c.y0 + m, c.y1 - m);
+}
+function breakCage(room) {
+  const c = room.cage;
+  if (!c) return;
+  room.cage = null;
+  const cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2;
+  for (let i = 0; i < 46; i++) { // the glass bursts outward
+    const t = Math.random(), side = i % 4;
+    const x = side === 0 ? c.x0 + t * CAGE_W : side === 1 ? c.x1 : side === 2 ? c.x0 + t * CAGE_W : c.x0;
+    const y = side === 0 ? c.y0 : side === 1 ? c.y0 + t * CAGE_H : side === 2 ? c.y1 : c.y0 + t * CAGE_H;
+    const a = Math.atan2(y - cy, x - cx) + rand(-0.4, 0.4), v = rand(60, 170);
+    game.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.4, 0.9), color: Math.random() < 0.6 ? '#bfe0e8' : '#6a8a94', size: Math.random() < 0.3 ? 2 : 1 });
+  }
+  game.shake = Math.max(game.shake, 6);
+  hitstop(0.06);
+  Sfx.play('blast');
+  whisper('The glass was never going to hold you.');
+}
+function drawCage(ctx) {
+  const c = game.room && game.room.cage;
+  if (!c) return;
+  const w = c.x1 - c.x0, h = c.y1 - c.y0;
+  ctx.fillStyle = 'rgba(150,200,215,0.10)'; ctx.fillRect(c.x0, c.y0, w, h);       // the glass
+  ctx.fillStyle = 'rgba(190,230,240,0.35)';                                        // glints
+  ctx.fillRect(c.x0 + 4, c.y0 + 3, 10, 1); ctx.fillRect(c.x0 + 4, c.y0 + 3, 1, 6); ctx.fillRect(c.x1 - 12, c.y1 - 4, 8, 1);
+  ctx.fillStyle = '#4a5458';                                                       // steel frame
+  ctx.fillRect(c.x0 - 1, c.y0 - 1, w + 2, 2); ctx.fillRect(c.x0 - 1, c.y1 - 1, w + 2, 2);
+  ctx.fillRect(c.x0 - 1, c.y0 - 1, 2, h + 2); ctx.fillRect(c.x1 - 1, c.y0 - 1, 2, h + 2);
+  ctx.fillStyle = '#7a868a';
+  for (const [x, y] of [[c.x0, c.y0], [c.x1, c.y0], [c.x0, c.y1], [c.x1, c.y1]]) ctx.fillRect(x - 2, y - 2, 4, 4); // corner bolts
+  drawText(ctx, 'SPECIMEN 47', (c.x0 + c.x1) / 2, c.y0 - 9, '#7a868a', 1, 'center', null);
 }
 
 // Walk through a doorway to change rooms. The first time, a boss lair's door
@@ -171,6 +218,7 @@ function update(dt) {
   updateWhisper(dt);
 
   updatePlayer(dt);
+  holdInCage(game.player);
   // Fight or Flight: for a moment after you're hurt, everything else crawls.
   let wdt = dt;
   if (game.slowT > 0) { game.slowT -= dt; wdt = dt * 0.35; }
@@ -308,6 +356,7 @@ function render() {
   drawEnemies(ctx);
   drawAllies(ctx);
   if (game.state === 'play') drawPlayer(ctx);
+  drawCage(ctx);
   drawParticles(ctx, false);
   drawClouds(ctx);
   drawLighting(ctx);
@@ -343,8 +392,6 @@ function render() {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     drawText(ctx, 'PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, PAL.white, 3, 'center');
     drawText(ctx, 'PRESS P TO RESUME  -  J: SPLICE JOURNAL', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
-    const bq = QUIRKS[game.player.quirk];
-    if (bq) { drawText(ctx, 'BORN ' + bq.name, VIEW_W / 2, VIEW_H / 2 + 34, '#e8a020', 1, 'center'); wrapText(bq.desc.toUpperCase(), 70).forEach((l, i) => drawText(ctx, l, VIEW_W / 2, VIEW_H / 2 + 44 + i * 8, PAL.slate, 1, 'center')); }
   }
   if (game.journal) drawJournal(ctx);
   if (game.state === 'dead') drawGameOver(ctx);

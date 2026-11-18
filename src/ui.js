@@ -7,20 +7,13 @@
 // Pick one of 3 cards. A card is a new PART for a free slot, or the next
 // BRANCH of a part you're growing (which locks out its sibling). Cards
 // deliberately do NOT explain what mutations do: you learn by growing them.
-// Your first mouth comes with a birth defect: each card offers a different one.
-function withDefects(p, cards, on) {
-  if (!on || p.quirk) return cards;
-  const keys = Object.keys(QUIRKS).sort(() => Math.random() - 0.5);
-  cards.forEach((c, i) => { if (c.id !== '_gorge') c.quirk = keys[i % keys.length]; });
-  return cards;
-}
 
 function openEvolution(opts) {
   const p = game.player;
   if (opts.apex) { becomeApex(p); return; } // the ultimate metamorphosis has no cards
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
-      : opts.trait ? traitCards(p, opts.trait).concat([{ id: '_gorge' }]) : opts.levelUp ? rollLevelUps(p, 3) : withDefects(p, rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain), opts.defects),
+      : opts.trait ? traitCards(p, opts.trait).concat([{ id: '_gorge' }]) : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
     color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,
@@ -157,7 +150,6 @@ function drawCard(ctx, info, i, x, y, menu) {
   }
 
   // It would complete a splice: don't say which, just let it pulse.
-  if (info.quirk && QUIRKS[info.quirk]) drawText(ctx, 'BORN ' + QUIRKS[info.quirk].name, cx, y + h - 20, '#e8a020', 1, 'center'); // its birth defect
   else if (info.stirs && Math.floor(menu.t * 3) % 3) drawText(ctx, 'SOMETHING STIRS', cx, y + h - 20, VIAL_COLOR, 1, 'center');
   drawText(ctx, `[${i + 1}]`, cx, y + h - 10, hover ? rc : PAL.slate, 1, 'center');
 }
@@ -186,9 +178,8 @@ function drawMenu(ctx) {
     // Hovering a card: what that kind of part does, in plain words.
     const hov = menu.hover >= 0 && menu.choices[menu.hover] && choiceInfo(p, menu.choices[menu.hover]);
     const help = hov && (hov.kind === 'level' ? LEVEL_HELP : LOC_HELP[hov.slot]);
-    const bq = hov && QUIRKS[hov.quirk];
-    if (bq) { drawText(ctx, help || '', VIEW_W / 2, 198, '#c8b8a8', 1, 'center'); wrapText('BORN ' + bq.name + ': ' + bq.desc.toUpperCase(), 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 207 + i * 8, '#e8a020', 1, 'center')); }
-    else if (help) wrapText(help, 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 201 + i * 8, '#c8b8a8', 1, 'center'));
+
+    if (help) wrapText(help, 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 201 + i * 8, '#c8b8a8', 1, 'center'));
     else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
@@ -230,7 +221,6 @@ function drawHUD(ctx) {
     const urgent = p.hungerT > p.stats.starve - 6;
     if (!urgent || Math.floor(game.time * 4) % 2) drawText(ctx, urgent ? 'STARVING' : 'HUNGRY', 48, 21, COST_COLOR);
   } else if (Sfx.muted) drawText(ctx, 'MUTED', 48, 21, PAL.slate);
-  else if (QUIRKS[p.quirk]) drawText(ctx, QUIRKS[p.quirk].name, 48, 21, '#8a6a3a'); // your birth defect
 
   // Room status message
   const room = game.room;
@@ -499,7 +489,6 @@ function drawGameOver(ctx) {
     drawText(ctx, label, VIEW_W / 2 + 8, 130 + i * row, mutColor(p, m.id));
   });
   if (p.parts.length > 6) drawText(ctx, `+${p.parts.length - 6} MORE`, VIEW_W / 2 + 8, 130 + 6 * row, PAL.slate);
-  if (QUIRKS[p.quirk]) drawText(ctx, 'BORN ' + QUIRKS[p.quirk].name, VIEW_W / 2, 112, '#e8a020', 1, 'center');
   if (p.splices.length) drawText(ctx, 'SPLICED: ' + p.splices.map(k => SPLICES[k].name.toUpperCase()).join(', '), VIEW_W / 2, 182, VIAL_COLOR, 1, 'center');
 
   if (game.overT > 1 && Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK TO TRY AGAIN', VIEW_W / 2, 200, PAL.white, 1, 'center');

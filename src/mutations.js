@@ -2212,27 +2212,6 @@ const TINTS = {
   heartwood: ['#6a5030', 0.45], overgrown: ['#9a2030', 0.35], boneplates: ['#d8ccb0', 0.3], mirrorcyst: ['#a8c8e0', 0.35],
 };
 
-// ===========================================================================
-// BIRTH DEFECTS. Every run, you're born with one at random: a twist (good,
-// bad, or both) so the same start never plays quite the same.
-// ===========================================================================
-const QUIRKS = {
-  brittle:       { name: 'BRITTLE',        desc: '+20% damage, -1 max health.',                                apply(s) { s.damageMul *= 1.2; s.maxHp -= 1; } },
-  thickskin:     { name: 'THICK-SKINNED',  desc: '+1 max health, but a little slower.',                         apply(s) { s.maxHp += 1; s.speedMul *= 0.9; } },
-  twitchy:       { name: 'TWITCHY',        desc: 'Your dash recovers much faster; you attack a little slower.', apply(s) { s.dashCd *= 0.6; s.rateMul *= 1.12; } },
-  hungry:        { name: 'HUNGRY',         desc: 'Biomass comes 25% faster, but you starve if you go too long without eating.', apply(s) { s.dnaMul *= 1.25; s.starve = s.starve ? Math.min(s.starve, 50) : 50; } },
-  albino:        { name: 'ALBINO',         desc: 'A much bigger light, but 10% less biomass.',                 apply(s) { s.lightMul *= 1.4; s.dnaMul *= 0.9; } },
-  secondstomach: { name: 'SECOND STOMACH', desc: 'You devour corpses from further away, and they give 15% more biomass.', apply(s) { s.devourReach = 8; s.dnaMul *= 1.15; } },
-  racingheart:   { name: 'RACING HEART',   desc: 'You attack 12% faster, but recover from hits faster too (less time untouchable).', apply(s) { s.rateMul *= 0.88; s.invuln *= 0.7; } },
-  bloated:       { name: 'BLOATED',        desc: '+2 max health, but slower, and slower to dash.',              apply(s) { s.maxHp += 2; s.speedMul *= 0.85; s.dashCd *= 1.25; } },
-  lucky:         { name: 'LUCKY MUTANT',   desc: 'Rare and legendary mutations turn up more. -1 max health.',  apply(s) { s.luck = 1.6; s.maxHp -= 1; } },
-  sticky:        { name: 'STICKY',         desc: 'You leave slime everywhere, and enemies stick in it. A little slower.', apply(s) { s.alwaysSlime = true; s.slimeSlow = Math.max(s.slimeSlow || 0, 0.45); s.speedMul *= 0.95; } },
-  spiteful:      { name: 'SPITEFUL',       desc: 'Getting hurt bursts bone shards out of you. 5% less damage.', apply(s) { s.hurtRing = (s.hurtRing || 0) + 6; s.damageMul *= 0.95; } },
-  gluttonous:    { name: 'GLUTTONOUS',     desc: 'Corpses you devour sometimes heal you. -1 max health.',      apply(s) { s.corpseHeal = 0.25; s.maxHp -= 1; } },
-  nocturnal:     { name: 'NOCTURNAL',      desc: '+30% damage to enemies in the dark, but a smaller light.',  apply(s) { s.nightEyes += 0.3; s.lightMul *= 0.8; } },
-  swift:         { name: 'SWIFT',          desc: '15% faster, 8% less damage.',                                 apply(s) { s.speedMul *= 1.15; s.damageMul *= 0.92; } },
-};
-
 // --- Tree helpers -------------------------------------------------------------------
 function getMutDef(id) { return MUTATIONS[id]; }
 
@@ -2436,7 +2415,7 @@ function isMetamorph(p, c) {
 // `onlyLoc`: a devoured boss core offers only CORE cards.
 function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
   const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
-  const luck = r => (r === 'rare' || r === 'legendary') ? (1 + 0.2 * (game.depth - 1)) * (p.stats.luck || 1) : 1; // (Lucky Mutant)
+  const luck = r => (r === 'rare' || r === 'legendary') ? (1 + 0.2 * (game.depth - 1)) : 1;
   const weight = c => {
     const d = MUTATIONS[c.id];
     let w = RARITY[d.rarity].weight * luck(d.rarity);
@@ -2582,7 +2561,7 @@ function choiceInfo(p, c) {
     id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, cost: d.cost, malignant: !!d.malignant, cures: !!d.cures, set,
     slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id),
     tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
-    noteLines: c.kind === 'branch' && m ? [MUTATIONS[m.id].name + ' ->', d.name] : null, quirk: c.quirk || null,
+    noteLines: c.kind === 'branch' && m ? [MUTATIONS[m.id].name + ' ->', d.name] : null,
   };
 }
 
@@ -2645,13 +2624,6 @@ function rollLevelUps(p, n) {
 // --- Applying a choice ------------------------------------------------------------
 function applyChoice(p, c) {
   if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + 2); return; }
-  if (c.quirk && QUIRKS[c.quirk] && !p.quirk) { // born with it: this card's birth defect
-    const q = QUIRKS[c.quirk], before = p.maxHp, hp0 = p.hp;
-    p.quirk = c.quirk; recomputeStats(p);
-    p.hp = Math.max(1, Math.min(p.maxHp, hp0 + (p.maxHp - before))); // (a full body stays full)
-    p.bornBanner = { text: 'BORN ' + q.name, sub: q.desc.toUpperCase(), color: '#e8a020', t: 3.2 };
-    whisper('You were born ' + q.name.toLowerCase() + '. ' + q.desc);
-  }
   if (c.kind === 'level') { // a part grows a level; at the max, it evolves
     const m = c.part, d = MUTATIONS[m.id];
     m.lvl = (m.lvl || 0) + 1;
@@ -2701,5 +2673,4 @@ function applyChoice(p, c) {
   }
   recomputeStats(p);
   checkApex(p);
-  if (p.bornBanner) { game.banner = p.bornBanner; p.bornBanner = null; }
 }

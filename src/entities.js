@@ -428,7 +428,8 @@ function updatePickups(dt) {
       p.dead = true;
       Sfx.play('gulp');
       floatText(p.x, p.y - 8, LOC_NAME[p.loc] + ' VIAL', vialColor(p.loc));
-      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, defects: !!p.defects, title: LOC_NAME[p.loc] + ' VIAL', color: vialColor(p.loc) });
+      if (game.room.cage) breakCage(game.room); // eating your first vial breaks you out of the cell
+      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, title: LOC_NAME[p.loc] + ' VIAL', color: vialColor(p.loc) });
 
     }
   }

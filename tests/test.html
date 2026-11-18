@@ -77,8 +77,6 @@ function step(n, god) {
     autoMenu();
   }
 }
-// Tests start without a birth defect (they'd make results random) unless window.__quirks is set.
-const __newRun = newRun; newRun = function () { __newRun(); if (!window.__quirks) { game.player.quirk = null; recomputeStats(game.player); game.player.hp = game.player.maxHp; } };
 const combatRoom = () => { enterRoom(game.floor.rooms.find(r => r.type === 'combat') || game.floor.rooms[1], 'up'); };
 // The path from a root down to `id`.
 function pathTo(id) { const out = [id]; while (MUTATIONS[out[0]].from) out.unshift(MUTATIONS[out[0]].from); return out; }
@@ -461,7 +459,7 @@ try {
   { // 0q) Colored vials. You're born with nothing; the first room holds a MOUTH vial.
     newRun(); let p = game.player;
     const v = game.room.pickups.find(k => k.kind === 'vial');
-    check(`the first room holds a red MOUTH vial (${v && v.loc}), away from the middle`, v && v.loc === 'MOUTH' && Math.hypot(v.x - p.x, v.y - p.y) > 30);
+    check(`the first room holds a red WEAPON vial (${v && v.loc}), sealed in the cell with you`, v && v.loc === 'MOUTH' && !!game.room.cage);
     p.x = v.x; p.y = v.y; update(1 / 60); Input.endFrame();
     for (let i = 0; i < 150 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
     check(`picking it up: a WEAPON screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'WEAPON VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
@@ -761,7 +759,7 @@ try {
     }
     log.push('every new enemy fought, drew and died on its own floor');
   }
-  { // 0zd) Starting variety: new mouths and limbs, birth defects, wild cards.
+  { // 0zd) Starting variety: new mouths and limbs, the containment cell, wild cards.
     check(`more starting mouths and limbs (${rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length} mouths, ${rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length} limbs)`, rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).length >= 8 && rootsOf('LIMBS').filter(r => !MUTATIONS[r].boss).length >= 7);
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.quirk = null; recomputeStats(z); return z; };
     let q = arena(); grow(q, 'barbs'); let r = dummy(40, 99); r.speed = 0; fireFor(22); const h1 = r.hp; for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
@@ -772,18 +770,16 @@ try {
     check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
     q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
-    // Birth defects.
-    window.__quirks = true; newRun(); check('you start without a defect', !game.player.quirk);
-    { const z = game.player, v = game.room.pickups.find(k => k.kind === 'vial'); z.x = v.x; z.y = v.y; for (let i = 0; i < 160 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
-      const qs = game.menu ? game.menu.choices.map(c => c.quirk) : [];
-      check(`the first mouth vial pairs each mouth with a different birth defect (${qs.join(', ')})`, qs.length === 3 && new Set(qs).size === 3 && qs.every(k => QUIRKS[k]));
-      game.menu.t = 2; game.menu.stageT = 2; Input.mouse.x = cardX(0, 3) + 10; Input.mouse.y = CARD.y + 20; updateMenu(1 / 60); render();
-      const pickC = game.menu.choices[0]; applyChoice(z, pickC); game.menu = null; game.evolving = false;
-      check(`taking a card: that mouth, born with its defect, announced, at full health (${z.quirk}: ${game.banner && game.banner.text}, hp ${z.hp}/${z.maxHp})`, z.quirk === pickC.quirk && hasMutation(z, pickC.id) && game.banner && /^BORN /.test(game.banner.text) && z.hp === z.maxHp);
-      openEvolution({ loc: 'MOUTH', plain: true, defects: true, title: 'MOUTH VIAL' }); check('only once: later vials carry no defects', game.menu.choices.every(c => !c.quirk)); game.menu = null; }
-    { const seen = new Set(); for (let i = 0; i < 40; i++) { newRun(); openEvolution({ loc: 'MOUTH', plain: true, defects: true, title: 'MOUTH VIAL' }); for (const c of game.menu.choices) seen.add(c.quirk); game.menu = null; } check(`defects vary from run to run (${seen.size} different offered in 40 runs)`, seen.size >= 12); } window.__quirks = false;
-    for (const k in QUIRKS) { newRun(); combatRoom(); game.player.quirk = k; recomputeStats(game.player); step(30, true); render(); }
-    { newRun(); const z = game.player; z.quirk = 'brittle'; grow(z, 'spike'); const d1 = z.stats.damageMul, h = z.maxHp; z.quirk = null; recomputeStats(z); check(`brittle: harder hitting, frailer (dmg x${d1.toFixed(2)} vs x${z.stats.damageMul.toFixed(2)}, hp ${h} vs ${z.maxHp})`, d1 > z.stats.damageMul && h < z.maxHp); }
+    // You wake sealed in a containment cell with your first weapon's vial; eating it breaks you out.
+    { newRun(); const z = game.player, c = game.room.cage, v = game.room.pickups.find(k => k.kind === 'vial');
+      check('you start sealed in a containment cell, with the vial inside it', !!c && v && v.x > c.x0 && v.x < c.x1 && v.y > c.y0 && v.y < c.y1 && z.x > c.x0 && z.x < c.x1);
+      for (let i = 0; i < 90; i++) { Input.keys.clear(); Input.keys.add('a'); z.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`...you can't walk out of it (x ${z.x.toFixed(0)}, wall ${c.x0})`, z.x >= c.x0 && !!game.room.cage);
+      render();
+      z.x = v.x; z.y = v.y; for (let i = 0; i < 160 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
+      check('eating the vial breaks the glass and offers your first weapon', !game.room.cage && game.menu && game.menu.title === 'WEAPON VIAL');
+      check('no card carries a birth defect any more', game.menu.choices.every(c => !c.quirk) && typeof QUIRKS === 'undefined');
+      game.menu = null; game.evolving = false; }
     // Wild cards in the first limbs vial too.
     { let wild = 0, bad = 0; for (let i = 0; i < 300; i++) { newRun(); const z = game.player; const cs = rollChoices(z, 3, null, 'LIMBS', true); if (cs.some(c => MUTATIONS[c.id] && (MUTATIONS[c.id].boss || MUTATIONS[c.id].graft))) wild++; if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== 'LIMBS')) bad++; }
       check(`floor 1's limbs vial: any limbs, sometimes a wild card (${wild}/300), always limbs (${bad} off)`, wild > 10 && wild < 100 && bad === 0); }
@@ -1097,7 +1093,7 @@ try {
     }
     game.depth = 1;
     check(`the vault is always next to the start (${adj}/60), a dead end (${deadEnd}/60), never the exit (${exitOk}/60)`, adj === 60 && deadEnd === 60 && exitOk === 60);
-    newRun(); let p = game.player; game.room.pickups = []; grow(p, 'slime');
+    newRun(); let p = game.player; game.room.pickups = []; game.room.cage = null; grow(p, 'slime');
     const room = game.room, dir = Object.keys(room.seals)[0], c = doorCenter(dir);
     check('the start room has a sealed door', !!sealAt(room, dir));
     // Walk into it: it holds.
@@ -1116,7 +1112,7 @@ try {
     for (let i = 0; i < 240 && game.room === room; i++) { Input.keys.clear(); Input.keys.add(keyFor); p.x += DIRS[dir].dx * 0; update(1 / 60); Input.endFrame(); }
     check('...and you walk through into the vault, where a mutagen waits', game.room.type === 'vault' && game.room.pickups.some(k => k.kind === 'vial'));
     // Melee breaks it too.
-    newRun(); p = game.player; grow(p, 'mandibles');
+    newRun(); p = game.player; game.room.cage = null; grow(p, 'mandibles');
     const r2 = game.room, d2 = Object.keys(r2.seals)[0], c2 = doorCenter(d2);
     p.x = clamp(c2.x, TILE + 7, ROOM_PX_W - TILE - 7); p.y = clamp(c2.y, TILE + 7, ROOM_PX_H - TILE - 7);
     for (let i = 0; i < 60 * 4 && sealAt(r2, d2); i++) { Input.keys.clear(); Input.mouse.x = c2.x; Input.mouse.y = c2.y + ROOM_Y; Input.mouse.down = true; update(1 / 60); Input.endFrame(); }
