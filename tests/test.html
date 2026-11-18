@@ -281,6 +281,12 @@ try {
     { const q = setup('tongue'); const far = spawnEnemy('mini', q.x + q.stats.tongue.range - 4, q.y); far.spawnT = 0; far.speed = 0;
       run(12, true); run(40); check('tongue: a short charge falls short of far prey', !far.dead && !q.gullet);
       run(40, true); run(60); check(`tongue: a full charge reaches it (gullet ${q.gullet})`, far.dead || q.gullet > 0); }
+    { // A full gut (reported: "after eating 3 enemies the tongue stops working"): any release spits, so it keeps attacking.
+      const q = setup('tongue'); q.gullet = q.stats.tongue.max; const big = dummy(50, 40); big.speed = 0; big.r = 8;
+      run(40, true); run(30);
+      check(`tongue: with a full gut, a held release spits instead of doing nothing (gullet ${q.gullet}/${q.stats.tongue.max}, ${(40 - big.hp).toFixed(1)} dmg)`, q.gullet === q.stats.tongue.max - 1 && big.hp < 40);
+      q.gullet = 2; run(60 * DIGEST_TIME + 5);
+      check(`tongue: swallowed prey digests on its own (gullet 2 -> ${q.gullet} after ${DIGEST_TIME}s)`, q.gullet === 1); }
     // Silk Spinner.
     p = setup('silk'); run(2, true); a = dummy(30, 30); a.speed = 40; a.x = p.x + 30; a.y = p.y + 2;
     run(30);

@@ -686,7 +686,8 @@ function updateTongueCharge(p, dt, firing, canAttack) {
   if (firing || !(p.tongueCharge > 0)) return;
   const held = p.tongueCharge; p.tongueCharge = 0;
   if (!canAttack || p.tongue || (p.cd.tongue || 0) > 0) return;
-  if (held < TONGUE_TAP) { if (p.gullet > 0) { spitBack(p); p.cd.tongue = 0.25; } return; } // a tap: spit
+  // A tap spits; so does any release once your gut is full (it can't swallow more, so spitting is the attack).
+  if (held < TONGUE_TAP || p.gullet >= t.max) { if (p.gullet > 0) { spitBack(p); p.cd.tongue = 0.25; } return; }
   p.cd.tongue = t.delay * attackRate(p);
   tongueAttack(p, takeAmbush(p), held / TONGUE_CHARGE);
 }
@@ -713,8 +714,12 @@ function tongueTip(p) {
   return { x: p.x + T.dirX * T.len, y: p.y - 2 + T.dirY * T.len };
 }
 
+const DIGEST_TIME = 6; // seconds for one swallowed meal to digest on its own
 function updateTongue(p, dt) {
   const T = p.tongue, s = p.stats, t = s.tongue;
+  // What you've swallowed slowly digests, so your gut never stays stuck full.
+  if (p.gullet > 0) { if ((p.digestT = (p.digestT || 0) + dt) >= DIGEST_TIME) { p.digestT = 0; p.gullet--; } }
+  else p.digestT = 0;
   if (!T) return;
   if (!t) { if (T.carry) T.carry.held = false; p.tongue = null; return; }
   if (T.out) {
@@ -776,7 +781,8 @@ function swallow(p, e) {
   p.gullet++;
   p.eatT = 0.4;
   bloodSpray(p.x + p.aimX * 5, p.y - 2, 0, 0, 6, ENEMY_TYPES[e.type].fluid, 50);
-  floatText(p.x, p.y - 16, 'GULP', PAL.red);
+  const full = p.stats.tongue && p.gullet >= p.stats.tongue.max;
+  floatText(p.x, p.y - 16, full ? 'GUT FULL - FIRE TO SPIT' : 'GULP', PAL.red);
   if ((p.stats.bloodGulp || Math.random() < 0.15)) healPlayer(1); // Blood Gulp: always
   Sfx.play('gulp');
 }
