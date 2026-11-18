@@ -259,8 +259,8 @@ function updatePlayer(dt) {
   if (limbAbility && mv.hands && !(s.puppeteer && !p.held && mv.grapple && p.grappleCd <= 0)) handAction(p);
   else if (limbAbility && mv.grapple && p.grappleCd <= 0 && p.dashT <= 0 && !p.grappleShot) fireGrapple(p);
   else if (limbAbility && !mv.grapple && !mv.hands) tryActive(p, 'limb');
-  // --- Head ability: Q ---
-  if (Input.hit('q')) tryActive(p, 'head');
+  // --- Head ability: fires by itself ---
+  autoHead(p);
   updateActives(p, dt);
   updateGrappleShot(p, dt);
   updateTongue(p, dt);

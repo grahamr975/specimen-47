@@ -358,8 +358,8 @@ try {
       check(`dive bomb: the dash lands in a bite (${(99 - r.hp).toFixed(1)} dmg)`, p.splices.includes('divebomb') && 99 - r.hp > 3); }
     p = arena(); grow(p, leafUnder('howl'), leafUnder('eggsac')); { const r = dummy(20, 0.1); r.speed = 0; p.aimX = 1; p.aimY = 0; howl(p); const kids = game.allies.filter(a => a.kind === 'spiderling').length;
       check(`brood howl: what it kills bursts into spiderlings (${kids})`, kids >= 2); }
-    p = arena(); grow(p, leafUnder('spike'), 'juggernaut'); { const r = dummy(60); r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.pressed.add('q'); update(1 / 60); Input.endFrame(); for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); }
-      check(`bone cannon: the headbutt fires a lance (${(99 - r.hp).toFixed(1)} dmg at 60px)`, 99 - r.hp > 4); }
+    p = arena(); grow(p, leafUnder('spike'), 'juggernaut'); { dummy(14, 999); const r = dummy(60); r.speed = 0; Input.mouse.x = p.x - 50; Input.mouse.y = p.y + ROOM_Y; for (let i = 0; i < 21; i++) { update(1 / 60); Input.endFrame(); }
+      check(`bone cannon: the headbutt fires a lance through what it butts (${(99 - r.hp).toFixed(1)} dmg at 60px)`, 99 - r.hp > 4); }
     p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; inflict(r, 'web', { t: 5 }); for (let i = 0; i < 90; i++) { inflict(r, 'web', { t: 5 }); update(1 / 60); Input.endFrame(); }
       check(`silk nursery: spiderlings hatch on what's stuck (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling')); }
     p = arena(); grow(p, 'venomspike', leafUnder('bile')); game.puddles = []; { const r = dummy(40); r.speed = 0; fireFor(30, true);
@@ -903,7 +903,7 @@ try {
     grow(p, 'grapple', 'parasite', 'heartwood', 'spike'); render();
     log.push('HUD drew ' + slotCapacity(p) + ' slots');
   }
-  { // 0l) Active abilities: LIMBS on right-click (E), HEAD on Q.
+  { // 0l) Active abilities: LIMBS on right-click (E), HEAD by itself.
     const arena = () => { newRun(); combatRoom(); const p = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96; p.inv = 99; return p; };
     const aimAt = (p, x, y) => { Input.mouse.x = x; Input.mouse.y = y + ROOM_Y; p.aimX = Math.sign(x - p.x) || 1; p.aimY = 0; };
     const press = k => { if (k === 'rmb') Input.mouse.rightClicked = true; else Input.pressed.add(k); update(1 / 60); Input.endFrame(); };
@@ -925,18 +925,22 @@ try {
     check(`pseudopods: a slime wave lays slime (${game.room.slime.length - s0}) and slows what it hits`, game.room.slime.length - s0 > 5 && statusT(r, 'slow') > 0);
     p = arena(); grow(p, 'rootlegs'); r = dummy(70); r.speed = 0; aimAt(p, r.x, r.y); press('rmb');
     check('root legs: roots burst up where you point and hold', statusT(r, 'web') > 0 && r.hp < 99);
-    p = arena(); grow(p, 'eyes'); r = dummy(60); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    { const h = r.hp; damageEnemy(r, 2, 0, 0, true); check(`extra eyes: Q marks prey; it takes more (${(h - r.hp).toFixed(1)} from 2)`, hasStatus(r, 'mark') && h - r.hp > 2.5); }
-    p = arena(); grow(p, 'skull'); r = dummy(14); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('battering skull: Q headbutts (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
-    p = arena(); grow(p, 'nighteyes'); r = dummy(20); r.speed = 0; aimAt(p, r.x, r.y); const before = nightEyesMul(r); press('q');
-    check(`night eyes: Q blacks out the light; even close prey is "in the dark" (x${before.toFixed(2)} -> x${nightEyesMul(r).toFixed(2)})`, p.blackoutT > 0 && nightEyesMul(r) > before && statusT(r, 'blind') > 0);
+    // HEAD abilities have no button: they fire by themselves (aim is pointed AWAY to prove it).
+    check('no key triggers a head ability any more', !/Input\.hit\('q'\)/.test(updatePlayer.toString()));
+    p = arena(); grow(p, 'eyes'); dummy(40, 5); r = dummy(60); aimAt(p, p.x - 50, p.y); run(2);
+    { const h = r.hp; damageEnemy(r, 2, 0, 0, true); check(`extra eyes: marks the toughest prey by itself; it takes more (${(h - r.hp).toFixed(1)} from 2)`, hasStatus(r, 'mark') && h - r.hp > 2.5); }
+    p = arena(); grow(p, 'skull'); r = dummy(14); aimAt(p, p.x - 50, p.y); run(2);
+    check('battering skull: headbutts whatever gets in its face (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
+    p = arena(); grow(p, 'nighteyes'); r = dummy(20); aimAt(p, p.x - 50, p.y); const before = nightEyesMul(r); run(2);
+    check(`night eyes: blacks out when prey closes in; even close prey is "in the dark" (x${before.toFixed(2)} -> x${nightEyesMul(r).toFixed(2)})`, p.blackoutT > 0 && nightEyesMul(r) > before && statusT(r, 'blind') > 0);
     render();
-    p = arena(); grow(p, 'parasite'); r = dummy(60); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('parasite brain: Q mind-spikes one enemy', r.hp < 99 && statusT(r, 'stun') > 0);
-    { const hc = p.headCd; press('q'); check('...and the Q ability has its own cooldown', p.headCd > 0 && Math.abs(p.headCd - hc) < 0.1); }
-    p = arena(); grow(p, 'bloom'); r = dummy(50); r.speed = 0; aimAt(p, r.x, r.y); press('q');
-    check('bloom: Q bursts pollen over everything near', hasStatus(r, 'pollen'));
+    p = arena(); grow(p, 'parasite'); r = dummy(60); aimAt(p, p.x - 50, p.y); run(2);
+    check('parasite brain: mind-spikes the nearest enemy by itself', r.hp < 99 && statusT(r, 'stun') > 0);
+    { const hc = p.headCd; run(1); check('...then it waits out its own cooldown', p.headCd > 0 && p.headCd < hc && p.headCd > hc - 0.1); }
+    p = arena(); grow(p, 'bloom'); r = dummy(50); aimAt(p, p.x - 50, p.y); run(2);
+    check('bloom: bursts pollen by itself when prey gets close', hasStatus(r, 'pollen'));
+    p = arena(); grow(p, 'bloom'); r = dummy(150); run(2);
+    check('...and holds it while nothing is close', p.headCd <= 0);
     render();
     p = arena(); grow(p, 'grapple'); r = dummy(60); aimAt(p, r.x, r.y); press('rmb');
     check('tentacles keep their grapple on right-click', !!p.grappleShot || p.pullT > 0);

@@ -189,11 +189,11 @@ function drawMenu(ctx) {
 }
 
 // What each kind of part is for: a short tag on the card, and a line when you hover it.
-const LOC_TAG = { MOUTH: 'ATTACK', LIMBS: 'MOVEMENT', HEAD: 'Q ABILITY', BACK: 'DASH/HIT', CORE: 'PASSIVE' };
+const LOC_TAG = { MOUTH: 'ATTACK', LIMBS: 'MOVEMENT', HEAD: 'SENSES', BACK: 'DASH/HIT', CORE: 'PASSIVE' };
 const LOC_HELP = {
   MOUTH: 'MOUTH: AN ATTACK. EVERY MOUTH YOU GROW FIRES WHEN YOU SHOOT.',
   LIMBS: 'LIMBS: HOW YOU MOVE, PLUS A RIGHT-CLICK (E) ABILITY. ONE SET AT A TIME.',
-  HEAD: 'HEAD: SENSES AND AIM, PLUS A Q ABILITY. YOU ONLY HAVE ONE HEAD.',
+  HEAD: 'HEAD: SENSES, PLUS AN ABILITY THAT FIRES BY ITSELF. YOU ONLY HAVE ONE HEAD.',
   BACK: 'BACK: GOES OFF WHEN YOU DASH OR GET HIT. GROW AS MANY AS YOU LIKE.',
   CORE: 'CORE: ALWAYS ON. MAKES YOUR WHOLE BODY STRONGER OR TOUGHER.',
 };
@@ -354,7 +354,7 @@ function drawMutationList(ctx) {
   }
 }
 
-// The right-click (E) and Q abilities, with their cooldowns.
+// The right-click (E) ability and the head's automatic one, with their cooldowns.
 function drawActiveIcons(ctx, p) {
   const s = p.stats, limb = partAt(p, 'LIMBS'), head = partAt(p, 'HEAD');
   const items = [];
@@ -362,7 +362,7 @@ function drawActiveIcons(ctx, p) {
     const own = !!s.limbActive && !s.grapple && !s.hands;
     items.push({ key: 'E', id: limb.path[0], k: p.limbWear > 0 ? 1 : own ? p.limbCd / (p.limbCdMax || 1) : p.grappleCd / (s.grapple || 1) });
   }
-  if (head && s.headActive) items.push({ key: 'Q', id: head.path[0], k: p.headCd / (p.headCdMax || 1) });
+  if (head && s.headActive) items.push({ key: '', id: head.path[0], k: p.headCd / (p.headCdMax || 1) }); // automatic: no key
   items.forEach((it, i) => {
     const x = 218 + i * 17, y = 17, k = clamp(it.k, 0, 1);
     ctx.fillStyle = '#070506'; ctx.fillRect(x - 1, y - 1, 14, 14);
@@ -455,7 +455,6 @@ function drawTitle(ctx) {
     ['MOUSE / ARROWS', 'AIM + SHOOT'],
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
-    ['Q', 'HEAD ABILITY'],
     ['ESC ON CARDS', 'EVOLVE LATER (HOLD F)'],
     ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
   ];

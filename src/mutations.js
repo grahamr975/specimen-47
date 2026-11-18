@@ -8,7 +8,7 @@
 // somewhere on the body:
 //   MOUTH: an attack (fire button). Grow several and they all fire.
 //   LIMBS: how you move, plus a right-click ability. One set at a time.
-//   HEAD:  senses, plus a Q ability. One head.
+//   HEAD:  senses, plus an ability that fires by itself. One head.
 //   BACK:  what happens when you dash or get hurt. As many as you like.
 //   CORE:  your engine. Only planted from devoured boss cores.
 // BOSS PICKS (`boss: true`): the strangest roots (the playstyle mouths,
@@ -68,7 +68,7 @@ function baseStats() {
     grapple: 0, grappleRange: 0, pullDmg: 0, pullThrough: false,
     centipede: 0, burrow: 0, burrowDmg: 0, shell: false, fins: 0, stilts: false, hands: false, handDmg: 0,
     pupa: false, moleworm: false, puppeteer: false,
-    limbActive: null, headActive: null, // right-click / Q abilities (see ACTIVES in abilities.js)
+    limbActive: null, headActive: null, // right-click / automatic head abilities (see ACTIVES in abilities.js)
     limbCdMul: 1, headCdMul: 1,         // their cooldowns (part levels shorten them)
     limbCount: 0,
     // --- Attacks (MOUTH). Every weapon fires on its own timer, so they stack. ---
@@ -598,7 +598,7 @@ const MUTATIONS = {
   // ================= HEAD =================
   eyes: {
     name: 'Extra Eyes', slot: 'HEAD', rarity: 'uncommon', overlay: ['eyes'],
-    desc: 'Shots curve toward prey. Melee reaches further. Q: mark a victim; it takes more damage from everything.',
+    desc: 'Shots curve toward prey. Melee reaches further. Every few seconds it marks the toughest prey in sight; it takes more damage from everything.',
     apply(s, l) { s.homing += 2 + 1.5 * l; s.headActive = { kind: 'mark', l }; s.rangeAdd += 0.1 * l; s.reach += 3 * l; },
   },
   compound: {
@@ -634,7 +634,7 @@ const MUTATIONS = {
 
   skull: {
     name: 'Battering Skull', slot: 'HEAD', rarity: 'common', overlay: ['horns'],
-    desc: 'Your dash becomes a charge that rams enemies for heavy damage. Q: a brutal, stunning headbutt.',
+    desc: 'Your dash becomes a charge that rams enemies for heavy damage. Anything that gets in your face takes a brutal, stunning headbutt.',
     apply(s, l) { s.dashDmg += 2 + 2 * l; s.headActive = { kind: 'headbutt', l }; },
   },
   horns: {
@@ -670,7 +670,7 @@ const MUTATIONS = {
 
   nighteyes: {
     name: 'Night Eyes', slot: 'HEAD', rarity: 'uncommon', malignant: true, overlay: ['compound'],
-    desc: '+50% damage (more as it grows) to enemies outside your light. Q: blackout; snuff your light and the whole room is dark.',
+    desc: '+50% damage (more as it grows) to enemies outside your light. When something closes in, your light snuffs out and the whole room goes dark.',
     cost: 'Your light shrinks to a small circle.',
     apply(s, l) { s.nightEyes += 0.3 + 0.2 * l; s.headActive = { kind: 'blackout', l }; s.lightMul *= 0.6; },
   },
@@ -710,7 +710,7 @@ const MUTATIONS = {
   parasite: {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
     name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, size: 2, overlay: ['parasite'],
-    desc: '+60% damage with everything. Q: a mind spike that stuns and wounds one enemy.',
+    desc: '+60% damage with everything. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it.',
     cost: 'Sometimes it takes control of your body.',
     apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
   },
@@ -749,7 +749,7 @@ const MUTATIONS = {
 
   bloom: {
     name: 'Bloom', slot: 'HEAD', rarity: 'uncommon',
-    desc: 'A carnivorous flower opens on your head. It puffs pollen; pollinated enemies take more damage. Q: burst, pollinating everything around you.',
+    desc: 'A carnivorous flower opens on your head. It puffs pollen; pollinated enemies take more damage. When something gets close, it bursts, pollinating everything around you.',
     apply(s, l) { s.pollen = { r: 42, every: 3.2 - 0.4 * (l - 1) }; s.headActive = { kind: 'pollenburst', l }; },
   },
   venusmaw: {
@@ -2145,11 +2145,11 @@ const SPLICES = {
   broodhowl:      { name: 'Brood Howl',      parts: [['howl'], ['eggsac']], grown: 3,         apply(s) { s.broodHowl = 2; },
     desc: 'Your howl lays eggs in everything it hits. When they die, spiderlings burst out.', whisper: 'Your scream is full of eggs.' },
   bonecannon:     { name: 'Bone Cannon',     parts: [['spike'], ['skull']], grown: 3,         apply(s) { s.boneCannon = true; },
-    desc: 'Your headbutt (Q) fires a huge bone lance that punches through everything in a line.', whisper: 'Your skull is a barrel now.' },
+    desc: 'Your headbutt fires a huge bone lance that punches through everything in a line.', whisper: 'Your skull is a barrel now.' },
   silknursery:    { name: 'Silk Nursery',    parts: [['silk'], ['spider']], grown: 3,         apply(s) { s.silkNursery = 1.1; },
     desc: 'Whatever is stuck in your webs is swarmed: spiderlings keep hatching on it.', whisper: 'Your webs are a nursery, and the stuck are food.' },
   toxicbloom:     { name: 'Toxic Bloom',     parts: [['miasma'], ['bloom']], grown: 3,        apply(s) { s.toxicBloom = true; },
-    desc: 'Your gas carries pollen, and your pollen burst (Q) leaves a poison cloud on everything it touches.', whisper: 'Your flower breathes your poison.' },
+    desc: 'Your gas carries pollen, and your pollen burst leaves a poison cloud on everything it touches.', whisper: 'Your flower breathes your poison.' },
   seismichowl:    { name: 'Seismic Howl',    parts: [['howl'], ['burrow']], grown: 3,         apply(s) { s.seismicHowl = true; },
     desc: 'You erupt from the ground howling in every direction, hurling everything away.', whisper: 'The ground screams with you.' },
   bloodgulp:      { name: 'Blood Gulp',      parts: [['tongue'], ['proboscis']], grown: 3,    apply(s) { s.bloodGulp = true; },
@@ -2275,7 +2275,7 @@ function levelText(m, L) {
   const [up, fast] = LEVEL_GAIN[m.loc] || [0.1, 0.08];
   if (m.loc === 'MOUTH') return `${bumpSign(up)}DAMAGE ${bumpSign(fast)}FIRE RATE`;
   if (m.loc === 'LIMBS') return `${bumpSign(up)}SPEED ${bumpSign(fast)}DASH ${bumpSign(fast)}ABILITY`;
-  if (m.loc === 'HEAD') return `${bumpSign(up)}POWER ${bumpSign(fast)}Q`;
+  if (m.loc === 'HEAD') return `${bumpSign(up)}POWER ${bumpSign(fast)}RECHARGE`;
   if (m.loc === 'BACK') return `${bumpSign(up)}EFFECT`;
   return `${bumpSign(up)}POWER` + (Math.floor(L / 2) > Math.floor((L - 1) / 2) ? ' ++HEALTH' : ''); // CORE: +1 max health every other level
 }

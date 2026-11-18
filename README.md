@@ -12,7 +12,6 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | Mouse or arrow keys | Aim and shoot |
 | Space / Shift | Dash (brief invulnerability; becomes a charge with some mutations) |
 | Right click / E | Limb ability (every LIMBS root has one; Tentacles grapple, Grasping Hands grab and throw) |
-| Q | Head ability (every HEAD root has one) |
 | Esc on the cards / hold F | Put an evolution off, then evolve later in any cleared room |
 | M / P | Mute / pause |
 | J (title screen or paused) | Splice journal: every splice you've found, and hints for the rest (kept between runs) |
@@ -37,7 +36,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 - **Open slots.** Your body has a few slots (shown along the bottom of the screen). You start with 3, all empty: you're born with no attack at all. Every devoured boss core adds a slot, and every splice frees one (two parts fuse into one), but never more than 5: a finished body is five parts, each one earned. Fill them however you like: several mouths for a glass cannon, or backs and cores for a tank. Each part still grows somewhere on the body:
   - **MOUTH: an attack.** The first room always holds a red MOUTH vial: your first evolution is choosing your first weapon. Grow more mouths and they all fire.
   - **LIMBS: how you move, plus a right-click ability.** One set at a time. You start limbless, as a slow, inching slug, and until you grow limbs every evolution offers some. Spider Legs skitter and spit webs, Wings fly (over crates and enemy acid) and beat a gust that blows enemies and their shots away, Tentacles grapple, Burrowing Claws dig and send out a stunning tremor, Pseudopods glide on slime and roll out a slime wave, Root Legs take root (roots spread around you, snaring and hurting whatever steps in and slowing enemy shots; move and you tear free in a burst) and burst roots up to hold enemies.
-  - **HEAD: senses, plus a Q ability.** One head. Extra Eyes mark prey (it takes more damage from everything), Battering Skull headbutts, Night Eyes black out your light (everything counts as in the dark), Parasite Brain mind-spikes one enemy, Bloom bursts pollen over everything near you.
+  - **HEAD: senses, plus an ability that fires by itself** (no button). One head. Extra Eyes mark the toughest prey in sight (it takes more damage from everything), Battering Skull headbutts whatever gets in your face, Night Eyes black out your light when something closes in (everything counts as in the dark), Parasite Brain mind-spikes the nearest enemy, Bloom bursts pollen when something gets close.
   - **BACK: what happens when you dash or get hurt.** As many as you have room for.
   - **CORE: your engine.** Only grows from devoured boss cores.
   - **Big parts** (Tentacles, Parasite Brain, Heartwood) take 2 slots; the card says so.
@@ -70,7 +69,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | File | What's in it |
 |---|---|
 | `src/mutations.js` | The mutation tree (roots and branches per body location), open slots, whispers, rarities and card rolling. Start here. |
-| `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing, and the right-click / Q abilities (ACTIVES) |
+| `src/abilities.js` | Mechanics behind the fancier mutations: allies, spore clouds, decoys, slime, burrowing, grabbing, the right-click abilities and the automatic head abilities (ACTIVES) |
 | `src/dna.js` | Corpses, bursting, biomass amounts and the level curve (biomass is called `dna` in the code) |
 | `src/floors.js` | Each floor's name, enemy mix, hazard and boss |
 | `src/bosses.js` | Bosses, telegraphed attacks, floor-specific enemy behaviors, elite affixes |

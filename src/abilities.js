@@ -1068,7 +1068,7 @@ function updateExtras(dt) {
 
 // ---------------------------------------------------------------------------
 // ACTIVE ABILITIES. Your LIMBS give you a right-click (or E) ability, and your
-// HEAD a Q ability. The root decides which; growing the part makes it
+// HEAD one that fires by itself (autoHead). The root decides which; growing the part makes it
 // stronger (l = how far the path has grown). Tentacles and Grasping Hands
 // keep their own right-click (grapple / grab).
 // ---------------------------------------------------------------------------
@@ -1110,20 +1110,44 @@ function pointedEnemy(p, range) {
 }
 
 
-// Right-click / E (key 'limb') or Q (key 'head').
-function tryActive(p, key) {
+// Right-click / E (key 'limb'), or the head firing by itself (key 'head', see autoHead).
+function tryActive(p, key, target) {
   const s = p.stats, a = key === 'limb' ? s.limbActive : s.headActive;
   if (!a || p.dashT > 0 || p.pullT > 0 || p.withdrawn || p.burrowT > 0) return;
   if (key === 'limb' && p.limbWear > 0) { floatText(p.x, p.y - 18, 'LIMBS TORN', COST_COLOR); return; }
   const cdKey = key === 'limb' ? 'limbCd' : 'headCd';
   if (p[cdKey] > 0) return;
-  if (useActive(p, a)) {
+  if (useActive(p, a, target)) {
     p[cdKey] = ACTIVES[a.kind].cd(a.l) * (key === 'limb' ? s.limbCdMul : s.headCdMul); p[cdKey + 'Max'] = p[cdKey];
     if (p.pincerRefresh) { p.pincerRefresh = false; p[cdKey] = 0; p.dashCd = 0; floatText(p.x, p.y - 14, 'CRUSHED', '#e8a020'); } // Coconut Crab
   }
 }
 
-function useActive(p, a) {
+// HEAD abilities have no button: each one fires by itself once it's ready and
+// something worth using it on is close. Returns the target it picked (or true), or null.
+function headTarget(p, kind) {
+  let best = null, score = -Infinity;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const d = Math.hypot(e.x - p.x, e.y - p.y) - e.r;
+    let v;
+    if (kind === 'mark') v = d < 170 && !hasStatus(e, 'mark') ? e.hp : null;   // the toughest prey in sight
+    else if (kind === 'mindspike') v = d < 170 ? -d : null;                       // the nearest
+    else if (kind === 'headbutt') v = d < 16 ? -d : null;                         // whatever gets in your face
+    else if (kind === 'blackout') v = d < 90 ? 1 : null;                          // anything closing in
+    else if (kind === 'pollenburst') v = d < 50 ? 1 : null;                       // anything close
+    if (v != null && v > score) { score = v; best = e; }
+  }
+  return best;
+}
+function autoHead(p) {
+  const a = p.stats.headActive;
+  if (!a || p.headCd > 0 || game.state !== 'play') return;
+  const e = headTarget(p, a.kind);
+  if (e) tryActive(p, 'head', e);
+}
+
+function useActive(p, a, target) {
   const s = p.stats, l = a.l, dmg = s.damage;
   const ang = Math.atan2(p.aimY, p.aimX);
   switch (a.kind) {
@@ -1180,29 +1204,31 @@ function useActive(p, a) {
       return true;
     }
     case 'mark': { // Extra Eyes: mark one victim; everything hits it harder
-      const e = pointedEnemy(p, 170);
+      const e = target || pointedEnemy(p, 170);
       if (!e) return false;
       inflict(e, 'mark', { t: 6, mul: 0.4 + 0.15 * l });
       floatText(e.x, e.y - 12, 'MARKED', PAL.red);
       Sfx.play('flicker');
       return true;
     }
-    case 'headbutt': { // Battering Skull: a short, brutal butt
-      moveEntity(game.room, p, p.aimX * 10, p.aimY * 10);
+    case 'headbutt': { // Battering Skull: a short, brutal butt at whatever got in your face
+      let ux = p.aimX, uy = p.aimY;
+      if (target) { const tx = target.x - p.x, ty = target.y - p.y, td = Math.hypot(tx, ty) || 1; ux = tx / td; uy = ty / td; }
+      moveEntity(game.room, p, ux * 10, uy * 10);
       let hit = false;
       for (const e of game.enemies) {
         if (e.dead || e.spawnT > 0) continue;
         const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
-        if (d > 18 + e.r || (dx * p.aimX + dy * p.aimY) / d < 0.2) continue;
+        if (d > 18 + e.r || (dx * ux + dy * uy) / d < 0.2) continue;
         inflict(e, 'stun', { t: 0.6 + 0.2 * l });
-        damageEnemy(e, (3 + 2 * l) * dmg + s.dashDmg * 0.5, p.aimX, p.aimY, false, isBoss(e) ? 60 : 280);
+        damageEnemy(e, (3 + 2 * l) * dmg + s.dashDmg * 0.5, ux, uy, false, isBoss(e) ? 60 : 280);
         hit = true;
       }
       if (hit) { hitstop(0.05); game.shake = Math.max(game.shake, 3); }
       if (s.boneCannon) { // Bone Cannon: a huge lance out of your skull
-        spawnBullet({ x: p.x + p.aimX * 8, y: p.y - 2 + p.aimY * 8, vx: p.aimX * 260, vy: p.aimY * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
+        spawnBullet({ x: p.x + ux * 8, y: p.y - 2 + uy * 8, vx: ux * 260, vy: uy * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
         game.shake = Math.max(game.shake, 4); Sfx.play('blast');
-        moveEntity(game.room, p, -p.aimX * 6, -p.aimY * 6); burst(p.x + p.aimX * 10, p.y - 2 + p.aimY * 10, '#e8e0c8', 6, 60, 0.3); // recoil
+        moveEntity(game.room, p, -ux * 6, -uy * 6); burst(p.x + ux * 10, p.y - 2 + uy * 10, '#e8e0c8', 6, 60, 0.3); // recoil
       }
       Sfx.play('ram');
       return true;
@@ -1215,7 +1241,7 @@ function useActive(p, a) {
       return true;
     }
     case 'mindspike': { // Parasite Brain: it lashes out with your mind
-      const e = pointedEnemy(p, 170);
+      const e = target || pointedEnemy(p, 170);
       if (!e) return false;
       inflict(e, 'stun', { t: 1.2 + 0.2 * l });
       damageEnemy(e, (4 + 2 * l) * dmg, 0, 0, false);
