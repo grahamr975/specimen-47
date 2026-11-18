@@ -122,7 +122,6 @@ const FORM_RAMP = {
   HIVE:        ['#0c0806', '#2a1a0c', '#5a3a14', '#9a6a24', '#e0b050'], // glossy chitin
   PREDATOR:    ['#160606', '#481414', '#7e2a22', '#ac4e3a', '#dc8a6a'], // skinned muscle
   ABOMINATION: ['#140814', '#3a1434', '#682a5c', '#9c5288', '#d08cb8'], // bruised, raw
-  PLANT:       ['#120c06', '#2e2212', '#54401e', '#7e6234', '#ae905a'], // bark
 };
 const CAP = ['#1e1008', '#4a2a14', '#8a5428', '#c08848', '#ecc888'];
 
@@ -220,27 +219,6 @@ const FORM_PAINT = {
     P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.1, '#f0c020', {});
     P.tube([[16.6, 11.6], [15.6, 9.4]], 0.9, 0.3, ramp);                                     // ear
     if (st >= 4) P.tube([[21.6, 18], [21.8, 20.6]], 0.5, 0.3, R.blood, { spec: 1 });         // drool
-  },
-
-  // A walking plant: bark-skinned body, a leafy crown on its back, hanging
-  // vines, roots for a tail, and a carnivorous flower for a head.
-  PLANT(P, ramp, st, br) {
-    const LEAF = ['#0c1606', '#1e3a10', '#386a1e', '#5e9a30', '#9ad050'];
-    const PET = ['#2a0c14', '#6a1a2a', '#a8304a', '#d86a7a', '#f4b0b8'];
-    for (const [x, l] of [[2, 3], [4.5, 2.4], [7, 3.2]]) P.tube([[x + 1, 20], [x, 20 + l * 0.6], [x + 0.6, 20 + l]], 0.6, 0.3, ramp); // root tail
-    P.blob(10.5, 20.6, 8, 1.3, ramp, { shift: -0.3 });
-    P.blob(10, 17.6 + br * 0.2, 7.6, 3.8 + br * 0.3, ramp, { spec: 1, noise: 0.25 });
-    for (let k = 0; k < 5; k++) P.scratch([[4.5 + k * 2.6, 15], [4 + k * 2.6, 20]], ramp[0]);          // bark grain
-    // Leafy crown along the back (fuller each stage).
-    const leaves = [[6, 13.2, 3, 1.8, -0.4], [10, 12.4, 3.4, 2, 0], [13.6, 13, 2.6, 1.6, 0.4], [3.4, 14.6, 2.2, 1.4, -0.7], [8, 11, 2.2, 1.4, 0.2]].slice(0, st + 1);
-    for (const [x, y, rx, ry] of leaves) { P.blob(x, y, rx, ry, LEAF, { spec: 1 }); P.scratch([[x - rx * 0.7, y], [x + rx * 0.7, y]], LEAF[1]); }
-    for (const [x, l] of [[5, 4], [12.5, 3]].slice(0, st >= 2 ? 2 : 1)) P.tube([[x, 18], [x + 0.6, 18 + l * 0.6], [x - 0.4, 18 + l]], 0.5, 0.3, LEAF); // hanging vines
-    // The flower head: petals around a toothed, eyed center.
-    P.tube([[15, 17], [17.4, 15]], 1.6, 1.3, LEAF, { spec: 1 });                                    // stem/neck
-    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + 0.3; P.blob(SPECIMEN.eye[0] + Math.cos(a) * 3.2, SPECIMEN.eye[1] + Math.sin(a) * 3, 1.9, 1.6, PET, { spec: 1 }); }
-    P.blob(SPECIMEN.eye[0], SPECIMEN.eye[1], 2.2, 2.1, ['#1a1004', '#4a3010', '#8a6a20', '#c8a830', '#f0e060'], { spec: 1 });
-    P.eye(SPECIMEN.eye[0], SPECIMEN.eye[1], 1.2, '#2a6a20', { bloodshot: st >= 3 });
-    if (st >= 3) paintTeeth(P, SPECIMEN.eye[0] - 1.5, SPECIMEN.eye[0] + 1.5, SPECIMEN.eye[1] + 1.4, 41);
   },
 
   // A lopsided mass: a second head on its back, eyes and mouths where they shouldn't be.

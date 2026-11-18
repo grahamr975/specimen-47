@@ -54,7 +54,6 @@ function recomputeStats(p) {
   if (p.apex) { // the final form
     s.damageMul *= 1.25; s.maxHp += 2; s.rateMul *= 0.9; s.speedMul *= 1.08;
     s.apex = apexPassives(p);
-    if (s.apex.PLANT) s.grovePolyp = s.grovePolyp || { dmg: 0.9, rate: 1, life: 12 };
   }
   finalizeStats(s);
   for (const k of splices) {

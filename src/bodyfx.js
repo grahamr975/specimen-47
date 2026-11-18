@@ -204,7 +204,6 @@ function updateSetFx(p, dt) {
   if (p.setFxT > 0) return;
   if (f === 'FUNGAL') { p.setFxT = 0.6; game.particles.push({ x: p.x + rand(-5, 5), y: p.y - 8, vx: rand(-6, 6), vy: -14, life: 1.1, color: '#c4cca4', size: 1 }); }
   else if (f === 'BONE') { p.setFxT = 0.25; if (p.moving) { game.particles.push({ x: p.x + rand(-5, 5), y: p.y, vx: rand(-10, 10), vy: 20, life: 0.3, color: '#c4b898', size: 1 }); if (Math.random() < 0.3) Sfx.play('rattle'); } }
-  else if (f === 'PLANT') { p.setFxT = 1.4; const c = Math.random() < 0.5 ? '#5a8a3a' : '#7ab84a'; game.particles.push({ x: p.x + rand(-6, 6), y: p.y - 8, vx: rand(-14, 14), vy: 26, life: 0.9, color: c, size: 1 }); }
   else if (f === 'HIVE') { p.setFxT = 0.5; if (Math.random() < 0.4) Sfx.play('buzz'); }
   else p.setFxT = 1;
 }
@@ -297,7 +296,6 @@ function drawBodyGlow(ctx, p) {
 // Hurt: what comes out of you depends on what you are.
 function bodyHurtFx(p) {
   if (p.form === 'BONE') gibs(p.x, p.y, 3, ['#e8e0c8', '#c4b898', '#968868'], FLUID.blood);
-  else if (p.form === 'PLANT') for (let i = 0; i < 6; i++) game.particles.push({ x: p.x, y: p.y - 6, vx: rand(-50, 50), vy: rand(-40, 30), life: 0.7, color: i % 2 ? '#e88aa8' : '#d86a8a', size: 1 });
   else if (p.form === 'FUNGAL') spawnCloud(p.x, p.y, 10);
 }
 

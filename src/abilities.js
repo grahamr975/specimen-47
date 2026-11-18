@@ -1083,7 +1083,6 @@ const ACTIVES = {
   gust:        { name: 'WING GUST',    key: 'limb', cd: l => 4.2 - 0.3 * l },
   tremor:      { name: 'TREMOR',       key: 'limb', cd: l => 5.2 - 0.4 * l },
   slimewave:   { name: 'SLIME WAVE',   key: 'limb', cd: l => 3.6 - 0.3 * l },
-  entangle:    { name: 'ENTANGLE',     key: 'limb', cd: l => 5.2 - 0.4 * l },
   mark:        { name: 'MARK PREY',    key: 'head', cd: () => 4.5 },
   headbutt:    { name: 'HEADBUTT',     key: 'head', cd: l => 2.6 - 0.2 * l },
   blackout:    { name: 'BLACKOUT',     key: 'head', cd: l => 10 - l },
@@ -1195,18 +1194,6 @@ function useActive(p, a, target) {
       burst(p.x, p.y + 4, '#3a3230', 14, 90, 0.4);
       game.shake = Math.max(game.shake, 4);
       Sfx.play('slam');
-      return true;
-    }
-    case 'entangle': { // Root Legs: roots burst up where you point and hold everything
-      const pt = aimPoint(p, 110), R = 22 + 2 * l;
-      for (const e of game.enemies) {
-        if (e.dead || e.spawnT > 0 || Math.hypot(e.x - pt.x, e.y - pt.y) > R + e.r) continue;
-        if (!isBoss(e)) inflict(e, 'web', { t: 1.4 + 0.3 * l });
-        damageEnemy(e, (2 + l) * dmg, 0, 0, true);
-      }
-      game.fx.push({ kind: 'act', what: 'roots', x: pt.x, y: pt.y, r: R, t: 1.2, max: 1.2 });
-      burst(pt.x, pt.y, '#6a5030', 12, 70, 0.4);
-      Sfx.play('whip');
       return true;
     }
     case 'mark': { // Extra Eyes: mark one victim; everything hits it harder
@@ -1481,10 +1468,6 @@ function updateApex(p, dt) {
   }
   if (every('BONE', 5)) fireRing(p, 4 + 2 * ap.BONE);                               // shards burst from you
   if (every('FUNGAL', 2.4) && p.moving) game.clouds.push({ x: p.x, y: p.y, r: 10 + 2 * ap.FUNGAL, life: 3, toxic: true }); // toxic spores
-  if (every('PLANT', 9) && game.allies.filter(a => a.kind === 'polyp' && !a.dead).length < 1 + ap.PLANT) { // polyps sprout
-    const a = rand(0, Math.PI * 2), x = p.x + Math.cos(a) * 18, y = p.y + Math.sin(a) * 14;
-    if (!pointSolid(game.room, x, y)) { const q = spawnAlly('polyp', x, y); q.shootT = 0.5; burst(x, y, '#7ab84a', 6, 40); }
-  }
   if (every('ABOMINATION', 3)) { // tendrils lash out on their own
     const e = nearestEnemy(p.x, p.y, 60);
     if (e && !e.dead) { game.fx.push({ kind: 'whip', x1: p.x, y1: p.y - 2, x2: e.x, y2: e.y, t: 0.15 }); damageEnemy(e, (2 + ap.ABOMINATION) * s.damage, e.x - p.x, e.y - p.y, true); Sfx.play('whip'); }
