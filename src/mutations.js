@@ -2396,7 +2396,7 @@ function choiceInfo(p, c) {
   }
   if (c.id === '_gorge') {
     const free = freeSlots(p);
-    return { name: 'Gorge', rarity: 'common', desc: 'Grow nothing. Heal 2 HP.', status: 'HEAL 2', note: free > 0 ? 'KEEPS THE SLOT FREE' : null, noteColor: VIAL_COLOR, overlays: [], slot: '' };
+    return { name: 'Gorge', rarity: 'common', desc: 'Grow nothing. Heal a heart.', status: 'HEAL 1 HEART', note: free > 0 ? 'KEEPS THE SLOT FREE' : null, noteColor: VIAL_COLOR, overlays: [], slot: '' };
   }
   c = resolveCard(p, c);
   const d = MUTATIONS[c.id], loc = locOf(c.id);
@@ -2489,7 +2489,7 @@ function rollLevelUps(p, n) {
 
 // --- Applying a choice ------------------------------------------------------------
 function applyChoice(p, c) {
-  if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + 2); return; }
+  if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + HP_PER_HEART); return; }
   if (c.kind === 'level') { // a part grows a level; at the max, it evolves
     const m = c.part, d = MUTATIONS[m.id];
     m.lvl = (m.lvl || 0) + 1;

@@ -203,11 +203,16 @@ function drawHUD(ctx) {
   ctx.drawImage(SPR.hudBottom, 0, ROOM_Y + ROOM_PX_H);
 
   // Hearts (+ chitin shell)
-  for (let i = 0; i < p.maxHp; i++) ctx.drawImage(i < p.hp ? SPR.heart : SPR.heartEmpty, 4 + i * 9, 3);
+  // Health is in half hearts: each heart icon is full, half or empty.
+  const hearts = Math.ceil(p.maxHp / HP_PER_HEART);
+  for (let i = 0; i < hearts; i++) {
+    const left = p.hp - i * HP_PER_HEART; // what's left in this heart
+    ctx.drawImage(left >= HP_PER_HEART ? SPR.heart : left > 0 ? halfHeart() : SPR.heartEmpty, 4 + i * 9, 3);
+  }
   if (!SPR.armorHeart) SPR.armorHeart = silhouette(SPR.heart, '#a8a8b8');
-  for (let i = 0; i < (p.armor || 0); i++) ctx.drawImage(SPR.armorHeart, 4 + (p.maxHp + i) * 9, 3); // grey armor hearts
+  for (let i = 0; i < (p.armor || 0); i++) ctx.drawImage(SPR.armorHeart, 4 + (hearts + i) * 9, 3); // grey armor hearts
   if (p.stats.shieldCd > 0) {
-    const sx = 6 + (p.maxHp + (p.armor || 0)) * 9;
+    const sx = 6 + (hearts + (p.armor || 0)) * 9;
     ctx.globalAlpha = p.shieldUp ? 1 : 0.3;
     ctx.drawImage(SPR.icons.chitin, sx - 3, 0, 12, 12);
     ctx.globalAlpha = 1;

@@ -3,7 +3,8 @@
 // The player: Specimen 47.
 // ---------------------------------------------------------------------------
 
-const BASE_HP = 3; // three hits and you're dead
+const BASE_HP = 3;      // hearts you're born with
+const HP_PER_HEART = 2; // health is counted in half hearts: a normal hit takes half a heart, so 3 hearts = 6 hits
 // ARMOR: every ARMOR_KILLS kills grows a grey armor heart (up to ARMOR_MAX).
 // It takes a hit for you, and doesn't come back.
 const ARMOR_KILLS = 30, ARMOR_MAX = 2;
@@ -11,7 +12,7 @@ const ARMOR_KILLS = 30, ARMOR_MAX = 2;
 function makePlayer() {
   return {
     x: ROOM_PX_W / 2, y: ROOM_PX_H / 2, r: 5,
-    hp: BASE_HP, maxHp: BASE_HP,
+    hp: BASE_HP * HP_PER_HEART, maxHp: BASE_HP * HP_PER_HEART,
     // Your parts, one per slot: { id: where it is now, path: [root, branch, branch], loc }.
     // You're born with nothing at all: the first room holds a MOUTH vial.
     parts: [], capacity: START_SLOTS,
@@ -83,7 +84,8 @@ function recomputeStats(p) {
   }
   p.stats = s;
   if (!(s.shieldCd > 0)) p.shieldUp = false; // no shell part, no shell
-  p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp + (p.coreBonus || 0)) * s.hpMul));
+  // Max health bonuses count in whole hearts; heals and hits count in half hearts.
+  p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp + (p.coreBonus || 0)) * s.hpMul)) * HP_PER_HEART;
   if (!s.flyover && game.room && circleHitsWall(game.room, p.x, p.y, p.r, false)) {
     const spot = randomFloorSpot(game.room, null, 0);
     p.x = spot.x; p.y = spot.y; // lost your wings over a crate: drop to the floor nearby
@@ -390,10 +392,10 @@ function updatePlayer(dt) {
       }
     }
   }
-  if (p.hp <= 2) {
+  if (p.hp <= 2 * HP_PER_HEART) { // wounded: two hearts or less
     p.dripT -= dt;
     if (p.dripT <= 0) {
-      p.dripT = p.hp === 1 ? 0.12 : 0.3;
+      p.dripT = p.hp <= HP_PER_HEART ? 0.12 : 0.3;
       stainPx(p.x + rand(-3, 3), p.y + rand(2, 5), FLUID.blood, Math.random() < 0.3 ? 2 : 1);
     }
   }
@@ -1160,7 +1162,7 @@ function hurtPlayer(dmg) {
       p.evolutions = 0;
       p.limbWear = 0;
       recomputeStats(p);
-      p.hp = 3;
+      p.hp = BASE_HP * HP_PER_HEART;
       p.inv = 2;
       gibs(p.x, p.y, 10, ['#a8534f', '#5e2229', '#d9cfa0'], FLUID.blood);
       game.banner = { text: 'SECOND HEART', sub: 'You are born again.', color: '#e8a020', t: 2.5 };

@@ -451,7 +451,7 @@ function updateParasite(p, dt) {
   }
   const gap = () => p.stats.parasiteOften ? rand(5, 9) : rand(10, 18);
   p.parasiteT = (p.parasiteT === undefined ? gap() : p.parasiteT) - dt;
-  if (p.parasiteT <= 0 && p.hp <= 1) p.parasiteT = 1; // too close to death: it waits
+  if (p.parasiteT <= 0 && p.hp <= HP_PER_HEART) p.parasiteT = 1; // too close to death (your last heart): it waits
   if (p.parasiteT <= 0) {
     p.parasiteT = gap();
     p.controlT = 1.2;

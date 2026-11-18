@@ -83,9 +83,9 @@ function drawLighting(ctx) {
 // Pulsing red edges when you're nearly dead.
 function drawLowHealth(ctx) {
   const p = game.player;
-  if (!p || p.hp > 2 || game.state !== 'play') return;
-  const beat = Math.max(0, Math.sin(game.time * (p.hp === 1 ? 9 : 6.5)));
-  const strength = (p.hp === 1 ? 0.5 : 0.3) * beat;
+  if (!p || p.hp > 2 * HP_PER_HEART || game.state !== 'play') return;
+  const beat = Math.max(0, Math.sin(game.time * (p.hp <= HP_PER_HEART ? 9 : 6.5)));
+  const strength = (p.hp <= HP_PER_HEART ? 0.5 : 0.3) * beat;
   for (let i = 0; i < 10; i++) {
     const a = strength * (1 - i / 10);
     if (a <= 0.01) continue;

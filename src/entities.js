@@ -385,9 +385,11 @@ const VIAL_LOCS = ['MOUTH', 'LIMBS', 'HEAD', 'BACK'];
 const VIAL_COLORS = { MOUTH: '#e04848', LIMBS: '#4a8ae0', HEAD: '#e8c020', BACK: '#e0d8b8' };
 const vialColor = loc => VIAL_COLORS[loc] || VIAL_COLOR;
 
+const WHOLE_HEART_CHANCE = 0.15; // heart pickups are half hearts; now and then a whole one
 function spawnPickup(kind, x, y, extra) {
   const p = Object.assign({ kind, x, y, t: Math.random() * 6, waitForLeave: false }, extra);
   if (kind === 'vial' && !p.loc) p.loc = pick(VIAL_LOCS);
+  if (kind === 'heart' && !p.amount) p.amount = Math.random() < WHOLE_HEART_CHANCE ? HP_PER_HEART : 1; // usually half a heart
   game.room.pickups.push(p);
   return p;
 }
@@ -401,9 +403,9 @@ function updatePickups(dt) {
     if (d > 10) continue;
     if (p.kind === 'heart') {
       if (pl.hp < pl.maxHp) {
-        pl.hp++;
+        pl.hp = Math.min(pl.maxHp, pl.hp + (p.amount || 1));
         p.dead = true;
-        floatText(p.x, p.y - 8, '+1 HP', PAL.red);
+        floatText(p.x, p.y - 8, (p.amount || 1) >= HP_PER_HEART ? '+1 HEART' : '+1/2 HEART', PAL.red);
         Sfx.play('pickup');
       }
     } else if (p.kind === 'core') {
@@ -416,8 +418,8 @@ function updatePickups(dt) {
       // It always makes you tougher: +1 max health, and it heals you.
       pl.coreBonus = (pl.coreBonus || 0) + 1;
       recomputeStats(pl);
-      pl.hp = Math.min(pl.maxHp, pl.hp + 2);
-      floatText(pl.x, pl.y - 30, '+1 MAX HP', PAL.red);
+      pl.hp = Math.min(pl.maxHp, pl.hp + HP_PER_HEART);
+      floatText(pl.x, pl.y - 30, '+1 MAX HEART', PAL.red);
       const opens = nextSlot(pl); // the next slot in SLOT_ORDER: CORE, then BACK, then a second WEAPON
       if (opens) { pl.capacity++; floatText(pl.x, pl.y - 24, `A ${LOC_NAME[opens]} SLOT OPENS`, VIAL_COLOR); }
       if (bodyOffers(pl, 'CORE').length) {
@@ -441,7 +443,7 @@ function drawPickups(ctx) {
     const bob = Math.round(Math.sin(p.t * 4) * 1.5);
     pxCircle(ctx, p.x, p.y + 5, 3, 'rgba(0,0,0,0.35)');
     if (p.kind === 'heart') {
-      drawCentered(ctx, SPR.heart, p.x, p.y + bob);
+      drawCentered(ctx, (p.amount || 1) >= HP_PER_HEART ? SPR.heart : halfHeart(), p.x, p.y + bob);
     } else if (p.kind === 'core') {
       // Still beating.
       const beat = Math.floor(p.t * 2.5) % 3 === 0;

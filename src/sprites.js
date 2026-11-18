@@ -444,6 +444,16 @@ function paintHeart(ramp) {
   return P.outline().toCanvas();
 }
 
+// Half a heart: the left lobe filled, the right one empty.
+function halfHeart() {
+  if (SPR.heartHalf) return SPR.heartHalf;
+  const c = document.createElement('canvas'); c.width = SPR.heart.width; c.height = SPR.heart.height;
+  const g = c.getContext('2d'), mid = Math.floor(c.width / 2);
+  g.drawImage(SPR.heartEmpty, 0, 0);
+  g.drawImage(SPR.heart, 0, 0, mid, c.height, 0, 0, mid, c.height);
+  return (SPR.heartHalf = c);
+}
+
 function paintVial(color) {
   const P = new Painter(10, 14, 7);
   P.cyl(2, 7, 4, 12, R.murk, { noise: 0.05 });

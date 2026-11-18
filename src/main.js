@@ -240,9 +240,9 @@ function update(dt) {
   const room = game.room, p = game.player;
 
   // Heartbeat when you're close to death.
-  if (p.hp <= 2) {
+  if (p.hp <= 2 * HP_PER_HEART) {
     game.beatT = (game.beatT || 0) - dt;
-    if (game.beatT <= 0) { game.beatT = p.hp === 1 ? 0.7 : 0.95; Sfx.play('heartbeat'); }
+    if (game.beatT <= 0) { game.beatT = p.hp <= HP_PER_HEART ? 0.7 : 0.95; Sfx.play('heartbeat'); }
   }
 
   // Room cleared?

@@ -520,7 +520,7 @@ try {
     check('it queues the ultimate metamorphosis', game.pendingEvolutions.some(e => e.apex) && evolveReady(p));
     const dmg0 = p.stats.damageMul, hp0 = p.maxHp;
     for (let i = 0; i < 200 && !p.apex; i++) { update(1 / 60); Input.endFrame(); if (game.menu) autoMenu(); }
-    check(`the cocoon splits into the final form (damage x${dmg0.toFixed(2)} -> x${p.stats.damageMul.toFixed(2)}, health ${hp0} -> ${p.maxHp})`, p.apex && p.stats.damageMul > dmg0 * 1.2 && p.maxHp === hp0 + 2 && game.banner && game.banner.text === 'ULTIMATE METAMORPHOSIS');
+    check(`the cocoon splits into the final form (damage x${dmg0.toFixed(2)} -> x${p.stats.damageMul.toFixed(2)}, health ${hp0} -> ${p.maxHp})`, p.apex && p.stats.damageMul > dmg0 * 1.2 && p.maxHp === hp0 + 2 * HP_PER_HEART && game.banner && game.banner.text === 'ULTIMATE METAMORPHOSIS');
     render();
     { const cs = rollLevelUps(p, 3); check(`after it, level-ups never run dry: overgrowth (${cs.map(c => c.kind + ':' + c.id).join(',')})`, cs.filter(c => c.kind === 'level').length === 3 && /OVERGROWTH/.test(choiceInfo(p, cs[0]).status)); }
     { const m = p.parts[0]; const d0 = p.stats.biteDmg; applyChoice(p, { id: m.id, kind: 'level', part: m }); check(`an overgrowth level is a smaller bump (bite ${d0.toFixed(2)} -> ${p.stats.biteDmg.toFixed(2)})`, p.stats.biteDmg > d0 && m.lvl === LEVEL_MAX + 1); }
@@ -956,7 +956,7 @@ try {
     grow(p, 'mirrortwin'); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
     check(`with a CORE already grown, the next core opens BACK and plants no second CORE (${openSlots(p).join(',')})`, openSlots(p).includes('BACK') && !kindsAt(p, 'CORE', 'root').length);
     { p.coreBonus = 0; grow(p, 'spike'); const mh = p.maxHp; game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
-      check(`every devoured core gives +1 max health by itself (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && p.coreBonus === 1); }
+      check(`every devoured core gives +1 max heart by itself (${mh} -> ${p.maxHp} half hearts)`, p.maxHp === mh + HP_PER_HEART && p.coreBonus === 1); }
     { const all = rootsOf('CORE'); grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r))); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
       check('every CORE grown: no card screen, just the health', !game.pendingEvolutions.length); }
     newRun(); game.depth = 2; startFloor(); p = game.player;
@@ -1222,16 +1222,24 @@ try {
   newRun(); combatRoom(); p = game.player; grow(p, 'shell');
   Input.keys.clear(); Input.mouse.down = false; for (let i = 0; i < 30; i++) { p.hp = 3; update(1 / 60); Input.endFrame(); }
   p.inv = 0; const hp0 = p.hp; hurtPlayer(1); check('shell blocks while withdrawn (withdrawn=' + p.withdrawn + ')', p.withdrawn && p.hp === hp0);
+  // Hearts take two hits: health counts in half hearts. Pickups are mostly half hearts.
+  newRun(); combatRoom(); p = game.player; game.enemies = [];
+  check(`you're born with ${BASE_HP} hearts = ${BASE_HP * HP_PER_HEART} half hearts`, p.maxHp === BASE_HP * HP_PER_HEART && p.hp === p.maxHp);
+  p.inv = 0; hurtPlayer(1); check(`a normal hit takes half a heart (${p.hp}/${p.maxHp})`, p.hp === p.maxHp - 1); render();
+  p.inv = 0; hurtPlayer(1); check('...and a second hit empties that heart', p.hp === p.maxHp - HP_PER_HEART);
+  { let half = 0, whole = 0; for (let i = 0; i < 400; i++) { const k = spawnPickup('heart', 10, 10); if (k.amount === 1) half++; else if (k.amount === HP_PER_HEART) whole++; } game.room.pickups = [];
+    check(`heart pickups are half hearts, rarely whole (${half} half, ${whole} whole of 400)`, half + whole === 400 && whole > 20 && whole < 110); }
+  { const h = p.hp; game.room.pickups = []; spawnPickup('heart', p.x, p.y, { amount: 1 }); updatePickups(1 / 60); check(`a half heart heals half a heart (${h} -> ${p.hp})`, p.hp === h + 1); }
   newRun(); combatRoom(); p = game.player; grow(p, 'molt');
-  p.shieldUp = false; p.inv = 0; hurtPlayer(1); check('molt ignores first hit and leaves decoy', p.hp === 3 && !!game.decoy);
-  p.inv = 0; hurtPlayer(1); check('molt only once per room', p.hp === 2);
+  p.shieldUp = false; p.inv = 0; hurtPlayer(1); { const full = p.maxHp; check('molt ignores first hit and leaves decoy', p.hp === full && !!game.decoy); }
+  p.inv = 0; hurtPlayer(1); check('molt only once per room', p.hp === p.maxHp - 1);
   newRun(); combatRoom(); p = game.player; grow(p, 'endlessmolt'); p.shieldUp = false;
   p.inv = 0; hurtPlayer(1); p.moltT = 0; p.inv = 0; hurtPlayer(1); check('endless molt: molts again after its cooldown', p.hp === p.maxHp);
   newRun(); combatRoom(); p = game.player; grow(p, 'hollow');
   p.hp = 5; p.inv = 0; hurtPlayer(1); check('hollow body: hit costs 2', p.hp === 3); // (its path halves max health, so start above it)
   newRun(); combatRoom(); p = game.player; grow(p, 'twin'); ensureTwin();
   let tw = game.allies.find(a => a.kind === 'twin'); let mh = p.maxHp;
-  hurtTwin(tw); tw.inv = 0; hurtTwin(tw); check('twin dies -> -1 max HP (' + mh + '->' + p.maxHp + ')', p.twinDead && p.maxHp === mh - 1);
+  hurtTwin(tw); tw.inv = 0; hurtTwin(tw); check('twin dies -> -1 max heart (' + mh + '->' + p.maxHp + ' half hearts)', p.twinDead && p.maxHp === mh - HP_PER_HEART);
   newRun(); combatRoom(); p = game.player; grow(p, 'bondedtwin'); ensureTwin();
   tw = game.allies.find(a => a.kind === 'twin'); mh = p.maxHp;
   hurtTwin(tw); tw.inv = 0; hurtTwin(tw); check('bonded twin: losing it costs nothing', p.twinDead && p.maxHp === mh);
