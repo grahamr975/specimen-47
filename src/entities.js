@@ -407,7 +407,7 @@ function updatePickups(dt) {
         Sfx.play('pickup');
       }
     } else if (p.kind === 'core') {
-      // A boss's core: eat it. Your body makes room (+1 slot), and the core
+      // A boss's core: eat it. Your body opens its next slot, and the core
       // offers CORE growth (or, if there's none left, makes you tougher).
       p.dead = true;
       bloodSpray(p.x, p.y, 0, 0, 24, FLUID.blood, 130);
@@ -418,7 +418,8 @@ function updatePickups(dt) {
       recomputeStats(pl);
       pl.hp = Math.min(pl.maxHp, pl.hp + 2);
       floatText(pl.x, pl.y - 30, '+1 MAX HP', PAL.red);
-      if (pl.capacity < MAX_SLOTS) { pl.capacity++; floatText(pl.x, pl.y - 24, 'YOUR BODY MAKES ROOM', VIAL_COLOR); }
+      const opens = nextSlot(pl); // the next slot in SLOT_ORDER: CORE, then BACK, then a second WEAPON
+      if (opens) { pl.capacity++; floatText(pl.x, pl.y - 24, `A ${LOC_NAME[opens]} SLOT OPENS`, VIAL_COLOR); }
       if (bodyOffers(pl, 'CORE').length) {
         game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
@@ -426,8 +427,8 @@ function updatePickups(dt) {
     } else if (p.kind === 'vial') {
       p.dead = true;
       Sfx.play('gulp');
-      floatText(p.x, p.y - 8, p.loc + ' VIAL', vialColor(p.loc));
-      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, defects: !!p.defects, title: p.loc + ' VIAL', color: vialColor(p.loc) });
+      floatText(p.x, p.y - 8, LOC_NAME[p.loc] + ' VIAL', vialColor(p.loc));
+      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, defects: !!p.defects, title: LOC_NAME[p.loc] + ' VIAL', color: vialColor(p.loc) });
 
     }
   }

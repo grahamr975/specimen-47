@@ -25,7 +25,7 @@ function openEvolution(opts) {
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.trait ? 'YOU ARE WHAT YOU EAT' : opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.trait ? 'YOU ARE WHAT YOU EAT' : opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${LOC_NAME[opts.loc] || opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -37,6 +37,11 @@ const CARD = { w: 94, h: 146, gap: 7, y: 50 };
 function cardX(i, n) {
   const total = n * CARD.w + (n - 1) * CARD.gap;
   return Math.round((VIEW_W - total) / 2) + i * (CARD.w + CARD.gap);
+}
+
+// Your first weapon can't be put off: a body is never left with no attack.
+function mustChoose(p, menu) {
+  return !partAt(p, 'MOUTH') && menu.choices.some(c => c.id !== '_gorge' && MUTATIONS[c.id] && locOf(c.id) === 'MOUTH' && !MUTATIONS[c.id].from);
 }
 
 function putOffEvolution(p, src) {
@@ -68,7 +73,7 @@ function updateMenu(dt) {
   if (menu.t < 0.5 || menu.stageT < 0.2) return; // ignore input briefly so a held fire button doesn't pick by accident
 
   // Esc: not now. Everything waiting stays banked; hold F in a cleared room later.
-  if (Input.hit('escape')) { putOffEvolution(p, menu.src); return; }
+  if (Input.hit('escape') && !mustChoose(p, menu)) { putOffEvolution(p, menu.src); return; }
 
   let choice = -1;
   for (let i = 0; i < n; i++) if (Input.hit(String(i + 1))) choice = i;
@@ -127,7 +132,7 @@ function drawCard(ctx, info, i, x, y, menu) {
 
   let ty = y + 70;
   for (const line of wrapText(info.name.toUpperCase(), 20)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
-  if (info.slot) drawText(ctx, `[${info.slot}] ${LOC_TAG[info.slot] || ''}`.trim(), cx, ty, PAL.slate, 1, 'center', null);
+  if (info.slot) drawText(ctx, `[${LOC_NAME[info.slot] || info.slot}] ${LOC_TAG[info.slot] || ''}`.trim(), cx, ty, PAL.slate, 1, 'center', null);
   // Its set, and whether it moves you toward a set bonus.
   if (info.set) {
     const S = SETS[info.set], after = info.setAfter;
@@ -184,18 +189,18 @@ function drawMenu(ctx) {
     const bq = hov && QUIRKS[hov.quirk];
     if (bq) { drawText(ctx, help || '', VIEW_W / 2, 198, '#c8b8a8', 1, 'center'); wrapText('BORN ' + bq.name + ': ' + bq.desc.toUpperCase(), 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 207 + i * 8, '#e8a020', 1, 'center')); }
     else if (help) wrapText(help, 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 201 + i * 8, '#c8b8a8', 1, 'center'));
-    else drawText(ctx, 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
+    else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
 
 // What each kind of part is for: a short tag on the card, and a line when you hover it.
 const LOC_TAG = { MOUTH: 'ATTACK', LIMBS: 'MOVEMENT', HEAD: 'SENSES', BACK: 'DASH/HIT', CORE: 'PASSIVE' };
 const LOC_HELP = {
-  MOUTH: 'MOUTH: AN ATTACK. EVERY MOUTH YOU GROW FIRES WHEN YOU SHOOT.',
+  MOUTH: 'WEAPON: AN ATTACK. YOU HAVE ROOM FOR TWO, AND BOTH FIRE WHEN YOU SHOOT.',
   LIMBS: 'LIMBS: HOW YOU MOVE, PLUS A RIGHT-CLICK (E) ABILITY. ONE SET AT A TIME.',
   HEAD: 'HEAD: SENSES, PLUS AN ABILITY THAT FIRES BY ITSELF. YOU ONLY HAVE ONE HEAD.',
-  BACK: 'BACK: GOES OFF WHEN YOU DASH OR GET HIT. GROW AS MANY AS YOU LIKE.',
-  CORE: 'CORE: ALWAYS ON. MAKES YOUR WHOLE BODY STRONGER OR TOUGHER.',
+  BACK: 'BACK: GOES OFF WHEN YOU DASH OR GET HIT. ONE BACK.',
+  CORE: 'CORE: ALWAYS ON. MAKES YOUR WHOLE BODY STRONGER OR TOUGHER. ONLY FROM BOSS CORES.',
 };
 const LEVEL_HELP = 'LEVEL UP: A SMALL BOOST TO THIS PART. AT LEVEL 3 IT EVOLVES INTO SOMETHING NEW.';
 
@@ -235,7 +240,7 @@ function drawHUD(ctx) {
   else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
-  else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial' && k.loc === 'MOUTH')) { msg = 'YOU HAVE NO MOUTH - TAKE THE RED VIAL'; col = vialColor('MOUTH'); }
+  else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial' && k.loc === 'MOUTH')) { msg = 'YOU HAVE NO WEAPON - TAKE THE RED VIAL'; col = vialColor('MOUTH'); }
   else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - DEVOUR IT'; col = VIAL_COLOR; }
   else if (room.type === 'vault') { msg = (room.vialLoc || 'MUTAGEN') + ' VAULT'; col = vialColor(room.vialLoc); }
@@ -303,13 +308,22 @@ function mutColor(p, id) {
   return d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color;
 }
 
-// Your body: one panel per slot along the bottom. Big parts span two slots;
-// spliced parts are joined by a glowing seam; free slots wait, empty.
+// Your body: one panel per slot along the bottom. Spliced parts are joined
+// by a glowing seam; free slots wait, empty. The bar always shows all six slots, in two groups: WEAPON x2 | LIMBS HEAD BACK CORE.
+// Locked ones say which comes next: each devoured boss core opens one.
+const BAR_LAYOUT = ['MOUTH', 'MOUTH', 'LIMBS', 'HEAD', 'BACK', 'CORE'];
 function drawMutationList(ctx) {
   const p = game.player;
   const top = ROOM_Y + ROOM_PX_H + 3;
-  const cap = slotCapacity(p), cells = Math.max(cap, slotsUsed(p));
-  const pitch = Math.floor(316 / cells);
+  const groupGap = 6, pitch = Math.floor((316 - groupGap) / BAR_LAYOUT.length);
+  const cellX = i => 3 + i * pitch + (i >= 2 ? groupGap : 0);
+  // Which part sits in which cell, and which cells are open.
+  const seen = {}, cellPart = [], cellOpen = [];
+  BAR_LAYOUT.forEach((loc, i) => {
+    const k = seen[loc] = (seen[loc] || 0) + 1;
+    cellPart[i] = partsAt(p, loc).filter(m => !m.starter)[k - 1] || null;
+    cellOpen[i] = k <= slotsAt(p, loc);
+  });
   const spliced = new Set();
   for (const k of p.splices) for (const ids of SPLICES[k].parts) for (const m of p.parts) if (ids.some(id => m.path.includes(id))) spliced.add(m);
   const act = activeSet(p);
@@ -318,15 +332,24 @@ function drawMutationList(ctx) {
     ctx.fillStyle = '#0e0b0c'; ctx.fillRect(x + 1, top + 1, w - 2, 24);
     ctx.fillStyle = '#2e2627'; ctx.fillRect(x, top + 26, w, 1); ctx.fillRect(x + w, top, 1, 27);
   };
-  let cell = 0;
-  for (const m of p.parts) {
-    const span = partSize(m), x = 3 + cell * pitch, w = span * pitch - 2;
-    cell += span;
+  const next = nextSlot(p);
+  let nextShown = false;
+  BAR_LAYOUT.forEach((loc, i) => {
+    const m = cellPart[i], x = cellX(i), w = pitch - 2;
     panel(x, w);
+    if (!m) {
+      drawText(ctx, LOC_NAME[loc], x + 4, top + 2, '#3a3232', 1, 'left', null);
+      if (cellOpen[i]) drawText(ctx, 'FREE', x + w / 2, top + 12, '#4a3e3e', 1, 'center', null);
+      else {
+        const soon = loc === next && !nextShown; if (soon) nextShown = true;
+        drawText(ctx, soon ? 'NEXT BOSS' : 'LOCKED', x + w / 2, top + 12, soon ? '#6a4a52' : '#2a2424', 1, 'center', null);
+      }
+      return;
+    }
     const d = getMutDef(m.id), col = mutColor(p, m.id);
     ctx.fillStyle = col; ctx.fillRect(x, top, 2, 26); // rarity stripe
     if (spliced.has(m)) { ctx.fillStyle = VIAL_COLOR; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(game.time * 4); ctx.fillRect(x + 2, top, w - 2, 1); ctx.fillRect(x + 2, top + 25, w - 2, 1); ctx.globalAlpha = 1; }
-    drawText(ctx, m.loc, x + 4, top + 2, '#5a4e4c', 1, 'left', null);
+    drawText(ctx, LOC_NAME[m.loc], x + 4, top + 2, '#5a4e4c', 1, 'left', null);
     const set = !m.starter && setOf(m.id);
     if (set) { // set gem (glows when it's part of an active bonus)
       const lit = act && act.set === set;
@@ -336,7 +359,7 @@ function drawMutationList(ctx) {
     }
     const icon = mutIcon(m.id);
     if (icon) ctx.drawImage(icon, x + 4, top + 9);
-    if (w >= 56) wrapText(d.name.toUpperCase(), Math.floor((w - 24) / 4)).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
+    if (w >= 44) wrapText(d.name.toUpperCase(), Math.floor((w - 24) / 4)).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
     // How far the path has grown (root, branch, branch). The next pip glows
     // if it can grow again this floor.
     for (let l = 0; l < 3; l++) {
@@ -345,13 +368,8 @@ function drawMutationList(ctx) {
     }
     // Its level: pink dots that fill toward its next evolution.
     if (!m.starter) for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < (m.lvl || 0) ? VIAL_COLOR : '#2a1c22'; ctx.fillRect(x + 38 + l * 3, top + 23, 2, 2); }
-    if ((m.lvl || 0) > LEVEL_MAX && w >= 56) drawText(ctx, '+' + (m.lvl - LEVEL_MAX), x + 48, top + 21, '#ffd070', 1, 'left', null); // overgrowth
-  }
-  for (; cell < cap; cell++) {
-    const x = 3 + cell * pitch, w = pitch - 2;
-    panel(x, w);
-    drawText(ctx, 'FREE', x + w / 2, top + 10, '#3a3232', 1, 'center', null);
-  }
+    if ((m.lvl || 0) > LEVEL_MAX) drawText(ctx, '+' + (m.lvl - LEVEL_MAX), x + w - 2, top + 21, '#ffd070', 1, 'right', null); // overgrowth
+  });
 }
 
 // The right-click (E) ability and the head's automatic one, with their cooldowns.

@@ -2,18 +2,17 @@
 // ---------------------------------------------------------------------------
 // MUTATIONS: the heart of the game.
 //
-// Your body has a few open SLOTS: 3 at first, never more than 5. Every
-// devoured boss core adds one, and every splice frees one (two parts fuse
-// into one), up to the cap. Each slot holds a PART, and every part grows
-// somewhere on the body:
-//   MOUTH: an attack (fire button). Grow several and they all fire.
-//   LIMBS: how you move, plus a right-click ability. One set at a time.
+// Your body has TYPED SLOTS, in two tracks (like weapons and passives):
+//   WEAPON (id 'MOUTH'): an attack (fire button). Room for two; both fire.
+//   LIMBS: how you move, plus a right-click ability. One set.
 //   HEAD:  senses, plus an ability that fires by itself. One head.
-//   BACK:  what happens when you dash or get hurt. As many as you like.
+//   BACK:  what happens when you dash or get hurt. One back.
 //   CORE:  your engine. Only planted from devoured boss cores.
+// You start with a WEAPON, LIMBS and HEAD slot open. Each devoured boss core
+// opens the next slot in SLOT_ORDER (CORE, then BACK, then a second WEAPON),
+// so a finished body is six parts: never zero weapons, never five.
 // BOSS PICKS (`boss: true`): the strangest roots (the playstyle mouths,
 // Tentacles, Parasite Brain) are rare finds in colored vials, never level-ups.
-// Fill your slots with mouths for a glass cannon, or backs and cores for a tank.
 //
 // Each part grows ONE path:
 //   plant a ROOT in a free slot (or replace your starter slime);
@@ -33,10 +32,13 @@
 // ---------------------------------------------------------------------------
 
 const LOCS = ['MOUTH', 'HEAD', 'BACK', 'LIMBS', 'CORE'];
-const LOC_MAX = { HEAD: 1, LIMBS: 1 }; // one head, one way of moving
+const LOC_MAX = { MOUTH: 2, HEAD: 1, BACK: 1, LIMBS: 1, CORE: 1 }; // the most of each a body can hold
+// The order slots open in: the first START_SLOTS at birth, then one per devoured boss core.
+const SLOT_ORDER = ['MOUTH', 'LIMBS', 'HEAD', 'CORE', 'BACK', 'MOUTH'];
 const START_SLOTS = 3;                  // you start with all of them empty
-const MAX_SLOTS = 5;
-const WILD_CHANCE = 0.15;              // the first vials' chance of a rare find                    // the hard cap: a finished body is 5 parts, not a hodgepodge
+const MAX_SLOTS = SLOT_ORDER.length;    // the hard cap: a finished body is 6 parts
+const WILD_CHANCE = 0.15;              // the first vials' chance of a rare find
+const LOC_NAME = { MOUTH: 'WEAPON', HEAD: 'HEAD', BACK: 'BACK', LIMBS: 'LIMBS', CORE: 'CORE' }; // what the player sees
 const LEVEL_MAX = 3;                    // levels before a part evolves
 // POWER IS EARNED. A fresh body hits at 70%; every fully grown part and every
 // splice adds +6%. A finished body ends up far stronger than it started.
@@ -709,7 +711,7 @@ const MUTATIONS = {
 
   parasite: {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
-    name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, size: 2, overlay: ['parasite'],
+    name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, overlay: ['parasite'],
     desc: '+60% damage with everything. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it.',
     cost: 'Sometimes it takes control of your body.',
     apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
@@ -1042,7 +1044,7 @@ const MUTATIONS = {
 
   grapple: {
     requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
-    name: 'Tentacles', slot: 'LIMBS', boss: true, rarity: 'rare', size: 2, overlay: ['tentlimbs'],
+    name: 'Tentacles', slot: 'LIMBS', boss: true, rarity: 'rare', overlay: ['tentlimbs'],
     desc: 'Right-click (or E) to lash a tentacle at a wall or enemy and yank yourself to it.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 60); s.grapple = 1.0 - 0.15 * (l - 1); s.grappleRange = 110 + 15 * l; s.pullDmg += 2 + l; },
   },
@@ -1312,7 +1314,7 @@ const MUTATIONS = {
   },
 
   heartwood: {
-    name: 'Heartwood', slot: 'CORE', rarity: 'common', size: 2,
+    name: 'Heartwood', slot: 'CORE', rarity: 'common',
     desc: 'A heart of hard wood: +1 max health per growth, and you slowly regrow.',
     apply(s, l) { s.maxHp += l; s.regen = Math.min(s.regen || 99, 32); },
     onGain(p) { p.hp += 1; },
@@ -2132,7 +2134,7 @@ const SPLICES = {
     desc: 'While you are rooted, your thorns lash everything around you.', whisper: 'Rooted, the thorns reach out on their own.' },
   toadking:       { name: 'Toad King',       parts: [['toadgullet'], ['tongue']],         apply(s) { s.spitAcid = Math.max(s.spitAcid || 0, 14); },
     desc: 'What you swallow and spit back bursts into burning bile.', whisper: 'Two gullets, one hunger.' },
-  quillstorm:     { name: 'Quill Storm',     parts: [['urchinquills'], ['spines']],       apply(s) { s.quillCount = 12; },
+  quillstorm:     { name: 'Quill Storm',     parts: [['urchinquills'], ['boneplates']],   apply(s) { s.quillCount = 12; },
     desc: 'Your quills fire twice as many spines.', whisper: 'Every spine in you wants out.' },
   wingedbrood:    { name: 'Winged Brood',    parts: [['wings'], ['eggsac']],              apply(s) { s.flyingBrood = true; },
     desc: 'Your spiderlings hatch with wings: faster, and they fly over everything.', whisper: 'Your children are born with wings.' },
@@ -2320,11 +2322,18 @@ function partFor(p, id) {
   return p.parts.find(m => m.path.includes(id)) || (d.from ? p.parts.find(m => m.id === d.from) : null) || null;
 }
 
-function partSize(m) { return m.starter ? 1 : (MUTATIONS[m.path[0]].size || 1); }
-function rootSize(id) { return MUTATIONS[id].size || 1; }
-function slotsUsed(p) { return p.parts.reduce((n, m) => n + partSize(m), 0); }
-function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity); } // (splices add to p.capacity when they form)
-function freeSlots(p) { return slotCapacity(p) - slotsUsed(p); }
+// Every part fills exactly one slot of its own kind.
+function partSize(m) { return 1; }
+function rootSize(id) { return 1; }
+function slotsUsed(p) { return p.parts.length; }
+function slotCapacity(p) { return Math.min(MAX_SLOTS, p.capacity); }
+// The slots of each kind that are open right now (p.capacity counts along SLOT_ORDER).
+function openSlots(p) { return SLOT_ORDER.slice(0, slotCapacity(p)); }
+function slotsAt(p, loc) { return openSlots(p).filter(l => l === loc).length; }
+function freeSlotsAt(p, loc) { return slotsAt(p, loc) - partsAt(p, loc).length; }
+function freeSlots(p) { return LOCS.reduce((n, loc) => n + Math.max(0, freeSlotsAt(p, loc)), 0); }
+// The kind of slot the next devoured core opens (null once the body is complete).
+function nextSlot(p) { return slotCapacity(p) < MAX_SLOTS ? SLOT_ORDER[slotCapacity(p)] : null; }
 
 
 // Does the player have this node anywhere?
@@ -2364,7 +2373,6 @@ function meetsRequirement(p, id, except) {
 function bodyOffers(p, onlyLoc, boss = false) {
   const out = [];
   const okLoc = loc => onlyLoc ? loc === onlyLoc : loc !== 'CORE'; // new roots and metamorphoses
-  const free = freeSlots(p);
   const starter = p.parts.find(m => m.starter);
   for (const m of p.parts) {
     if (m.starter || (onlyLoc && m.loc !== onlyLoc)) continue;
@@ -2375,18 +2383,16 @@ function bodyOffers(p, onlyLoc, boss = false) {
     const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
     for (const r of rootsOf(m.loc)) {
       if (RARITY_ORDER.indexOf(MUTATIONS[r].rarity) <= rank || hasMutation(p, r) || MUTATIONS[r].boss || !meetsRequirement(p, r, m)) continue;
-      if (rootSize(r) - partSize(m) > free) continue;
       out.push({ id: r, kind: 'meta', shed: m });
     }
   }
   for (const loc of LOCS) {
     if (!okLoc(loc)) continue;
-    const here = partsAt(p, loc).filter(m => !m.starter).length;
-    if (here >= (LOC_MAX[loc] || 99)) continue;
+    const swapStarter = starter && starter.loc === loc;
+    if (!swapStarter && freeSlotsAt(p, loc) < 1) continue; // no open slot of this kind
     for (const r of rootsOf(loc)) {
       if (hasMutation(p, r) || !!MUTATIONS[r].boss !== boss) continue;
-      if (starter && starter.loc === loc) out.push({ id: r, kind: 'replace', shed: starter });
-      else if (rootSize(r) <= free) out.push({ id: r, kind: 'root' });
+      out.push(swapStarter ? { id: r, kind: 'replace', shed: starter } : { id: r, kind: 'root' });
     }
   }
   return out;
@@ -2397,12 +2403,10 @@ function bodyOffers(p, onlyLoc, boss = false) {
 // the same kind (the card says which it sheds).
 function bossPicks(p) {
   const out = bodyOffers(p, null, true).filter(c => MUTATIONS[c.id].boss && !MUTATIONS[c.id].from);
-  const free = freeSlots(p);
   for (const r of Object.keys(MUTATIONS)) {
     const d = MUTATIONS[r];
     if (!d.boss || d.from || hasMutation(p, r) || out.some(c => c.id === r)) continue;
-    const here = partsAt(p, d.slot).sort((a, b) => a.path.length - b.path.length);
-    const shed = here.find(m => rootSize(r) - partSize(m) <= free);
+    const shed = partsAt(p, d.slot).sort((a, b) => a.path.length - b.path.length)[0];
     if (shed) out.push({ id: r, kind: 'swap', shed });
   }
   return out;
@@ -2413,7 +2417,7 @@ function bossPicks(p) {
 function traitCards(p, type) {
   const id = GRAFT_OF[type];
   if (!id || hasMutation(p, id)) return [];
-  if (freeSlots(p) >= 1) return [{ id, kind: 'root' }];
+  if (freeSlotsAt(p, locOf(id)) >= 1) return [{ id, kind: 'root' }];
   const shed = partsAt(p, locOf(id)).sort((a, b) => a.path.length - b.path.length)[0];
   return shed ? [{ id, kind: 'swap', shed }] : [];
 }
@@ -2422,7 +2426,7 @@ function traitCards(p, type) {
 function isMetamorph(p, c) {
   if (typeof c === 'string') c = { id: c };
   if (c.kind) return c.kind === 'meta';
-  const m = c.shed || (!MUTATIONS[c.id].from && LOC_MAX[locOf(c.id)] && partAt(p, locOf(c.id)));
+  const m = c.shed || (!MUTATIONS[c.id].from && freeSlotsAt(p, locOf(c.id)) < 1 && partAt(p, locOf(c.id)));
   return !MUTATIONS[c.id].from && !!m && !m.starter;
 }
 
@@ -2472,7 +2476,7 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
     }
     // The first vials (the first room's mouth, floor 1's limbs) sometimes hold a WILD CARD: a rare find.
     if (plain && out.length && Math.random() < WILD_CHANCE) {
-      const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(GRAFT_OF).map(t => GRAFT_OF[t]).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlots(p) >= 1).map(id => ({ id, kind: 'root' })));
+      const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(GRAFT_OF).map(t => GRAFT_OF[t]).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlotsAt(p, onlyLoc) >= 1).map(id => ({ id, kind: 'root' })));
       if (wild.length) { const w = pick(wild); out[Math.floor(Math.random() * out.length)] = card(w); out.wild = true; }
     }
     if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge);
@@ -2534,7 +2538,7 @@ function resolveCard(p, c) {
   if (d.from) return { id: c.id, kind: 'branch', part: partFor(p, c.id) };
   const starter = p.parts.find(m => m.starter && m.loc === loc);
   if (starter) return { id: c.id, kind: 'replace', shed: starter };
-  const held = LOC_MAX[loc] && partAt(p, loc);
+  const held = freeSlotsAt(p, loc) < 1 && partAt(p, loc);
   if (held) return { id: c.id, kind: 'meta', shed: held };
   return { id: c.id, kind: 'root' };
 }
@@ -2566,10 +2570,8 @@ function choiceInfo(p, c) {
     if (d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
-    const size = rootSize(c.id);
     status = d.boss ? 'BOSS PICK' : d.graft ? 'DEVOURED TRAIT' : 'NEW PART';
-    note = size > 1 ? `TAKES ${size} SLOTS` : 'TAKES A SLOT';
-    noteColor = size > 1 ? '#e8c020' : PAL.slate;
+    note = `TAKES A ${LOC_NAME[loc]} SLOT`;
   }
   // What the set count would be after taking it.
   const counts = setCounts(p), set = setOf(c.id);
@@ -2591,7 +2593,7 @@ function choiceInfo(p, c) {
 // can keep leveling past the max (OVERGROWTH) for the rest of the run.
 const fullyGrown = m => !m.starter && !childrenOf(m.id).length;
 function apexReady(p) {
-  return !p.apex && slotsUsed(p) >= MAX_SLOTS && p.parts.every(fullyGrown);
+  return !p.apex && LOCS.every(loc => partsAt(p, loc).length >= LOC_MAX[loc]) && p.parts.every(fullyGrown);
 }
 function checkApex(p) {
   if (!apexReady(p) || game.pendingEvolutions.some(e => e.apex)) return;

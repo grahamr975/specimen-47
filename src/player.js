@@ -60,11 +60,11 @@ function recomputeStats(p) {
   }
   finalizeStats(s);
   for (const k of splices) {
-    // The two parts fuse into one: the slot it frees is yours for good (up to the cap).
-    if (!(p.splicedEver = p.splicedEver || []).includes(k)) { p.splicedEver.push(k); p.capacity = Math.min(MAX_SLOTS, Math.max(p.capacity, slotsUsed(p)) + 1); }
+    // The two parts fuse into something new (each still holds its own slot).
+    if (!(p.splicedEver = p.splicedEver || []).includes(k)) p.splicedEver.push(k);
     if (p.splices.includes(k) || !game.room) continue;
     const isNew = Journal.discover(k); // written into the splice journal (kept between runs)
-    game.banner = { text: isNew ? 'NEW SPLICE' : 'SPLICED', sub: SPLICES[k].name + (isNew ? ' - RECORDED IN THE JOURNAL' : ' - A SLOT FREES UP'), color: VIAL_COLOR, t: 2.8 };
+    game.banner = { text: isNew ? 'NEW SPLICE' : 'SPLICED', sub: SPLICES[k].name + (isNew ? ' - RECORDED IN THE JOURNAL' : ' - TWO PARTS FUSE'), color: VIAL_COLOR, t: 2.8 };
     game.fx.push({ kind: 'act', what: 'stitch', x: p.x, y: p.y - 4, t: 0.8, max: 0.8 }); // threads of flesh stitch you together
     whisper(SPLICES[k].whisper);
     bloodSpray(p.x, p.y, 0, 0, 20, FLUID.blood, 120);

@@ -36,7 +36,7 @@
 <script src="../src/main.js"></script>
 
 <script>
-const log = []; let corpseFails = 0, orbsLeft = 0, sealFails = 0; const corpseBuilds = new Set();
+const log = []; let corpseFails = 0, orbsLeft = 0, sealFails = 0; const corpseBuilds = new Set(); const weaponCounts = [];
 let menus = 0;
 const check = (name, ok) => log.push((ok ? 'OK   ' : 'FAIL ') + name);
 function autoMenu() {
@@ -83,12 +83,21 @@ const combatRoom = () => { enterRoom(game.floor.rooms.find(r => r.type === 'comb
 // The path from a root down to `id`.
 function pathTo(id) { const out = [id]; while (MUTATIONS[out[0]].from) out.unshift(MUTATIONS[out[0]].from); return out; }
 // Grow the given nodes (each with its whole path). MOUTH keeps the starter slime blob unless given.
-// One part per id; a later HEAD or LIMBS replaces an earlier one. Capacity grows to fit.
+// One part per id; past a kind's limit (LOC_MAX: 2 weapons, 1 of the rest) a later part replaces
+// the earliest of its kind. Capacity opens just enough slots (along SLOT_ORDER) to hold them all.
 // ('slime' still works: the old starting spit, kept around for tests.)
+function capacityFor(p) {
+  for (let n = START_SLOTS; n < MAX_SLOTS; n++) if (LOCS.every(loc => partsAt(p, loc).length <= SLOT_ORDER.slice(0, n).filter(l => l === loc).length)) return n;
+  return MAX_SLOTS;
+}
 function grow(p, ...ids) {
   p.parts = [];
-  for (const id of ids) { const loc = locOf(id); if (LOC_MAX[loc]) p.parts = p.parts.filter(m => m.loc !== loc); p.parts.push({ id, path: pathTo(id), loc }); }
-  p.capacity = Math.max(START_SLOTS, slotsUsed(p));
+  for (const id of ids) {
+    const loc = locOf(id), here = p.parts.filter(m => m.loc === loc);
+    if (here.length >= LOC_MAX[loc]) p.parts.splice(p.parts.indexOf(here[0]), 1);
+    p.parts.push({ id, path: pathTo(id), loc });
+  }
+  p.capacity = capacityFor(p);
   recomputeStats(p);
 }
 const SLOTS = LOCS, slotOf = locOf;
@@ -122,7 +131,7 @@ try {
     applyChoice(p, { id: 'spines' });
     check('a root whispers its hint', game.whisper && game.whisper.text === HINTS.spines.toUpperCase());
     check('a planted part offers its two branches', childrenOf('spines').every(id => kindsAt(p, 'BACK', 'branch').includes(id)));
-    check('...and other BACK roots can still grow in a free slot', kindsAt(p, 'BACK', 'root').includes('chitin') && !offersAt(p, 'BACK').includes('spines'));
+    check('...and no second BACK root: a body has one back', !kindsAt(p, 'BACK', 'root').length);
     applyChoice(p, { id: 'urchinhide' });
     check('a branch whispers too', game.whisper.text === HINTS.urchinhide.toUpperCase());
     game.depth = 2;
@@ -144,7 +153,11 @@ try {
     newRun(); p = game.player;
     check('a fresh body is offered any (non-boss) MOUTH root', !p.parts.length && kindsAt(p, 'MOUTH', 'root').join() === rootsOf('MOUTH').filter(r => !MUTATIONS[r].boss).join());
     applyChoice(p, { id: 'tentacles' });
-    check('...and then a second MOUTH can grow in a free slot (glass cannon)', partsAt(p, 'MOUTH').length === 1 && !p.parts.some(m => m.starter) && kindsAt(p, 'MOUTH', 'root').includes('spike') && !offersAt(p, 'MOUTH').includes('tentacles'));
+    check('...no second WEAPON root until its slot opens', partsAt(p, 'MOUTH').length === 1 && !kindsAt(p, 'MOUTH', 'root').length);
+    p.capacity = MAX_SLOTS;
+    check('...then a second WEAPON can grow in it (glass cannon)', !p.parts.some(m => m.starter) && kindsAt(p, 'MOUTH', 'root').includes('spike') && !offersAt(p, 'MOUTH').includes('tentacles'));
+    grow(p, 'tentacles', 'spike'); p.capacity = MAX_SLOTS;
+    check('...but never a third', !kindsAt(p, 'MOUTH', 'root').length);
     // Rolls never offer something illegal, never overfill the body, and usually show a fork side by side.
     let forks = 0, illegal = 0, over = 0;
     for (let i = 0; i < 300; i++) {
@@ -411,8 +424,8 @@ try {
     for (const k of Object.keys(SETS)) { q = arena(); grow(q, ...LOCS.map(sl => formOf(k, sl)).filter(Boolean)); q.evolutions = 8; recomputeStats(q); walk(q, 30); q.inv = 0; q.hp = q.maxHp; hurtPlayer(1); q.inv = 99; walk(q, 10); }
     log.push('every set form animated, glowed and got hurt');
     q = arena(); const leafUnder = id => leaves().find(l => pathTo(l).includes(id));
-    grow(q, leafUnder('tongue'), leafUnder('proboscis'), leafUnder('spike'), 'juggernaut', leafUnder('silk')); q.gullet = 2; walk(q, 20);
-    check('splices draw their marks (seam, bulging gullet, bone barrel)', q.splices.length >= 2);
+    grow(q, leafUnder('tongue'), leafUnder('proboscis'), 'juggernaut', leafUnder('chitin')); q.gullet = 2; walk(q, 20);
+    check('splices draw their marks (seam, bulging gullet)', q.splices.length >= 2);
     grow(q, leafUnder('howl'), leafUnder('burrow')); q.burrowT = 0.02; update(1 / 60); Input.endFrame(); render();
     log.push('seismic howl cracked the floor');
   }
@@ -451,7 +464,8 @@ try {
     check(`the first room holds a red MOUTH vial (${v && v.loc}), away from the middle`, v && v.loc === 'MOUTH' && Math.hypot(v.x - p.x, v.y - p.y) > 30);
     p.x = v.x; p.y = v.y; update(1 / 60); Input.endFrame();
     for (let i = 0; i < 150 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
-    check(`picking it up: a MOUTH screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'MOUTH VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
+    check(`picking it up: a WEAPON screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'WEAPON VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
+    { game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame(); check('esc cannot put off your first weapon', !!game.menu && game.menu.title === 'WEAPON VIAL' && !game.menu.choices.some(c => c.id === '_gorge')); }
     game.menu = null; game.evolving = false;
     const vault = game.floor.rooms.find(r => r.type === 'vault');
     check(`floor 1's vault holds a blue LIMBS vial for the slug (${vault && vault.vialLoc})`, vault && vault.vialLoc === 'LIMBS');
@@ -504,10 +518,12 @@ try {
   }
   { // 0s) The Ultimate Metamorphosis.
     newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
-    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'brood'); p.capacity = 5;
-    check('four grown parts and a young one: not yet', (grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'hide'), !apexReady(p)));
-    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide')); p.capacity = 5;
-    check('five fully grown parts: ready', apexReady(p));
+    const bileLeaf = leaves().find(l => rootOf(l) === 'bile');
+    grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', 'brood');
+    check('five grown parts and a young one: not yet', (grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', 'hide'), !apexReady(p)));
+    check('five fully grown parts and an empty slot: not yet', (grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide')), p.capacity = MAX_SLOTS, !apexReady(p)));
+    grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide'));
+    check('six fully grown parts (two weapons + four body): ready', apexReady(p));
     for (const m of p.parts) m.lvl = LEVEL_MAX;
     recomputeStats(p);
     { const cs = rollLevelUps(p, 3); check(`before it, a maxed body has nothing to level (${cs.map(c => c.id).join(',')})`, !cs.some(c => c.kind === 'level')); }
@@ -844,36 +860,37 @@ try {
     game.menu.t = 2; game.menu.stageT = 2; Input.mouse.x = cardX(0, game.menu.choices.length) + 10; Input.mouse.y = CARD.y + 20; updateMenu(1 / 60); render();
     check(`hovering a card picks it out (hover ${game.menu.hover})`, game.menu.hover === 0); game.menu = null;
   }
-  { // 0k) Open slots: fill them however you like.
+  { // 0k) Typed slots: two weapons, one of each body part.
     newRun(); combatRoom(); let p = game.player; game.enemies = [];
     check(`you start with ${START_SLOTS} empty slots and no attack`, slotCapacity(p) === START_SLOTS && slotsUsed(p) === 0 && !p.stats.guns.length && !p.stats.bite && !p.stats.lash);
     grow(p, 'spike', 'bile');
     check('two mouths both fire (glass cannon)', p.stats.guns.some(g => g.id === 'spike') && p.stats.guns.some(g => g.id === 'bile'));
     { game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96; fireFor(20); check(`...in a real fight, both fire (${new Set(mine().map(b => b.color)).size} kinds of shot)`, new Set(mine().map(b => b.color)).size >= 2); }
-    grow(p, 'spines', 'chitin', 'twitch');
-    check('backs stack (tank): three BACK parts all work', partsAt(p, 'BACK').length === 3 && p.stats.ring > 0 && p.stats.shieldCd > 0);
-    grow(p, 'spider'); p.capacity = 4;
+    grow(p, 'spike', 'spines', 'chitin');
+    check('one back: a later BACK replaces the earlier one', partsAt(p, 'BACK').length === 1 && hasMutation(p, 'chitin'));
+    grow(p, 'spike', 'spines'); p.capacity = MAX_SLOTS;
+    check('no second BACK root offered', !kindsAt(p, 'BACK', 'root').length);
+    grow(p, 'spider'); p.capacity = MAX_SLOTS;
     check('one set of limbs: no second LIMBS root offered', !kindsAt(p, 'LIMBS', 'root').length);
-    grow(p, 'eyes'); p.capacity = 4;
+    grow(p, 'eyes'); p.capacity = MAX_SLOTS;
     check('one head: no second HEAD root offered', !kindsAt(p, 'HEAD', 'root').length);
-    grow(p, 'spike'); p.capacity = 2;
-    check(`big parts need room: Heartwood (2 slots) not offered with 1 free`, !offersAt(p, 'CORE').includes('heartwood'));
-    p.capacity = 3;
-    check(`...offered with 2 free, and the card says so ("${choiceInfo(p, { id: 'heartwood' }).note}")`, offersAt(p, 'CORE').includes('heartwood') && /2 SLOTS/.test(choiceInfo(p, { id: 'heartwood' }).note));
-    applyChoice(p, { id: 'heartwood' });
-    check('a big part fills two slots', slotsUsed(p) === 3 && freeSlots(p) === 0);
+    // Slots open along SLOT_ORDER: WEAPON, LIMBS, HEAD at birth; then CORE, BACK, a second WEAPON.
+    newRun(); p = game.player;
+    check(`a fresh body has a WEAPON, LIMBS and HEAD slot (${openSlots(p).join(',')})`, openSlots(p).join() === 'MOUTH,LIMBS,HEAD');
+    check('...so a fresh body is offered no BACK or CORE roots', !kindsAt(p, 'BACK', 'root').length && !offersAt(p, 'CORE').length);
+    check(`the card names the slot it takes ("${choiceInfo(p, { id: 'spike' }).note}")`, choiceInfo(p, { id: 'spike' }).note === 'TAKES A WEAPON SLOT');
+    grow(p, 'spike', 'spider', 'eyes'); p.capacity = START_SLOTS;
     check('a full body offers no new parts', !bodyOffers(p).some(c => c.kind === 'root'));
     newRun(); p = game.player; grow(p, 'sporefire', 'cropduster');
-    check(`a splice fuses two parts into one: it frees a slot (${slotsUsed(p)}/${slotCapacity(p)})`, p.splices.includes('firestorm') && slotCapacity(p) === 4);
-    { const m = partFor(p, 'cropduster'); applyChoice(p, { id: 'grapple', kind: 'meta', shed: m });
-      check(`...and keeps it even if the splice breaks later (${slotsUsed(p)}/${slotCapacity(p)})`, !p.splices.includes('firestorm') && slotCapacity(p) === 4 && slotsUsed(p) <= slotCapacity(p)); }
-    p.capacity = 5; check(`...but never past the cap of ${MAX_SLOTS}`, slotCapacity(p) === MAX_SLOTS);
-    newRun(); p = game.player; game.room.pickups = []; for (let i = 0; i < 4; i++) { spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame(); }
-    check(`four cores later: still only ${slotCapacity(p)} slots`, slotCapacity(p) === MAX_SLOTS); game.pendingEvolutions = [];
-    grow(p, 'spike', 'bile', 'spines', 'spider', 'eyes'); p.capacity = 5;
+    check(`a splice fuses two parts (${slotsUsed(p)}/${slotCapacity(p)}) but opens no slot`, p.splices.includes('firestorm') && slotCapacity(p) === START_SLOTS);
+    newRun(); p = game.player; game.room.pickups = []; const opened = [];
+    for (let i = 0; i < 5; i++) { const c0 = slotCapacity(p); spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame(); if (slotCapacity(p) > c0) opened.push(SLOT_ORDER[c0]); }
+    check(`each core opens the next slot: ${opened.join(', ')}`, opened.join() === 'CORE,BACK,MOUTH');
+    check(`...and then no more (${slotCapacity(p)} slots)`, slotCapacity(p) === MAX_SLOTS); game.pendingEvolutions = [];
+    grow(p, 'spike', 'bile', 'spines', 'spider', 'eyes', 'hide');
     { const picks = bossPicks(p), mouthPick = picks.find(c => locOf(c.id) === 'MOUTH');
       check(`a full body still gets boss picks: they shed your least-grown part of that kind (${mouthPick && choiceInfo(p, mouthPick).note})`, mouthPick && mouthPick.kind === 'swap' && locOf(mouthPick.shed.id) === 'MOUTH' && /SHEDS/.test(choiceInfo(p, mouthPick).note));
-      applyChoice(p, mouthPick); check('...and the body stays at 5 parts', slotsUsed(p) === 5 && hasMutation(p, mouthPick.id)); }
+      applyChoice(p, mouthPick); check('...and the body stays at 6 parts, 2 weapons', slotsUsed(p) === 6 && partsAt(p, 'MOUTH').length === 2 && hasMutation(p, mouthPick.id)); }
     // Part levels: biomass levels a part; at level 3 it evolves and starts over.
     newRun(); combatRoom(); p = game.player; game.enemies = []; applyChoice(p, { id: 'spike' });
     { const m = partAt(p, 'MOUTH'), d0 = p.stats.guns[0].dmg, r0 = p.stats.guns[0].delay, ev0 = p.evolutions;
@@ -966,7 +983,7 @@ try {
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
     game.menu = null; game.evolving = false;
     grow(p, 'mirrortwin'); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
-    check('with a CORE already grown, a core can plant a second one in the new slot', kindsAt(p, 'CORE', 'root').length > 0 && game.pendingEvolutions.length === 1);
+    check(`with a CORE already grown, the next core opens BACK and plants no second CORE (${openSlots(p).join(',')})`, openSlots(p).includes('BACK') && !kindsAt(p, 'CORE', 'root').length);
     { p.coreBonus = 0; grow(p, 'spike'); const mh = p.maxHp; game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
       check(`every devoured core gives +1 max health by itself (${mh} -> ${p.maxHp})`, p.maxHp === mh + 1 && p.coreBonus === 1); }
     { const all = rootsOf('CORE'); grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r))); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
@@ -1021,7 +1038,7 @@ try {
     for (const k of forms) { grow(p, ...SLOTS.map(sl => formOf(k, sl))); render(); }
   }
   { // 0b) Evolving happens when the room is clear: never mid-fight.
-    newRun(); combatRoom(); let p = game.player; game.enemies = [];
+    newRun(); combatRoom(); let p = game.player; game.enemies = []; grow(p, 'spike'); // (a body with no weapon can't put its cards off)
     const far = dummy(150, 999); far.speed = 0; // a fight still going on
     const wait = (frames, keys = []) => { for (let i = 0; i < frames && !game.menu; i++) { Input.keys.clear(); for (const k of keys) Input.keys.add(k); Input.mouse.down = false; p.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear(); };
     const lvl = p.level, need = dnaNeeded(p.level);
@@ -1371,10 +1388,12 @@ try {
     }
     p = game.player;
     log.push(`run ${run}: depth ${game.depth}, kills ${game.kills}, level ${p.level}, ${slotsUsed(p)}/${slotCapacity(p)} slots: ${p.parts.map(m => m.loc + '=' + m.id).join(' ')}`);
+    weaponCounts.push(partsAt(p, 'MOUTH').length);
   }
 
   log.push('corpse burst failures=' + corpseFails + ' orbs left uncollected=' + orbsLeft);
   check(`the bot broke every hazmat seal it met (${sealFails} failed)`, sealFails === 0);
+  check(`every bot run ends with one or two weapons (${weaponCounts.join(',')})`, weaponCounts.length > 0 && weaponCounts.every(n => n >= 1 && n <= 2));
   // 5) Second heart + death + restart.
   newRun(); combatRoom(); p = game.player;
   grow(p, 'secondheart');
