@@ -2278,7 +2278,7 @@ function isMetamorph(p, c) {
 // side, so you see exactly which path you're giving up. The rest mix growing
 // what you have with planting something new: wide or deep, your call.
 // `onlyLoc`: a devoured boss core offers only CORE cards.
-function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
+function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
   const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
   const luck = r => (r === 'rare' || r === 'legendary') ? (1 + 0.2 * (game.depth - 1)) : 1;
   const weight = c => {
@@ -2327,15 +2327,25 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
     return out.sort(() => Math.random() - 0.5);
   }
   if (onlyLoc) {
-    // A devoured core: CORE parts only (the core already gave you +1 max health).
+    // A devoured core (it already gave you +1 max health). If it opened a new
+    // slot, one card fills it (rare or better when there is one); otherwise one
+    // card is a boss pick. The rest grow your CORE.
     const cs = all.slice(), out = [];
+    const best = list => { // rare or better when any is on offer
+      const rare = list.filter(c => RARITY_ORDER.indexOf(MUTATIONS[c.id].rarity) >= RARITY_ORDER.indexOf('rare'));
+      return rare.length ? rare : list;
+    };
+    const extra = opened === 'CORE' ? [] : opened
+      ? bodyOffers(p, opened).filter(c => c.kind === 'root').concat(bossPicks(p).filter(c => c.kind === 'root' && locOf(c.id) === opened))
+      : bossPicks(p);
+    if (extra.length) out.push(card(pick(best(extra))));
     let metas = 0;
     while (out.length < n && cs.length) {
       const c = cs.splice(cs.indexOf(pickWeighted(cs)), 1)[0];
       if (c.kind === 'meta' && metas++) continue;
       out.push(card(c));
     }
-    if (!out.length || out.every(c => c.kind === 'meta')) out.push(gorge); // you can always decline
+    if (out.length < 2 || out.every(c => c.kind === 'meta')) out.push(gorge); // you can always decline
     return out.sort(() => Math.random() - 0.5);
   }
 
@@ -2406,9 +2416,9 @@ function choiceInfo(p, c) {
   const d = MUTATIONS[c.id], loc = locOf(c.id);
   const m = c.kind === 'branch' ? (c.part || partFor(p, c.id)) : c.shed;
   let status, note = null, noteColor = PAL.slate;
-  if (c.kind === 'branch') { // what it is now -> what it becomes (the card art shows both)
+  if (c.kind === 'branch') { // a branch ADDS to the part: it keeps everything it already does
     status = null;
-    note = (m ? MUTATIONS[m.id].name + ' -> ' : '') + d.name; noteColor = PAL.white;
+    note = m ? 'KEEPS ' + MUTATIONS[m.id].name : null; noteColor = PAL.white;
   } else if (c.kind === 'replace') {
     status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {

@@ -853,6 +853,24 @@ try {
     game.menu.t = 2; game.menu.stageT = 2; Input.mouse.x = cardX(0, game.menu.choices.length) + 10; Input.mouse.y = CARD.y + 20; updateMenu(1 / 60); render();
     check(`hovering a card picks it out (hover ${game.menu.hover})`, game.menu.hover === 0); game.menu = null;
   }
+  { // 0j1) A devoured boss core fills the slot it just opened, and branch cards say they KEEP the part.
+    newRun(); combatRoom(); const p = game.player; game.enemies = [];
+    grow(p, 'mandibles', 'haunches', 'skull', 'starving', 'urchinquills');
+    const opens = nextSlot(p);
+    check(`after five parts the next boss opens a second WEAPON (${opens})`, opens === 'MOUTH');
+    p.capacity++;
+    let fills = 0, rare = 0, core = 0;
+    for (let i = 0; i < 40; i++) {
+      const cs = rollChoices(p, 3, undefined, 'CORE', false, opens);
+      const f = cs.filter(c => c.id !== '_gorge' && locOf(c.id) === 'MOUTH' && c.kind === 'root');
+      if (f.length === 1) fills++;
+      if (f.some(c => ['rare', 'legendary'].includes(MUTATIONS[c.id].rarity))) rare++;
+      if (cs.some(c => c.id !== '_gorge' && locOf(c.id) === 'CORE')) core++;
+    }
+    check(`...and its core always offers exactly one weapon for it (${fills}/40, ${rare} rare+), with CORE growth beside it (${core}/40)`, fills === 40 && rare === 40 && core === 40);
+    const br = choiceInfo(p, { id: childrenOf(partAt(p, 'CORE').id)[0], kind: 'branch', part: partAt(p, 'CORE') });
+    check(`a branch card says it keeps the part (${br.note})`, br.note === 'KEEPS ' + MUTATIONS[partAt(p, 'CORE').id].name);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
@@ -900,7 +918,7 @@ try {
       check(`level 3: it evolves (its fork is waiting) and its level resets (lvl ${m.lvl})`, m.lvl === 0 && game.pendingEvolutions[0] && game.pendingEvolutions[0].evolve === m);
       openEvolution(game.pendingEvolutions.shift());
       check(`...the fork shows both of its branches (${game.menu.choices.map(c => c.id).join(',')})`, game.menu.choices.length === 2 && game.menu.choices.every(c => c.kind === 'branch' && MUTATIONS[c.id].from === 'spike'));
-      { const info = choiceInfo(p, game.menu.choices[0]); check(`an evolve card shows what it was and what it becomes ("${info.note}")`, info.note === 'Bone Spike -> ' + info.name && info.from === 'spike' && !/LOCKS/.test(info.note)); }
+      { const info = choiceInfo(p, game.menu.choices[0]); check(`an evolve card says the part keeps what it had ("${info.note}")`, info.note === 'KEEPS Bone Spike' && info.from === 'spike' && !/LOCKS/.test(info.note)); }
       game.menu.t = 2; render(); game.menu = null; }
     { newRun(); const q = game.player; grow(q, 'spike', 'spider', 'eyes', 'spines', 'hide'); const notes = q.parts.map(m => choiceInfo(q, { kind: 'level', part: m }).note);
       check(`level cards say +/++ instead of percents (${notes.join(' | ')})`, notes.every(n => /^\+/.test(n) && !/%/.test(n))); }
@@ -1021,7 +1039,8 @@ try {
     { p.coreBonus = 0; grow(p, 'spike'); const mh = p.maxHp; game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
       check(`every devoured core gives +1 max heart by itself (${mh} -> ${p.maxHp} half hearts)`, p.maxHp === mh + HP_PER_HEART && p.coreBonus === 1); }
     { const all = rootsOf('CORE'); grow(p, ...all.map(r => leaves().find(l => rootOf(l) === r))); game.pendingEvolutions = []; spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
-      check('every CORE grown: no card screen, just the health', !game.pendingEvolutions.length); }
+      const ev = game.pendingEvolutions[0], cs = ev ? rollChoices(p, 3, undefined, 'CORE', false, ev.opened) : [];
+      check(`every CORE grown: no CORE cards, only the slot it opened (${ev && ev.opened}: ${cs.map(c => c.id).join(',')})`, cs.every(c => c.id === '_gorge' || locOf(c.id) !== 'CORE')); }
     newRun(); game.depth = 2; startFloor(); p = game.player;
     enterRoom(game.floor.rooms.find(r => r.type === 'exit'), 'up');
     const w = game.enemies.find(e => e.warden);

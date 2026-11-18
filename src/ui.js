@@ -13,7 +13,7 @@ function openEvolution(opts) {
   if (opts.apex) { becomeApex(p); return; } // the ultimate metamorphosis has no cards
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
-      : opts.trait ? traitCards(p, opts.trait).concat([{ id: '_gorge' }]) : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain),
+      : opts.trait ? traitCards(p, opts.trait).concat([{ id: '_gorge' }]) : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain, opts.opened),
     color: opts.color,
     slotsLeft: freeSlots(p),
     src: opts,

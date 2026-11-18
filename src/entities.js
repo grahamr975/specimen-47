@@ -429,8 +429,8 @@ function updatePickups(dt) {
       floatText(pl.x, pl.y - 30, '+1 MAX HEART', PAL.red);
       const opens = nextSlot(pl); // the next slot in SLOT_ORDER: CORE, then BACK, then a second WEAPON
       if (opens) { pl.capacity++; floatText(pl.x, pl.y - 24, `A ${LOC_NAME[opens]} SLOT OPENS`, VIAL_COLOR); }
-      if (bodyOffers(pl, 'CORE').length) {
-        game.pendingEvolutions.push({ slot: 'CORE', title: 'DEVOURED CORE' });
+      if (bodyOffers(pl, 'CORE').length || (opens && bodyOffers(pl, opens).some(c => c.kind === 'root'))) {
+        game.pendingEvolutions.push({ slot: 'CORE', opened: opens, title: 'DEVOURED CORE' });
         floatText(pl.x, pl.y - 14, 'YOU DEVOUR ITS CORE', PAL.red);
       }
     } else if (p.kind === 'vial') {
