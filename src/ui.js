@@ -307,11 +307,32 @@ function mutColor(p, id) {
 // by a glowing seam; free slots wait, empty. The bar always shows all six slots, in two groups: WEAPON x2 | LIMBS HEAD BACK CORE.
 // Locked ones say which comes next: each devoured boss core opens one.
 const BAR_LAYOUT = ['MOUTH', 'MOUTH', 'LIMBS', 'HEAD', 'BACK', 'CORE'];
+// Fit a name into a box `maxW` pixels wide, on at most `maxLines` lines.
+// Words wrap by their real pixel width; a word too long for a whole line is
+// shortened with a dot (HAUNCH.), and so is the last line if more is left over.
+function fitText(s, maxW, maxLines) {
+  const fits = t => textWidth(t) <= maxW;
+  const clip = t => { while (t.length > 1 && !fits(t + '.')) t = t.slice(0, -1); return t + '.'; };
+  const lines = [];
+  let line = '';
+  for (let w of String(s).toUpperCase().split(' ')) {
+    if (!fits(w)) w = clip(w);
+    const joined = line ? line + ' ' + w : w;
+    if (fits(joined)) { line = joined; continue; }
+    if (line) lines.push(line);
+    line = w;
+  }
+  if (line) lines.push(line);
+  if (lines.length <= maxLines) return lines;
+  const out = lines.slice(0, maxLines);
+  out[maxLines - 1] = out[maxLines - 1].endsWith('.') ? out[maxLines - 1] : clip(out[maxLines - 1]);
+  return out;
+}
+
+const BAR_NARROW = 34; // pitch of an empty or locked cell; filled cells share what's left
 function drawMutationList(ctx) {
   const p = game.player;
   const top = ROOM_Y + ROOM_PX_H + 3;
-  const groupGap = 6, pitch = Math.floor((316 - groupGap) / BAR_LAYOUT.length);
-  const cellX = i => 3 + i * pitch + (i >= 2 ? groupGap : 0);
   // Which part sits in which cell, and which cells are open.
   const seen = {}, cellPart = [], cellOpen = [];
   BAR_LAYOUT.forEach((loc, i) => {
@@ -319,6 +340,13 @@ function drawMutationList(ctx) {
     cellPart[i] = partsAt(p, loc).filter(m => !m.starter)[k - 1] || null;
     cellOpen[i] = k <= slotsAt(p, loc);
   });
+  // Filled cells get the room the empty ones don't need, so names have space to read.
+  const groupGap = 6, total = 316 - groupGap, filled = cellPart.filter(Boolean).length;
+  const wide = filled ? Math.min(96, Math.floor((total - BAR_NARROW * (BAR_LAYOUT.length - filled)) / filled)) : BAR_NARROW;
+  const pitches = cellPart.map(m => m ? wide : BAR_NARROW);
+  const used = pitches.reduce((a, b) => a + b, 0);
+  const lead = 3 + Math.floor((total - used) / 2); // centre the bar if it doesn't fill the width
+  const cellX = i => lead + pitches.slice(0, i).reduce((a, b) => a + b, 0) + (i >= 2 ? groupGap : 0);
   const spliced = new Set();
   for (const k of p.splices) for (const ids of SPLICES[k].parts) for (const m of p.parts) if (ids.some(id => m.path.includes(id))) spliced.add(m);
   const act = activeSet(p);
@@ -330,14 +358,15 @@ function drawMutationList(ctx) {
   const next = nextSlot(p);
   let nextShown = false;
   BAR_LAYOUT.forEach((loc, i) => {
-    const m = cellPart[i], x = cellX(i), w = pitch - 2;
+    const m = cellPart[i], x = cellX(i), w = pitches[i] - 2;
     panel(x, w);
     if (!m) {
-      drawText(ctx, LOC_NAME[loc], x + 4, top + 2, '#3a3232', 1, 'left', null);
-      if (cellOpen[i]) drawText(ctx, 'FREE', x + w / 2, top + 12, '#4a3e3e', 1, 'center', null);
+      drawText(ctx, LOC_NAME[loc], x + w / 2, top + 3, '#3a3232', 1, 'center', null);
+      if (cellOpen[i]) drawText(ctx, 'FREE', x + w / 2, top + 13, '#4a3e3e', 1, 'center', null);
       else {
         const soon = loc === next && !nextShown; if (soon) nextShown = true;
-        drawText(ctx, soon ? 'NEXT BOSS' : 'LOCKED', x + w / 2, top + 12, soon ? '#6a4a52' : '#2a2424', 1, 'center', null);
+        if (soon) { drawText(ctx, 'NEXT', x + w / 2, top + 10, '#6a4a52', 1, 'center', null); drawText(ctx, 'BOSS', x + w / 2, top + 17, '#6a4a52', 1, 'center', null); }
+        else drawText(ctx, 'LOCKED', x + w / 2, top + 13, '#2a2424', 1, 'center', null);
       }
       return;
     }
@@ -354,7 +383,7 @@ function drawMutationList(ctx) {
     }
     const icon = mutIcon(m.id);
     if (icon) ctx.drawImage(icon, x + 4, top + 9);
-    if (w >= 44) wrapText(d.name.toUpperCase(), Math.floor((w - 24) / 4)).slice(0, 2).forEach((line, k) => drawText(ctx, line, x + 23, top + 9 + k * 7, col, 1, 'left'));
+    fitText(d.name, w - 22, 2).forEach((line, k) => drawText(ctx, line, x + 21, top + 9 + k * 7, col, 1, 'left'));
     // How far the path has grown (root, branch, branch). The next pip glows
     // if it can grow again this floor.
     for (let l = 0; l < 3; l++) {
