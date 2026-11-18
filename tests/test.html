@@ -141,6 +141,8 @@ try {
     const at = p.parts.indexOf(spinesPart);
     applyChoice(p, metaBack.find(c => c.id === 'chitin'));
     check('metamorphosis sheds the old path and starts over in the same slot', p.parts[at].path.join() === 'chitin' && game.banner.text === 'METAMORPHOSIS' && !hasMutation(p, 'spines'));
+    check(`...but keeps its growth: the new part starts a level up (lv ${p.parts[at].lvl}; the card said "${choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status}")`, p.parts[at].lvl === 1 && /LV 1/.test(choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status));
+    { const old = { id: 'venomquills', path: ['spines', 'urchinhide', 'venomquills'], loc: 'BACK', lvl: 3 }; check(`...capped one level short of evolving (lv 3 -> ${inheritedLevel(old)})`, inheritedLevel(old) === LEVEL_MAX - 1); }
     game.depth = 1;
     { let forced = 0, two = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; grow(q, 'venomquills', 'bonejaws', 'fractured', 'trapdoor'); const cards = rollChoices(q, 3); const metas = cards.filter(c => c.kind === 'meta').length; if (metas > 1) two++; if (metas && cards.every(c => c.id === '_gorge' || c.kind === 'meta') && !cards.some(c => c.id === '_gorge')) forced++; }
       { newRun(); const q = game.player; grow(q, 'venomquills', 'trapdoor');
@@ -552,7 +554,7 @@ try {
     if (c) for (let i = 0; i < 8 && !game.pendingEvolutions.some(o => o.trait); i++) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); } // (an overkill's hitstop can hold the first frames)
     check('devouring it offers its trait', game.pendingEvolutions.some(o => o.trait === 'spitter'));
     openEvolution(game.pendingEvolutions.find(o => o.trait)); game.pendingEvolutions = [];
-    check(`the card: Toad Gullet, or decline (${game.menu.choices.map(k => k.id).join(',')})`, game.menu.choices[0].id === 'toadgullet' && game.menu.choices.some(k => k.id === '_gorge') && choiceInfo(q, game.menu.choices[0]).status === 'DEVOURED TRAIT');
+    check(`the card: Toad Gullet, or decline (${game.menu.choices.map(k => k.id).join(',')})`, game.menu.choices[0].id === 'toadgullet' && game.menu.choices.some(k => k.id === '_gorge') && /^DEVOURED TRAIT/.test(choiceInfo(q, game.menu.choices[0]).status));
     game.menu.t = 2; render(); applyChoice(q, game.menu.choices[0]); game.menu = null;
     check('...and it lobs bile globs', q.stats.guns.some(g => g.id === 'toad' && g.lob));
     // The traits work.

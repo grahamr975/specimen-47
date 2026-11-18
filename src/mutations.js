@@ -2371,6 +2371,10 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false) {
   return out.sort(() => Math.random() - 0.5);
 }
 
+// A part that replaces another (metamorphosis, boss pick, devoured trait) keeps
+// its growth: it starts one level above the part it sheds, short of evolving.
+function inheritedLevel(old) { return Math.min(LEVEL_MAX - 1, (old.lvl || 0) + 1); }
+
 // Fill in what a hand-made card ({ id } only) would do.
 function resolveCard(p, c) {
   if (c.kind || c.id === '_gorge') return c;
@@ -2405,8 +2409,9 @@ function choiceInfo(p, c) {
     status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {
     status = d.graft ? 'DEVOURED TRAIT' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    if (!m.starter) status += ' LV ' + inheritedLevel(m);
   } else if (c.kind === 'meta') {
-    status = 'METAMORPHOSIS';
+    status = 'METAMORPHOSIS LV ' + inheritedLevel(m);
     if (d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
@@ -2510,6 +2515,7 @@ function applyChoice(p, c) {
     m.lvl = 0; // evolving starts its levels over
   } else {
     const old = c.shed, part = newPart(c.id), at = old ? p.parts.indexOf(old) : -1;
+    if (old && !old.starter) part.lvl = inheritedLevel(old); // a replacement keeps the old part's growth, +1
     if (old) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the old part tears out
     if (old && !old.starter) { // Metamorphosis: the grown path sloughs off; something rarer takes root
       game.banner = { text: c.kind === 'swap' ? 'BOSS PICK' : 'METAMORPHOSIS', sub: MUTATIONS[old.id].name + ' > ' + d.name, color: RARITY[d.rarity].color, t: 2.6 };
