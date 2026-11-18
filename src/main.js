@@ -36,6 +36,7 @@ function newRun() {
 function startFloor() {
   if (game.player.parts) recomputeStats(game.player); // Rings of Age count floors
   game.player.twinDead = false; // a new twin grows each floor
+  if (game.player.stats && game.player.stats.calcified) game.player.armor = Math.min(2, (game.player.armor || 0) + 1); // Calcified Organs
   game.floor = generateFloor(game.depth);
   // Each vault's vial color is decided now, so the minimap and its seal can show it.
   // Floor 1's is LIMBS while you're still a slug.

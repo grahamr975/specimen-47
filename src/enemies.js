@@ -171,6 +171,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   const ps = game.player && game.player.stats;
   if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
   dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
+  dmg *= marrowMul(game.player); // Dense Marrow: fed by every block
   if (ENEMY_BEHAVIOR[e.type].onHurt) dmg = ENEMY_BEHAVIOR[e.type].onHurt(e, dmg, vx, vy); // (the Enforcer's riot plate)
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;

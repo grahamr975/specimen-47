@@ -239,6 +239,8 @@ function updatePlayer(dt) {
   if (Input.hit(' ', 'shift') && p.dashCd <= 0 && !p.withdrawn) {
     p.dashCd = s.dashCd;
     if (s.echo) scream(p);
+    if (s.skullRing) fireRing(p, s.skullRing);          // Bone Echo: your skull rings
+    if (s.dashSpike) dropBoneSpike(p, p.x, p.y + 2, 4); // Scuttle: a spike left behind
     if (mv.burrow) { startBurrow(p); return; }
     p.dashT = s.dashTime;
     p.lungeT = 0;
@@ -554,6 +556,7 @@ function releaseCharge(p, frac) {
   if (s.silk) spinWeb(p);
   // Overcharge: a full charge bursts out of you as a shard ring too.
   if (s.chargeRing && frac > 0.95) fireRing(p, s.chargeRing);
+  if (s.boneWall && frac > 0.95) boneWall(p); // Bone Wall: the bone stays where it lands
   if (frac > 0.95) game.shake = Math.max(game.shake, 4);
   if (frac > 0.5) hitstop(0.05 * frac);
   // Every weapon reloads after a blast.
@@ -580,6 +583,7 @@ function blast(p, frac, g, mul = 1) {
       r: Math.max(1.5, g.r - 0.5), dmg: g.dmg * (0.6 + 0.3 * frac) * mul, life: Math.max(0.3, g.range) * rand(0.55, 0.85),
       pierce: s.pierce, homing: s.homing * 0.5, split: s.blastSplit || (s.split ? 1 : 0), bleed: g.bleed,
       acid: g.acid && Math.random() < 0.4 ? g.acid * 0.7 : 0, venom: g.id === 'spike' && s.venomSpike,
+      eatShots: g.id === 'spike' && !!s.spikeEat, killRing: g.id === 'spike' ? s.spikeKillRing || 0 : 0,
       flame: g.id === 'bile' && s.sporeFire, knock: 20 + 45 * frac, kind: 'shot', round: g.round, color: shotColor(s, g),
     });
   }
@@ -614,6 +618,8 @@ function fireGun(p, g, mul = 1) {
       acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
       venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
       venomBurst: g.id === 'spike' && s.venomBarrage, // Venom Barrage: bursts into bile
+      eatShots: g.id === 'spike' && !!s.spikeEat,     // Bone Lance: shatters enemy shots it crosses
+      killRing: g.id === 'spike' ? s.spikeKillRing || 0 : 0, // Splinter: a kill bursts into shards
       barb: g.barb ? g.barb * s.damage * mul : 0, blind: g.blind || 0, pollen: g.pollen || undefined, // Barb Flinger, Spore Sneeze
       flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
       kind: 'shot', round: g.round, fade: g.fade, color: shotColor(s, g),
@@ -705,9 +711,35 @@ function fireRing(p, n) {
       kind: 'spine', dmg: 0.8 * s.damage, life: 0.55,
       color: s.ringAcid ? '#b0c040' : PAL.white,
       homing: s.ringHoming, acid: s.ringAcid ? 8 : 0, split: s.ringSplit,
+      eatShots: !!s.ringEat, pierce: s.ringPierce || 0, mirrorStun: s.ringStun || 0, // Quill Guard, Piercing Quills, Echo Chamber
     });
   }
   Sfx.play('spine');
+}
+
+// --- Bone: blocking, and bone left on the floor ----------------------------------
+// Something of yours just blocked a hit or broke an enemy shot. Dense Marrow feeds on it.
+const MARROW_MAX = 5, MARROW_TIME = 4;
+function boneBlock(p) {
+  const s = p.stats;
+  if (!s.marrowFeed) return;
+  p.marrowStacks = Math.min(MARROW_MAX, (p.marrowStacks || 0) + 1);
+  p.marrowT = MARROW_TIME;
+}
+// Your damage right now, counting Dense Marrow's stacks.
+function marrowMul(p) {
+  return p && p.marrowT > 0 ? 1 + (p.stats.marrowFeed || 0) * (p.marrowStacks || 0) : 1;
+}
+// A bone spike stuck in the floor: it cuts what touches it and breaks enemy shots (Scuttle, Bone Wall).
+function dropBoneSpike(p, x, y, life) {
+  if (pointSolid(game.room, x, y)) return;
+  spawnBullet({ x, y, vx: 0, vy: 0, r: 2.5, kind: 'spine', dmg: 0.7 * p.stats.damage, life, pierce: 99, eatShots: true, ward: true, color: '#e8e0c8' });
+}
+// Bone Wall: a full-charge blast leaves a short wall of spikes across your aim.
+function boneWall(p) {
+  const cx = p.x + p.aimX * 24, cy = p.y + p.aimY * 24;
+  for (let i = -2; i <= 2; i++) dropBoneSpike(p, cx - p.aimY * i * 6, cy + p.aimX * i * 6, 3);
+  burst(cx, cy, '#e8e0c8', 10, 60);
 }
 
 // --- Melee ------------------------------------------------------------------------
@@ -1068,7 +1100,23 @@ function hurtPlayer(dmg) {
     return true;
   }
 
+  // Ossified Skull: while the headbutt is ready, the skull takes the hit.
+  if (s.skullGuard && s.headActive && p.headCd <= 0) {
+    p.headCd = p.headCdMax = ACTIVES[s.headActive.kind].cd(s.headActive.l) * s.headCdMul;
+    p.inv = 0.6; burst(p.x, p.y - 6, '#d9cfa0', 10, 70);
+    floatText(p.x, p.y - 14, 'SKULL TAKES IT', '#d9cfa0'); Sfx.play('clank');
+    boneBlock(p);
+    return true;
+  }
+  // Pressure Marrow: a held charge braces you against one hit.
+  if (s.chargeGuard && p.chargeT > 0.3) {
+    p.chargeT = 0; p.inv = 0.6; burst(p.x, p.y, '#d9cfa0', 10, 70);
+    floatText(p.x, p.y - 14, 'BRACED', '#d9cfa0'); Sfx.play('clank');
+    boneBlock(p);
+    return true;
+  }
   if (p.shieldUp) {
+    boneBlock(p);
     p.shieldUp = false;
     p.shieldT = s.shieldCd;
     p.inv = 0.6;
@@ -1097,6 +1145,7 @@ function hurtPlayer(dmg) {
   }
   // Bone Cage: every third hit glances off.
   if (s.hitIgnore && ++p.hitsTaken % s.hitIgnore === 0) {
+    boneBlock(p);
     p.inv = 0.6;
     burst(p.x, p.y, '#d9cfa0', 10, 70);
     floatText(p.x, p.y - 14, 'GLANCED', '#d9cfa0');
@@ -1107,6 +1156,7 @@ function hurtPlayer(dmg) {
   if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
   p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   if (s.boneWard && p.plates > 0) { // Bone Ward: a plate takes it
+    boneBlock(p);
     const q = platePos(p, 0, p.plates); breakPlate(p, q.x, q.y);
     p.inv = 0.6; floatText(p.x, p.y - 14, 'WARDED', '#d9cfa0');
     return true;

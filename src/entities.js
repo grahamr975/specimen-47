@@ -59,7 +59,7 @@ function updateBullets(dt) {
     // Compound Eyes: enemy shots crawl when they get close to you.
     let bdt = dt;
     if (b.team === 'enemy' && game.player.stats.compound && Math.hypot(b.x - game.player.x, b.y - game.player.y) < 42) bdt *= game.player.stats.compound;
-    if (b.team === 'enemy' && game.player.dashT > 0 && game.player.stats.dashEat && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.r + b.r + 4) { b.dead = true; burst(b.x, b.y, '#c8c0b0', 4, 60, 0.2); continue; } // Sidestep
+    if (b.team === 'enemy' && game.player.dashT > 0 && game.player.stats.dashEat && Math.hypot(b.x - game.player.x, b.y - game.player.y) < game.player.r + b.r + 4) { b.dead = true; burst(b.x, b.y, '#c8c0b0', 4, 60, 0.2); boneBlock(game.player); continue; } // Sidestep
     if (b.team === 'enemy' && game.player.stats.gasChoke && Math.hypot(b.x - game.player.x, b.y - game.player.y) < (game.player.gasR || 0)) bdt *= 0.4; // Choke
     b.x += b.vx * bdt;
     b.y += b.vy * bdt;
@@ -110,6 +110,13 @@ function updateBullets(dt) {
       continue;
     }
 
+    // Bone Lance, Quill Guard, bone spikes on the floor: your bone breaks enemy shots it touches.
+    if (b.team === 'player' && b.eatShots) {
+      for (const o of game.bullets) {
+        if (o.team !== 'enemy' || o.dead || Math.hypot(o.x - b.x, o.y - b.y) > o.r + b.r + 2) continue;
+        o.dead = true; burst(o.x, o.y, '#e8e0c8', 3, 50, 0.2); boneBlock(game.player);
+      }
+    }
     if (b.team === 'player') {
       for (const e of game.enemies) {
         if (e.spawnT > 0 || e.dead || (b.hitSet && b.hitSet.has(e))) continue;
@@ -141,7 +148,7 @@ function updateBullets(dt) {
       }
     } else {
       const p = game.player;
-      if (segmentBlocks(b) || mirrorReflects(b) || plateBlocks(b)) { b.dead = true; continue; }
+      if (segmentBlocks(b) || mirrorReflects(b) || plateBlocks(b)) { b.dead = true; boneBlock(p); continue; }
       const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
       if (twin && Math.hypot(twin.x - b.x, twin.y - b.y) < twin.r + b.r) { hurtTwin(twin); b.dead = true; continue; }
       if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1) {
@@ -171,6 +178,7 @@ function onPlayerBulletHit(b, enemy) {
     for (const o of enemiesNear(b.x, b.y, 26, enemy)) damageEnemy(o, b.bloodBomb, o.x - b.x, o.y - b.y, true);
     bloodSpray(b.x, b.y, 0, 0, 24, FLUID.blood, 140); game.fx.push({ kind: 'ring', x: b.x, y: b.y, r: 3, max: 26, t: 0.2 }); b.bloodBomb = 0;
   }
+  if (b.killRing && enemy.dead) ringFrom(enemy.x, enemy.y, b.killRing); // Splinter
   if (b.larva && !enemy.dead) infest(enemy);                 // Ovipositor
   if (b.polyp && enemy.dead && s.polypFeed) polypFed(p);     // Feeding Polyps
   if (b.pollen && !enemy.dead) pollinate(enemy, s);          // Greenhouse

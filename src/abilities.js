@@ -462,7 +462,7 @@ function updateParasite(p, dt) {
   }
 }
 
-// --- Echo Skull: a scream that stuns ------------------------------------------------------
+// --- Overmind: a scream that stuns ------------------------------------------------------
 function scream(p) {
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 6, max: 50, t: 0.3 });
   for (const e of game.enemies) {
@@ -470,13 +470,7 @@ function scream(p) {
     const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
     if (d >= 50 + e.r) continue;
     inflict(e, 'stun', { t: p.stats.echo });
-    if (p.stats.banshee && !isBoss(e)) { e.kx += (e.x - p.x) / d * 300; e.ky += (e.y - p.y) / d * 300; }
   }
-  if (p.stats.banshee) { // Banshee: shreds enemy shots out of the air
-    for (const b of game.bullets) if (b.team === 'enemy' && Math.hypot(b.x - p.x, b.y - p.y) < 60) { b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); }
-  }
-  if (p.stats.screamRing) fireRing(p, p.stats.screamRing); // Echo Chamber
-  if (p.stats.dashHowl && p.stats.howl) howl(p, 1, true);   // Resonance
   Sfx.play('scream');
 }
 
@@ -594,6 +588,21 @@ function howl(p, mul = 1, around = false) {
     e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
   }
   for (const c of corpsesNear(p.x, p.y, range, p.aimX, p.aimY, cone)) damageCorpse(c, 1.5 + h.dmg * 3, c.x - p.x, c.y - p.y);
+  // The howl shreds enemy shots out of the air.
+  for (const b of game.bullets) {
+    if (b.team !== 'enemy' || b.dead) continue;
+    const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d > range || (d > 10 && (dx * p.aimX + dy * p.aimY) / d < cone)) continue;
+    b.dead = true; burst(b.x, b.y, PAL.red, 2, 30); boneBlock(p);
+  }
+  // Bone Choir: bone shards ride the howl.
+  if (s.howlShards) {
+    const base = Math.atan2(p.aimY, p.aimX);
+    for (let i = 0; i < s.howlShards; i++) {
+      const a = around ? base + (i / s.howlShards) * Math.PI * 2 : base + (i / (s.howlShards - 1) - 0.5) * 0.5;
+      spawnBullet({ x: p.x, y: p.y - 2, vx: Math.cos(a) * 210, vy: Math.sin(a) * 210, r: 1.5, kind: 'spine', dmg: 0.9 * s.damage * mul, life: range / 210 + 0.1, color: PAL.white });
+    }
+  }
   strikeSeal(p.x + p.aimX * 20, p.y + p.aimY * 20, around ? range : 20);
   game.shake = Math.max(game.shake, 3);
   Sfx.play('scream');
@@ -912,11 +921,6 @@ function updateBranchUpkeep(p, dt) {
     p.dustT = (p.dustT || 0) - dt;
     if (p.dustT <= 0) { p.dustT = 0.5; game.clouds.push({ x: p.x, y: p.y, r: 14, life: 2.2, fire: !!s.fireTrail }); }
   }
-  // Quill Pulse: the shard ring fires on its own.
-  if (s.autoRing && s.ring > 0 && game.room.locked) {
-    p.ringT -= dt;
-    if (p.ringT <= 0) { p.ringT = s.autoRing; fireRing(p, s.ring); }
-  }
   // Glare: a flash that blinds everything close.
   if (s.glare && game.room.locked) {
     p.glareT -= dt;
@@ -1116,6 +1120,8 @@ function useActive(p, a, target) {
         hit = true;
       }
       if (hit) { hitstop(0.05); game.shake = Math.max(game.shake, 3); }
+      if (s.skullRing) fireRing(p, s.skullRing);           // Bone Echo: your skull rings
+      if (s.dashHowl && s.howl) howl(p, 1, true);          // Resonance: the headbutt howls too
       if (s.boneCannon) { // Bone Cannon: a huge lance out of your skull
         spawnBullet({ x: p.x + ux * 8, y: p.y - 2 + uy * 8, vx: ux * 260, vy: uy * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
         game.shake = Math.max(game.shake, 4); Sfx.play('blast');
@@ -1154,6 +1160,12 @@ function useActive(p, a, target) {
         else if (s.pincerReset) p.pincerRefresh = true;
         game.fx.push({ kind: 'bite', x: e.x, y: e.y, t: 0.12 });
         hit = true;
+      }
+      if (s.shellClaw) for (const b of game.bullets) { // Shell Claw: the snapping claw is a shield too
+        if (b.team !== 'enemy' || b.dead) continue;
+        const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d > reach + 14 || (dx * p.aimX + dy * p.aimY) / d < -0.1) continue;
+        b.dead = true; burst(b.x, b.y, '#d8ccb0', 3, 50); boneBlock(p);
       }
       if (s.pincerShock) spawnBullet({ x: p.x + p.aimX * 8, y: p.y - 2 + p.aimY * 8, vx: p.aimX * 230, vy: p.aimY * 230, r: 3, dmg: 3 * dmg, life: 0.45, pierce: 3, kind: 'shot', color: '#d8ccb0' }); // Pistol Shrimp
       if (hit) { hitstop(0.04); game.shake = Math.max(game.shake, 3); }
@@ -1297,11 +1309,22 @@ function platePos(p, i, n) {
 function updateDefense(p, dt) {
   const s = p.stats;
   if (p.mirrorT > 0) p.mirrorT -= dt;
+  if (p.marrowT > 0 && (p.marrowT -= dt) <= 0) p.marrowStacks = 0; // Dense Marrow fades
   if (s.splitPulse && game.room.locked && (p.splitT = (p.splitT ?? s.splitPulse) - dt) <= 0) { p.splitT = s.splitPulse; spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); Sfx.play('squelch'); } // Runaway Mitosis
   if (s.quillPulse && game.room.locked && (p.quillT = (p.quillT ?? s.quillPulse) - dt) <= 0) { p.quillT = s.quillPulse; fireRing(p, s.quillCount || 6); } // Urchin Quills
   if (!s.plates) { p.plates = 0; return; }
   p.plates = Math.min(p.plates, s.plates);
   if (s.plateRegrow && p.plates < s.plates && (p.plateT -= dt) <= 0) { p.plateT = s.plateRegrow; p.plates++; Sfx.play('clack'); } // Ossuary
+  // Bladestorm: in a fight, a plate flings itself at the nearest enemy (it swings back into orbit).
+  if (s.plateFling && p.plates > 0 && game.room.locked && (p.flingT = (p.flingT ?? s.plateFling) - dt) <= 0) {
+    p.flingT = s.plateFling;
+    const q = platePos(p, 0, p.plates), e = nearestEnemy(q.x, q.y, 110);
+    if (e) {
+      const dx = e.x - q.x, dy = e.y - q.y, d = Math.hypot(dx, dy) || 1;
+      spawnBullet({ x: q.x, y: q.y, vx: dx / d * 220, vy: dy / d * 220, r: 3, kind: 'spine', dmg: (s.plateDmg || 1.5) * 1.5 * s.damage, life: d / 220 + 0.15, pierce: 2, color: '#e8e0c8' });
+      Sfx.play('whip');
+    }
+  }
   if (s.plateDmg) for (let i = 0; i < p.plates; i++) { // Razor Plates
     const q = platePos(p, i, p.plates);
     for (const e of game.enemies) {
@@ -1386,8 +1409,10 @@ function ripBarbs(e) {
   e.barbs = 0;
   if (e.dead) return;
   const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-  damageEnemy(e, per * n, -dx / d, -dy / d, false, 120);
+  const bundle = s.barbBundle ? 1 + s.barbBundle * (n - 1) : 1; // Barb Volley: stuck together, they tear out harder
+  damageEnemy(e, per * n * bundle, -dx / d, -dy / d, false, 120);
   bloodSpray(e.x, e.y, dx / d, dy / d, 8 + 4 * n, ENEMY_TYPES[e.type].fluid, 140);
+  if (s.barbBurst) ringFrom(e.x, e.y, s.barbBurst + n);                                        // Thorn Burst
   if (!e.dead && s.barbPull && !isBoss(e)) knock(e, dx / d, dy / d, 260);                         // Fishhooks
   applyHitEffects(e, 'barb'); // Gut Hooks
   if (s.barbChain) { // Chain Hooks: on into the next one

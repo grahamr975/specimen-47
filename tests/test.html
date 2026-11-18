@@ -155,7 +155,7 @@ try {
     check(`...but keeps its growth: the new part starts a level up (lv ${p.parts[at].lvl}; the card said "${choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status}")`, p.parts[at].lvl === 1 && /LV 1/.test(choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status));
     { const old = { id: 'venomquills', path: ['spines', 'urchinhide', 'venomquills'], loc: 'BACK', lvl: 3 }; check(`...capped one level short of evolving (lv 3 -> ${inheritedLevel(old)})`, inheritedLevel(old) === LEVEL_MAX - 1); }
     game.depth = 1;
-    { let forced = 0, two = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; grow(q, 'venomquills', 'bonejaws', 'fractured', 'trapdoor'); const cards = rollChoices(q, 3); const metas = cards.filter(c => c.kind === 'meta').length; if (metas > 1) two++; if (metas && cards.every(c => c.id === '_gorge' || c.kind === 'meta') && !cards.some(c => c.id === '_gorge')) forced++; }
+    { let forced = 0, two = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; grow(q, 'venomquills', 'shrapnel', 'fractured', 'trapdoor'); const cards = rollChoices(q, 3); const metas = cards.filter(c => c.kind === 'meta').length; if (metas > 1) two++; if (metas && cards.every(c => c.id === '_gorge' || c.kind === 'meta') && !cards.some(c => c.id === '_gorge')) forced++; }
       { newRun(); const q = game.player; grow(q, 'venomquills', 'trapdoor');
         const before = offersAt(q, 'LIMBS').includes('burrow');
         grow(q, 'venomquills', 'trapdoor', 'shatter');
@@ -229,11 +229,11 @@ try {
     let r = dummy(12);
     p.aimX = 1; p.aimY = 0; fireFor(70); const before = r.hp; fireFor(1, false);
     check(`charged bite hits harder (${(before - r.hp).toFixed(1)} dmg vs ${p.stats.biteDmg.toFixed(1)} normal)`, before - r.hp > p.stats.biteDmg * 2);
-    // Weapons stack on their own timers: Bone Jaws bites AND shoots.
+    // Weapons stack on their own timers; Bone Jaws is now a splice (Bone Spike + Mandibles).
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = [];
-    grow(p, 'bonejaws'); r = dummy(14);
+    grow(p, 'shotgun', 'mandibles'); r = dummy(14);
     p.aimX = 1; p.aimY = 0; fireFor(20); fireFor(1, false); // the shotgun path charges, so release
-    check('bone jaws: a bite drives a spike out the back of the victim', r.hp < 99 && mine().some(b => b.hitSet && b.hitSet.has(r) && b.x > r.x));
+    check(`bone jaws (splice: ${p.splices.includes('bonejaws')}): a bite drives a spike out the back of the victim`, p.splices.includes('bonejaws') && r.hp < 99 && mine().some(b => b.hitSet && b.hitSet.has(r) && b.x > r.x));
   }
   { // 0d) Knockback: light shots nudge, melee and blasts shove; heavy enemies resist.
     const push = (setup, attack, type = 'rat') => {
@@ -355,7 +355,7 @@ try {
     for (const k in SPLICES) { newRun(); combatRoom(); p = game.player; grow(p, ...SPLICES[k].parts.map(ids => leafUnder(ids[ids.length - 1]))); step(120, true); }
     log.push('all ' + Object.keys(SPLICES).length + ' splices ran in a fight');
     // Each splice actually does its thing.
-    newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = []; grow(p, 'bonejaws', 'mantis', 'spines');
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.bullets = []; grow(p, 'shrapnel', 'mantis', 'spines');
     { game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 120; p.y = 96; grow(p, 'spines', 'mantis'); p.dashCd = 0; Input.pressed.add(' '); update(1 / 60); Input.endFrame(); for (let i = 0; i < 6; i++) { update(1 / 60); Input.endFrame(); }
       check('bone saw: dashing sprays shards', game.bullets.filter(b => b.kind === 'spine').length >= 4); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; grow(p, 'hide', 'chitin'); p.shieldUp = false;
@@ -382,7 +382,7 @@ try {
       check(`blood gulp: swallowing heals (${p.hp} hp, gullet ${p.gullet})`, p.splices.includes('bloodgulp') && (p.hp > 1 || !r.dead)); }
     // Power is earned.
     newRun(); p = game.player; recomputeStats(p); const fresh = p.stats.power;
-    grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', 'titanheart'); const grown = p.stats.power;
+    grow(p, 'shrapnel', 'venomquills', 'trapdoor', 'ossified', 'titanheart'); const grown = p.stats.power;
     check(`a fresh body hits weaker than a fully grown one (power x${fresh.toFixed(2)} -> x${grown.toFixed(2)})`, fresh < 0.75 && grown > 0.95);
   }
   { // 0m) Boss lairs: a marked door, and you can't stumble in.
@@ -474,7 +474,7 @@ try {
       for (let i = 0; i < 40; i++) { newRun(); const q = game.player; q.capacity = 5; grow(q, 'spike', 'spines'); q.capacity = 5; const cs = rollChoices(q, 3, 'uncommon', loc); if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== loc)) bad++; }
       check(`a ${loc} vial only offers ${loc} cards (${bad}/40 off)`, bad === 0);
     }
-    newRun(); p = game.player; grow(p, 'bonejaws', 'venomquills', 'trapdoor'); p.capacity = 3;
+    newRun(); p = game.player; grow(p, 'shrapnel', 'venomquills', 'trapdoor'); p.capacity = 3;
     const cs = rollChoices(p, 3, null, 'HEAD');
     check(`a vial with nothing to grow falls back to a mixed roll (${cs.map(c => c.id).join(',')})`, cs.length > 0);
     newRun(); combatRoom(); game.room.pickups = []; const e = spawnPickup('vial', 50, 50);
@@ -519,10 +519,10 @@ try {
   { // 0s) The Ultimate Metamorphosis.
     newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
     const bileLeaf = leaves().find(l => rootOf(l) === 'bile');
-    grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', 'brood');
-    check('five grown parts and a young one: not yet', (grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', 'hide'), !apexReady(p)));
-    check('five fully grown parts and an empty slot: not yet', (grow(p, 'bonejaws', 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide')), p.capacity = MAX_SLOTS, !apexReady(p)));
-    grow(p, 'bonejaws', bileLeaf, 'venomquills', 'trapdoor', 'banshee', leaves().find(l => rootOf(l) === 'hide'));
+    grow(p, 'shrapnel', bileLeaf, 'venomquills', 'trapdoor', 'ossified', 'brood');
+    check('five grown parts and a young one: not yet', (grow(p, 'shrapnel', bileLeaf, 'venomquills', 'trapdoor', 'ossified', 'hide'), !apexReady(p)));
+    check('five fully grown parts and an empty slot: not yet', (grow(p, 'shrapnel', 'venomquills', 'trapdoor', 'ossified', leaves().find(l => rootOf(l) === 'hide')), p.capacity = MAX_SLOTS, !apexReady(p)));
+    grow(p, 'shrapnel', bileLeaf, 'venomquills', 'trapdoor', 'ossified', leaves().find(l => rootOf(l) === 'hide'));
     check('six fully grown parts (two weapons + four body): ready', apexReady(p));
     for (const m of p.parts) m.lvl = LEVEL_MAX;
     recomputeStats(p);
@@ -534,7 +534,7 @@ try {
     check(`the cocoon splits into the final form (damage x${dmg0.toFixed(2)} -> x${p.stats.damageMul.toFixed(2)}, health ${hp0} -> ${p.maxHp})`, p.apex && p.stats.damageMul > dmg0 * 1.2 && p.maxHp === hp0 + 2 * HP_PER_HEART && game.banner && game.banner.text === 'ULTIMATE METAMORPHOSIS');
     render();
     { const cs = rollLevelUps(p, 3); check(`after it, level-ups never run dry: overgrowth (${cs.map(c => c.kind + ':' + c.id).join(',')})`, cs.filter(c => c.kind === 'level').length === 3 && /OVERGROWTH/.test(choiceInfo(p, cs[0]).status)); }
-    { const m = p.parts[0]; const d0 = p.stats.biteDmg; applyChoice(p, { id: m.id, kind: 'level', part: m }); check(`an overgrowth level is a smaller bump (bite ${d0.toFixed(2)} -> ${p.stats.biteDmg.toFixed(2)})`, p.stats.biteDmg > d0 && m.lvl === LEVEL_MAX + 1); }
+    { const m = p.parts[0]; const d0 = p.stats.guns[0].dmg; applyChoice(p, { id: m.id, kind: 'level', part: m }); check(`an overgrowth level is a smaller bump (shot ${d0.toFixed(2)} -> ${p.stats.guns[0].dmg.toFixed(2)})`, p.stats.guns[0].dmg > d0 && m.lvl === LEVEL_MAX + 1); }
     checkApex(p); check('it happens once per run', !game.pendingEvolutions.some(e => e.apex));
     // Passives come from your parts' sets.
     const formOf = (k, sl) => Object.keys(MUTATIONS).find(id => !MUTATIONS[id].part && locOf(id) === sl && setOf(id) === k && !childrenOf(id).length);
@@ -944,6 +944,33 @@ try {
     p = arena(); grow(p, 'grapple'); r = dummy(60); aimAt(p, r.x, r.y); press('rmb');
     check('tentacles keep their grapple on right-click', !!p.grappleShot || p.pullT > 0);
   }
+  { // The Bone set: blocks, breaks enemy shots, and leaves bone behind.
+    const arena = (...ids) => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.aimX = 1; q.aimY = 0; q.inv = 0; grow(q, ...ids); return q; };
+    const shotAt = (q, dx) => spawnBullet({ x: q.x + dx, y: q.y, vx: -40, vy: 0, team: 'enemy', kind: 'enemy', life: 3, dmg: 1 });
+    const tick = n => { for (let i = 0; i < n; i++) { update(1 / 60); Input.endFrame(); } };
+    let q = arena('lance'); { const b = shotAt(q, 30); Input.mouse.x = q.x + 60; Input.mouse.y = q.y + ROOM_Y; Input.mouse.down = true; tick(12); Input.mouse.down = false;
+      check('bone lance: spikes shatter the enemy shots they cross', b.dead && q.hp === q.maxHp); }
+    q = arena('splinter'); { const r = dummy(20, 0.5); r.speed = 0; Input.mouse.x = q.x + 60; Input.mouse.y = q.y + ROOM_Y; Input.mouse.down = true; tick(10); Input.mouse.down = false;
+      check(`splinter: a spike kill bursts into shards (${game.bullets.filter(b => b.kind === 'spine').length})`, r.dead && game.bullets.some(b => b.kind === 'spine')); }
+    q = arena('bonewall'); releaseCharge(q, 1);
+    check(`bone wall: a full charge leaves spikes that stay (${game.bullets.filter(b => b.ward).length})`, game.bullets.filter(b => b.ward).length >= 4);
+    q = arena('thornstorm'); { const r = dummy(40, 99); r.barbs = 3; r.barbDmg = 1; const h = r.hp; game.bullets = []; ripBarbs(r);
+      check(`barb volley + thorn burst: three barbs tear out harder, and burst into shards (${(h - r.hp).toFixed(1)} dmg)`, h - r.hp > 3 && game.bullets.some(b => b.kind === 'spine')); }
+    q = arena('soniclance'); { const b = shotAt(q, 30); howl(q, 1);
+      check('howl shreds shots in its cone; bone choir sends shards with it', b.dead && game.bullets.filter(x => x.kind === 'spine').length >= 5); }
+    q = arena('ossified'); q.headCd = 0; { const h = q.hp; hurtPlayer(1); check('ossified skull: a ready skull takes the hit', q.hp === h && q.headCd > 0);
+      q.inv = 0; hurtPlayer(1); check('...then it has to recover', q.hp === h - 1); }
+    q = arena('quillpulse'); { const b = shotAt(q, 14); fireRing(q, 12); tick(6); check('quill guard: your shards break enemy shots', b.dead && q.hp === q.maxHp); }
+    q = arena('carapacelegs'); { const b = shotAt(q, 18); q.limbCd = 0; tryActive(q, 'limb'); check('shell claw: the pincer shatters shots in front of you', b.dead); }
+    q = arena('scuttle'); q.dashCd = 0; Input.pressed.add(' '); tick(1);
+    check('scuttle: a dash leaves a bone spike behind', game.bullets.some(b => b.ward));
+    q = arena('marrow'); { const before = marrowMul(q); q.shieldUp = true; q.stats.shieldCd = 5; hurtPlayer(1);
+      check(`dense marrow: a block feeds it (damage x${before.toFixed(2)} -> x${marrowMul(q).toFixed(2)})`, marrowMul(q) > before); }
+    q = arena('pressure'); { q.chargeT = 0.6; const h = q.hp; hurtPlayer(1); check('pressure marrow: a held charge blocks a hit', q.hp === h && q.chargeT === 0); }
+    q = arena('calcified'); { q.armor = 0; game.depth++; startFloor(); check(`calcified organs: every floor starts with an armor heart (${q.armor})`, q.armor === 1); game.depth = 1; }
+    q = arena('bladestorm'); { game.room.locked = true; q.plates = q.stats.plates; const r = dummy(60, 99); r.speed = 0; q.flingT = 0; tick(2);
+      check('bladestorm: a plate flings itself at the nearest enemy', game.bullets.some(b => b.kind === 'spine' && b.pierce === 2)); }
+  }
   { // 0f) Boss cores: CORE only grows by eating what guards each floor.
     let p, core = 0;
     for (let i = 0; i < 200; i++) { newRun(); p = game.player; if (i % 2) { p.capacity = 5; applyChoice(p, { id: 'hide' }); } for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE' && c.kind !== 'branch')) core++; }
@@ -951,9 +978,9 @@ try {
     newRun(); p = game.player; grow(p, 'spike', 'hide', 'marrow');
     check('...but a planted CORE branches like any other part', bodyOffers(p).some(c => c.kind === 'branch' && slotOf(c.id) === 'CORE'));
     // A full body, everything else grown: the cards still offer something real.
-    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'bonejaws', 'venomquills', 'marrow'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
+    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'shrapnel', 'venomquills', 'marrow'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
       check(`full body with ungrown cores: never just Gorge (${onlyGorge}/100)`, onlyGorge === 0); }
-    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'bonejaws', 'venomquills', 'trapdoor'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
+    { let onlyGorge = 0; for (let i = 0; i < 100; i++) { newRun(); const q = game.player; grow(q, 'shrapnel', 'venomquills', 'trapdoor'); q.capacity = slotsUsed(q); if (rollChoices(q, 3).every(c => c.id === '_gorge')) onlyGorge++; }
       check(`full, fully grown body: a metamorphosis is always offered beside Gorge (${onlyGorge}/100 only Gorge)`, onlyGorge === 0); }
     newRun(); combatRoom(); p = game.player; game.enemies = []; game.room.pickups = [];
     spawnPickup('core', p.x, p.y); update(1 / 60); Input.endFrame();
@@ -1267,8 +1294,8 @@ try {
   check('burrow erupts, and quake stuns', p.burrowT <= 0 && game.enemies.some(e => statusT(e, 'stun') > 0));
   newRun(); combatRoom(); p = game.player; grow(p, 'shatter');
   for (const e of game.enemies) { e.spawnT = 0; e.x = p.x + 20; e.y = p.y; } p.dashCd = 0;
-  Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('echo scream stuns', game.enemies.every(e => statusT(e, 'stun') > 0));
-  { const e = game.enemies[0], h = e.hp; damageEnemy(e, 0.5, 0, 0, true); check('shatter scream: stunned enemies take double', Math.abs(h - e.hp - 1) < 0.01 || e.dead); }
+  game.bullets = []; Input.pressed.add(' '); update(1 / 60); Input.endFrame(); check('bone echo: a dash bursts bone shards out of you', game.bullets.filter(b => b.kind === 'spine' && b.team === 'player').length >= 4);
+  { const e = game.enemies[0]; inflict(e, 'stun', { t: 2 }); const h = e.hp; damageEnemy(e, 0.5, 0, 0, true); check('shatter scream: stunned enemies take double', Math.abs(h - e.hp - 1) < 0.01 || e.dead); }
   newRun(); combatRoom(); p = game.player; grow(p, 'spider'); game.enemies = [];
   game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 80; p.y = 96;
   { update(1 / 60); Input.endFrame(); const f0 = p.legs && p.legs.map(f => f.x); let steps = 0, planted = 0, frames = 0;
