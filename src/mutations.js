@@ -2008,7 +2008,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'chitin', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'mirrorcyst', 'barbs', 'crablegs', 'urchinquills'],
+    tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'mirrorcyst', 'barbs', 'crablegs', 'urchinquills'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -2026,7 +2026,7 @@ const SETS = {
   },
   HIVE: {
     name: 'HIVE', color: '#e0a830',
-    tags: ['ovipositor', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
+    tags: ['ovipositor', 'chitin', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
     bonus: [
       { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling.', apply(s) { s.setKillBrood = 0.35; } },
       { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, and your brood lives twice as long.', apply(s) { s.setKillBrood = 1; s.allyLife = 2; } },
