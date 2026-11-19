@@ -14,10 +14,26 @@ function inRoom(x, y) {
 }
 
 // An irregular pool of fluid.
+// Fresh blood on the floor is also noted on a coarse grid (room.wet), so
+// whatever walks through it can track it around (see bloody footprints).
+const WET_CELL = 6, WET_TIME = 30;
+function markWet(x, y, r, color) {
+  const room = game.room; if (!room) return;
+  room.wet = room.wet || new Map();
+  for (let cy = Math.floor((y - r) / WET_CELL); cy <= Math.floor((y + r) / WET_CELL); cy++)
+    for (let cx = Math.floor((x - r) / WET_CELL); cx <= Math.floor((x + r) / WET_CELL); cx++) room.wet.set(cx + "," + cy, { t: game.time, color });
+}
+function wetAt(x, y) {
+  const w = game.room && game.room.wet && game.room.wet.get(Math.floor(x / WET_CELL) + "," + Math.floor(y / WET_CELL));
+  return w && game.time - w.t < WET_TIME ? w : null;
+}
+
 function stain(x, y, r, fluid) {
   if (!inRoom(x, y)) return;
   const d = decalCtx();
-  pxCircle(d, x, y, r, pick(fluid));
+  const col = pick(fluid);
+  pxCircle(d, x, y, r, col);
+  if (r >= 1.5) markWet(x, y, r, col);
   for (let i = 0; i < Math.ceil(r) + 1; i++) {
     const a = rand(0, Math.PI * 2), dd = rand(r * 0.4, r * 1.2);
     pxCircle(d, x + Math.cos(a) * dd, y + Math.sin(a) * dd, rand(r * 0.25, r * 0.6), pick(fluid));

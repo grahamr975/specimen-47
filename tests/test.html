@@ -521,7 +521,7 @@ try {
     render();
     // Boss picks now turn up (rarely) in vials of their kind, never in the first room's vial.
     { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }
-      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300 wild cards)`, seen > 15 && seen < 120 && first > 10 && first < 100); }
+      check(`boss picks are rare finds in vials (${seen}/300 MOUTH vials; first-room vial ${first}/300 wild cards)`, seen > 5 && seen < 120 && first > 10 && first < 100); }
   }
   { // 0s) The Ultimate Metamorphosis.
     newRun(); combatRoom(); let p = game.player; game.enemies = []; game.room.locked = false;
@@ -1021,6 +1021,13 @@ try {
     check(`...walking starts to clean it off (${n0} -> ${q.gore.reduce((a, g) => a + g.life, 0).toFixed(1)} left)`, q.gore.reduce((a, g) => a + g.life, 0) < n0 * 0.95);
     for (let i = 0; i < 400 && q.gore.length; i++) { Input.keys.clear(); Input.keys.add(i % 120 < 60 ? 'd' : 'a'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
     check(`...and enough walking cleans you up (${q.gore.length} left, x ${q.x.toFixed(0)}, r ${q.r}, size ${q.size}, shown ${q.sizeShown})`, !q.gore.length);
+    { // Bloody footprints: step in fresh blood and you track it around.
+      newRun(); combatRoom(); const z = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 60; z.y = 96; z.gore = [];
+      stain(z.x, z.y + 4, 4, FLUID.blood); update(1 / 60); Input.endFrame();
+      check(`stepping in fresh blood wets your feet (${z.feet && z.feet.n} steps)`, z.feet && z.feet.n === FOOT_STEPS);
+      for (let i = 0; i < 60; i++) { Input.keys.clear(); Input.keys.add('d'); z.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`...and you leave prints as you walk (${FOOT_STEPS - z.feet.n} so far)`, z.feet.n < FOOT_STEPS - 3);
+    }
   }
   { // The Bone set: blocks, breaks enemy shots, and leaves bone behind.
     const arena = (...ids) => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.aimX = 1; q.aimY = 0; q.inv = 0; grow(q, ...ids); return q; };

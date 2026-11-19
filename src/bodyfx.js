@@ -214,25 +214,67 @@ function splatterPlayer(p, e, fluid) {
   }
   if (p.gore.length > GORE_MAX) p.gore.splice(0, p.gore.length - GORE_MAX);
 }
+const FOOT_STEPS = 14, FOOT_STRIDE = 7; // bloody feet: how many prints, how far apart
 function updatePlayerGore(p, dt) {
-  if (!p.gore || !p.gore.length) { p.goreX = p.x; p.goreY = p.y; return; }
   const walked = Math.hypot(p.x - (p.goreX ?? p.x), p.y - (p.goreY ?? p.y));
+  const mx = walked ? (p.x - p.goreX) / walked : 0, my = walked ? (p.y - p.goreY) / walked : 0;
   p.goreX = p.x; p.goreY = p.y;
-  const wear = walked / GORE_CLEAN_DIST + dt / GORE_FADE_TIME;
-  for (const g of p.gore) g.life -= wear * rand(0.6, 1.4);
-  p.gore = p.gore.filter(g => g.life > 0);
-  // Dripping: you leave a trail while you're wet with it.
-  if (walked > 0 && Math.random() < walked * 0.12 * Math.min(1, p.gore.length / 8)) stainPx(p.x + rand(-3, 3), p.y + rand(3, 5), [pick(p.gore).color], 1);
+  // Gore on the body wears off as you walk (and slowly on its own), dripping a trail.
+  if (p.gore && p.gore.length) {
+    const wear = walked / GORE_CLEAN_DIST + dt / GORE_FADE_TIME;
+    for (const g of p.gore) g.life -= wear * rand(0.6, 1.4);
+    p.gore = p.gore.filter(g => g.life > 0);
+    if (walked > 0 && p.gore.length && Math.random() < walked * 0.12 * Math.min(1, p.gore.length / 8)) stainPx(p.x + rand(-3, 3), p.y + rand(3, 5), [pick(p.gore).color], 1);
+  }
+  // Bloody feet: step in fresh blood (or wear enough of it) and you track it around.
+  if (p.burrowT > 0 || (p.pose && p.pose.alt > 2)) return; // underground, or off the floor
+  const fx = p.x, fy = p.y + 4, wet = wetAt(fx, fy);
+  if (wet) p.feet = { color: wet.color, n: FOOT_STEPS, d: (p.feet && p.feet.d) || 0, side: (p.feet && p.feet.side) || 1 };
+  else if (!(p.feet && p.feet.n > 0) && p.gore && p.gore.length >= 6) p.feet = { color: pick(p.gore).color, n: 4, d: 0, side: 1 };
+  const f = p.feet;
+  if (!f || f.n <= 0 || !walked) return;
+  if ((f.d += walked) < FOOT_STRIDE) return;
+  f.d = 0; f.n--;
+  const dry = 1 - f.n / FOOT_STEPS, col = goreShade(f.color, -0.35 * dry); // the prints darken as the blood runs dry
+  if (p.stats.slug) { // no feet: a smear
+    for (let k = 0; k < 3; k++) stainPx(fx - mx * k * 2, fy - my * k * 2, [col], 1);
+    return;
+  }
+  f.side = -f.side; // left, right, left...
+  const sx = fx - my * 1.6 * f.side, sy = fy + mx * 1.6 * f.side;
+  stainPx(sx, sy, [col], 1);                     // heel
+  stainPx(sx + mx * 2, sy + my * 2, [col], 1);   // toes
+  if (Math.random() < 0.5 - 0.4 * dry) stainPx(sx + mx * 2 - my, sy + my * 2 + mx, [col], 1);
+}
+// Drawn onto a scratch canvas the size of the body, then clipped to the body's
+// own pixels so the blood sits ON you: a stained wash that deepens the more you
+// wear, wet blotches with a glint, and a few runs dripping down.
+let goreBuf = null;
+function goreShade(hex, k) { // lighten (k > 0) or darken (k < 0) a #rrggbb colour
+  const n = parseInt(hex.slice(1), 16), f = c => Math.max(0, Math.min(255, Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k))));
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(c => f(c).toString(16).padStart(2, '0')).join('');
 }
 function drawPlayerGore(ctx, p, x, y, body) {
   if (!p.gore || !p.gore.length) return;
-  const hw = body.width * 0.28, hh = body.height * 0.2;
-  for (const g of p.gore) {
-    ctx.globalAlpha = clamp(g.life * 1.5, 0, 1);
-    ctx.fillStyle = g.color;
-    ctx.fillRect(Math.round(x + g.u * hw), Math.round(y + 1 + g.v * hh), g.size, g.size);
+  const w = body.width, h = body.height;
+  if (!goreBuf || goreBuf.width !== w || goreBuf.height !== h) { goreBuf = document.createElement('canvas'); goreBuf.width = w; goreBuf.height = h; }
+  const g = goreBuf.getContext('2d');
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, w, h);
+  const coat = p.gore.reduce((a, s) => a + s.life, 0);
+  // The wash: the whole body stained, more the more you wear.
+  g.globalAlpha = Math.min(0.5, coat / 30); g.fillStyle = goreShade(p.gore[p.gore.length - 1].color, 0.15); g.fillRect(0, 0, w, h);
+  for (let i = 0; i < p.gore.length; i++) {
+    const s = p.gore[i], a = clamp(s.life * 1.6, 0, 1);
+    const cx = Math.round(w / 2 + s.u * w * 0.36), cy = Math.round(h * 0.68 + s.v * h * 0.24), r = s.size + 1;
+    g.globalAlpha = a;
+    g.fillStyle = goreShade(s.color, 0.25); // a wet blotch, ragged
+    for (let k = 0; k < 6; k++) { const ox = Math.round((hash2(i, k, 5) - 0.5) * r * 2), oy = Math.round((hash2(k, i, 9) - 0.5) * r * 1.6); g.fillRect(cx + ox, cy + oy, 2, 1 + (k % 2)); }
+    g.fillStyle = goreShade(s.color, -0.3); g.fillRect(cx, cy + 1, 1, 1); // a dark clot
+    g.fillStyle = goreShade(s.color, 0.6); g.fillRect(cx - 1, cy - 1, 1, 1); // the wet glint
+    if (i % 3 === 0) { g.fillStyle = goreShade(s.color, 0.15); g.fillRect(cx, cy, 1, 2 + Math.floor(hash2(i, 3, 7) * 4 * a)); } // a run dripping down
   }
-  ctx.globalAlpha = 1;
+  g.globalCompositeOperation = 'destination-in'; g.globalAlpha = 1; g.drawImage(body, 0, 0); // only where you are
+  ctx.drawImage(goreBuf, Math.round(x - w / 2), Math.round(y - h / 2));
 }
 
 function drawBodyMarks(ctx, p, x, y) {
