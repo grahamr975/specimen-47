@@ -511,17 +511,13 @@ try {
     render();
     p = arena(); grow(p, 'razorplates'); p.plates = p.stats.plates; { const q = platePos(p, 0, p.plates); const r = dummy(0); r.x = q.x; r.y = q.y; r.speed = 0; update(1 / 60); Input.endFrame();
       check(`razor plates cut what they pass through (${(99 - r.hp).toFixed(1)})`, r.hp < 99); }
-    p = arena(); grow(p, 'boneward'); p.plates = p.stats.plates; { const h = p.hp, n0 = p.plates; p.inv = 0; hurtPlayer(1); check('bone ward: a plate takes a hit for you', p.hp === h && p.plates === n0 - 1); }
-    // Mirror Cyst
-    p = arena(); grow(p, 'mirrorcyst'); p.aimX = 1; p.aimY = 0; game.bullets = [];
-    spawnBullet({ x: p.x + 11, y: p.y - 2, vx: -120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
-    check(`the mirror cyst throws a shot back (${game.bullets.map(b => b.team).join(',')})`, game.bullets.some(b => b.team === 'player' && b.vx > 0) && !game.bullets.some(b => b.team === 'enemy') && p.mirrorT > 0);
-    spawnBullet({ x: p.x + 11, y: p.y - 2, vx: -120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
-    check('...then it needs a moment to recover', game.bullets.some(b => b.team === 'enemy'));
-    game.bullets = []; spawnBullet({ x: p.x - 11, y: p.y - 2, vx: 120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); p.mirrorT = 0; update(1 / 60); Input.endFrame();
-    check('it only covers the front', game.bullets.some(b => b.team === 'enemy'));
-    p = arena(); grow(p, 'echoshell'); p.aimX = 1; p.aimY = 0; game.bullets = []; spawnBullet({ x: p.x - 11, y: p.y - 2, vx: 120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); update(1 / 60); Input.endFrame();
-    check('mirror shell covers you all around (and echo shell rings)', !game.bullets.some(b => b.team === 'enemy') && game.bullets.some(b => b.kind === 'spine'));
+    // Mirror Plates (Mirror Cyst folded into Bone Plates): a plate that stops a shot throws it back.
+    const glaze = (id) => { p = arena(); grow(p, id); p.plates = p.stats.plates; game.bullets = []; const q = platePos(p, 0, p.plates);
+      spawnBullet({ x: q.x, y: q.y, vx: -120, vy: 0, team: 'enemy', kind: 'enemy', life: 2, dmg: 1 }); const n0 = p.plates; update(1 / 60); Input.endFrame();
+      return { back: game.bullets.filter(b => b.team === 'player' && b.color === '#c8e8ff').length, broke: p.plates < n0 }; };
+    { const g = glaze('mirrorplates'); check(`mirror plates throw a stopped shot back (${g.back} back, plate broke: ${g.broke})`, g.back === 1 && g.broke && !game.bullets.some(b => b.team === 'enemy')); }
+    { const g = glaze('prism'); check(`prism splits it in three (${g.back})`, g.back === 3); }
+    check('mirror cyst is gone (folded into bone plates)', !MUTATIONS.mirrorcyst && MUTATIONS.mirrorplates.from === 'boneplates' && setOf('mirrorplates') === 'BONE');
     render();
     // Boss picks now turn up (rarely) in vials of their kind, never in the first room's vial.
     { let seen = 0, first = 0; for (let i = 0; i < 300; i++) { newRun(); const q = game.player; if (rollChoices(q, 3, 'uncommon', 'MOUTH').some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) seen++; if (rollChoices(q, 3, null, 'MOUTH', true).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].boss)) first++; }

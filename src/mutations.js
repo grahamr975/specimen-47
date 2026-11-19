@@ -1407,62 +1407,23 @@ const MUTATIONS = {
     desc: 'Whatever the plates kill bursts into bone shards.',
     apply(s) { s.plateMill = 5; },
   },
-  ossuary: {
-    name: 'Ossuary', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'regrow'],
-    desc: 'Broken plates regrow even in the middle of a fight.',
-    apply(s, l) { s.plateRegrow = 7 - l; },
-  },
-  boneward: {
-    name: 'Bone Ward', from: 'ossuary', rarity: 'rare', icon: ['chitin', 'skull'],
-    desc: 'A plate throws itself in front of any hit meant for you.',
-    short: 'A plate throws itself in front of hits.',
-    apply(s) { s.boneWard = true; },
-  },
-  shrapnelheart: {
-    name: 'Shrapnel Heart', from: 'ossuary', rarity: 'rare', icon: ['spines', 'hemophage'],
-    desc: 'Plates burst into twice the shrapnel, and every 6th plate that breaks heals you.',
-    short: 'Double shrapnel from plates, and broken ones heal.',
-    apply(s) { s.plateShards = 8; s.plateHeal = 6; },
-  },
-
-  // --- Mirror Cyst: throw their shots back ---
-  mirrorcyst: {
-    name: 'Mirror Cyst', slot: 'CORE', rarity: 'rare', icon: ['eyes', 'mitosis'],
-    desc: 'A glassy membrane in front of you throws enemy shots back, twice as hard. It needs a moment to recover after each.',
-    short: 'A membrane ahead of you throws shots back.',
-    apply(s, l) { s.mirror = { cd: 1.6 - 0.3 * (l - 1), arc: 0.45, mul: 2 }; },
-  },
-  lensskin: {
-    name: 'Lens Skin', from: 'mirrorcyst', rarity: 'uncommon', icon: ['eyes', 'abyssal'],
-    desc: 'Thrown-back shots seek a target and hit twice as hard again.',
-    apply(s) { s.mirror.mul *= 2; s.mirror.homing = 3; },
-  },
-  blindinglens: {
-    name: 'Blinding Lens', from: 'lensskin', rarity: 'rare', icon: ['eyes', 'echo'],
-    desc: 'Thrown-back shots stun whatever they hit.',
-    apply(s) { s.mirror.stun = 1; },
+  mirrorplates: {
+    name: 'Mirror Plates', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'eyes'],
+    desc: 'Your plates glaze over like glass: a shot that hits one is thrown back, twice as hard. Broken plates regrow even in the middle of a fight.',
+    short: 'Plates throw shots back, and regrow mid-fight.',
+    apply(s, l) { s.plateMirror = { mul: 2 }; s.plateRegrow = 7 - l; },
   },
   prism: {
-    name: 'Prism', from: 'lensskin', rarity: 'rare', icon: ['abyssal', 'mitosis'],
-    desc: 'Every thrown-back shot splits into three.',
-    apply(s) { s.mirror.split = true; },
-  },
-  mirrorshell: {
-    name: 'Mirror Shell', from: 'mirrorcyst', rarity: 'uncommon', icon: ['chitin', 'eyes'],
-    desc: 'The membrane wraps all the way around you, but recovers slower.',
-    short: 'The membrane wraps all the way around you.',
-    apply(s) { s.mirror.arc = -1; s.mirror.cd *= 1.4; },
-  },
-  echoshell: {
-    name: 'Echo Shell', from: 'mirrorshell', rarity: 'rare', icon: ['echo', 'spines'],
-    desc: 'Every shot it throws back also sends a ring of shards out from you.',
-    short: 'Every shot thrown back sends out a shard ring.',
-    apply(s) { s.mirror.ring = 6; },
+    name: 'Prism', from: 'mirrorplates', rarity: 'rare', icon: ['abyssal', 'mitosis'],
+    desc: 'Every shot your plates throw back splits into three, and they hunt for prey.',
+    short: 'Thrown-back shots split in three and seek.',
+    apply(s) { s.plateMirror.split = true; s.plateMirror.homing = 3; },
   },
   feedingglass: {
-    name: 'Feeding Glass', from: 'mirrorshell', rarity: 'rare', icon: ['eyes', 'hemophage'],
-    desc: 'Every 6th shot it throws back heals you.',
-    apply(s) { s.mirror.heal = 6; },
+    name: 'Feeding Glass', from: 'mirrorplates', rarity: 'rare', icon: ['eyes', 'hemophage'],
+    desc: 'Every 6th shot your plates throw back heals you, and thrown-back shots hit twice as hard again.',
+    short: 'Every 6th thrown-back shot heals you.',
+    apply(s) { s.plateMirror.heal = 6; s.plateMirror.mul *= 2; },
   },
 
   // ================= NEW STARTING MOUTHS =================
@@ -1935,16 +1896,9 @@ const HINTS = {
   razorplates: 'The plates grow edges thin enough to see through.',
   bladestorm: 'The plates strain against whatever holds them to you.',
   bonemill: 'The plates grind together as they turn. Bone dust falls from them.',
-  ossuary: 'Every broken plate leaves a stub, and the stub keeps growing.',
-  boneward: 'The plates start to watch. They flinch toward danger before you do.',
-  shrapnelheart: 'You feel the plates now, as if they had nerves. When one breaks, you feel it.',
-  mirrorcyst: 'A glassy blister swells in front of you, thin as an eyelid.',
-  lensskin: 'The blister thickens into a lens. It focuses.',
-  blindinglens: 'The lens starts to glow at its center.',
-  prism: 'The lens splits into facets.',
-  mirrorshell: 'The membrane stretches all the way around you.',
-  echoshell: 'The membrane hums when it is struck.',
-  feedingglass: 'Tiny veins grow through the glass.',
+  mirrorplates: 'A glaze creeps over your plates, cold and wet. You can see yourself in them, wrong.',
+  prism: 'The glaze on your plates cracks into facets. Every one holds a different eye.',
+  feedingglass: 'Veins grow through the glass on your plates. They pulse when something hits them.',
   ovipositor: 'Something long and segmented grows out of your belly. It probes the air.',
   broodhost: 'The eggs you lay start moving before they hatch.',
   swarmqueen: 'Your young start listening to you instead of their hosts.',
@@ -2008,7 +1962,7 @@ const HINTS = {
 const SETS = {
   BONE: {
     name: 'BONE', color: '#d9cfa0',
-    tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'mirrorcyst', 'barbs', 'crablegs', 'urchinquills'],
+    tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'barbs', 'crablegs', 'urchinquills'],
     bonus: [
       { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
       { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
@@ -2197,7 +2151,7 @@ const TINTS = {
   fins: ['#5a8aa0', 0.5], centipede: ['#7a3a1a', 0.4, 0.1],
   // CORE
   hide: ['#7a5a48', 0.35], marrow: ['#d8ccb0', 0.3], mitosis: ['#c86a9a', 0.4], starving: ['#8a7a6a', 0.4, 0.15],
-  overgrown: ['#9a2030', 0.35], boneplates: ['#d8ccb0', 0.3], mirrorcyst: ['#a8c8e0', 0.35],
+  overgrown: ['#9a2030', 0.35], boneplates: ['#d8ccb0', 0.3],
 };
 
 // --- Tree helpers -------------------------------------------------------------------

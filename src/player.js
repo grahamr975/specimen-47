@@ -34,7 +34,7 @@ function makePlayer() {
     controlT: 0, twinDead: false, twinLost: 0, leechHits: 0,
     shieldUp: false, shieldT: 0, secondHeartUsed: false,
     apex: false, apexKills: 0,
-    armor: 0, armorKills: 0, plates: 0, plateT: 0, platesBroken: 0, mirrorT: 0, mirrorHits: 0,
+    armor: 0, armorKills: 0, plates: 0, plateT: 0, platesBroken: 0, mirrorHits: 0,
   };
 }
 
@@ -1259,12 +1259,6 @@ function hurtPlayer(dmg) {
   // Any hit that gets this far tears the cocoon, even one your armor takes.
   if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
   p.cocoonWait = -1.2; // a hit: don't wrap back up right away
-  if (s.boneWard && p.plates > 0) { // Bone Ward: a plate takes it
-    boneBlock(p);
-    const q = platePos(p, 0, p.plates); breakPlate(p, q.x, q.y);
-    p.inv = 0.6; floatText(p.x, p.y - 14, 'WARDED', '#d9cfa0');
-    return true;
-  }
   if (p.armor > 0) { // an armor heart cracks instead
     p.armor--; p.inv = Math.max(0.6, s.invuln * 0.6);
     burst(p.x, p.y, '#b8b8c8', 12, 90); gibs(p.x, p.y, 2, ['#b8b8c8', '#7a7a88'], FLUID.blood);

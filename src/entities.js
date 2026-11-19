@@ -148,7 +148,7 @@ function updateBullets(dt) {
       }
     } else {
       const p = game.player;
-      if (segmentBlocks(b) || mirrorReflects(b) || plateBlocks(b)) { b.dead = true; boneBlock(p); continue; }
+      if (segmentBlocks(b) || plateBlocks(b)) { b.dead = true; boneBlock(p); continue; }
       const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
       if (twin && Math.hypot(twin.x - b.x, twin.y - b.y) < twin.r + b.r) { hurtTwin(twin); b.dead = true; continue; }
       if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1) {

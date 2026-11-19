@@ -1308,7 +1308,6 @@ function platePos(p, i, n) {
 
 function updateDefense(p, dt) {
   const s = p.stats;
-  if (p.mirrorT > 0) p.mirrorT -= dt;
   if (p.marrowT > 0 && (p.marrowT -= dt) <= 0) p.marrowStacks = 0; // Dense Marrow fades
   if (s.splitPulse && game.room.locked && (p.splitT = (p.splitT ?? s.splitPulse) - dt) <= 0) { p.splitT = s.splitPulse; spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); Sfx.play('squelch'); } // Runaway Mitosis
   if (s.quillPulse && game.room.locked && (p.quillT = (p.quillT ?? s.quillPulse) - dt) <= 0) { p.quillT = s.quillPulse; fireRing(p, s.quillCount || 6); } // Urchin Quills
@@ -1342,37 +1341,33 @@ function breakPlate(p, x, y) {
   ringFrom(x, y, s.plateShards || 4);
   burst(x, y, '#e8e0c8', 6, 70, 0.3);
   Sfx.play('clank');
-  if (s.plateHeal && ++p.platesBroken % s.plateHeal === 0) healPlayer(1); // Shrapnel Heart
 }
 
 // An enemy shot meets a plate: the plate breaks, the shot is stopped.
+// Mirror Plates: the glazed plate throws the shot back first.
 function plateBlocks(b) {
   const p = game.player;
   if (!(p.plates > 0) || p.burrowT > 0) return false;
   for (let i = 0; i < p.plates; i++) {
     const q = platePos(p, i, p.plates);
-    if (Math.hypot(b.x - q.x, b.y - q.y) < (b.r || 2) + 3) { breakPlate(p, q.x, q.y); return true; }
+    if (Math.hypot(b.x - q.x, b.y - q.y) < (b.r || 2) + 3) {
+      if (p.stats.plateMirror) throwBack(p, b, p.stats.plateMirror);
+      breakPlate(p, q.x, q.y);
+      return true;
+    }
   }
   return false;
 }
 
-// An enemy shot meets the Mirror Cyst: thrown back the way it came, harder.
-function mirrorReflects(b) {
-  const p = game.player, s = p.stats, m = s.mirror;
-  if (!m || p.mirrorT > 0 || p.burrowT > 0) return false;
-  const dx = b.x - p.x, dy = b.y - p.y + 2, d = Math.hypot(dx, dy) || 1;
-  if (d > 15 || d < 3) return false;
-  if (m.arc > -1 && (dx * p.aimX + dy * p.aimY) / d < m.arc) return false;
-  p.mirrorT = m.cd;
-  const sp = (Math.hypot(b.vx, b.vy) || 120) * 1.3, a = Math.atan2(-b.vy, -b.vx);
-  const shoot = ang => spawnBullet({ x: b.x, y: b.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: 2, dmg: (b.dmg || 1) * m.mul * s.damage, life: 1.2, kind: 'shot', round: true, color: '#c8e8ff', homing: m.homing || 0, mirrorStun: m.stun || 0 });
+// Throw an enemy shot back the way it came, harder (Mirror Plates, Prism, Feeding Glass).
+function throwBack(p, b, m) {
+  const s = p.stats, sp = (Math.hypot(b.vx, b.vy) || 120) * 1.3, a = Math.atan2(-b.vy, -b.vx);
+  const shoot = ang => spawnBullet({ x: b.x, y: b.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: 2, dmg: (b.dmg || 1) * m.mul * s.damage, life: 1.2, kind: 'shot', round: true, color: '#c8e8ff', homing: m.homing || 0 });
   shoot(a);
   if (m.split) { shoot(a - 0.25); shoot(a + 0.25); } // Prism
-  if (m.ring) fireRing(p, m.ring);                    // Echo Shell
   if (m.heal && ++p.mirrorHits % m.heal === 0) healPlayer(1); // Feeding Glass
   burst(b.x, b.y, '#c8e8ff', 6, 70, 0.25);
   Sfx.play('shield');
-  return true;
 }
 
 // --- The final form's passives: one per set among your parts -----------------------------

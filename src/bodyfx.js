@@ -348,24 +348,16 @@ function groundCracks(x, y) {
   }
 }
 
-// Bone Plates orbiting you; the Mirror Cyst's membrane (bright when ready).
+// Bone Plates orbiting you (glazed glassy blue with Mirror Plates).
 function drawDefense(ctx, p) {
+  const glass = !!p.stats.plateMirror;
   for (let i = 0; i < (p.plates || 0); i++) {
     const q = platePos(p, i, p.plates), qx = Math.round(q.x), qy = Math.round(q.y);
-    ctx.fillStyle = '#2e2618'; ctx.fillRect(qx - 2, qy - 1, 4, 3);
-    ctx.fillStyle = '#d8ccb0'; ctx.fillRect(qx - 1, qy - 1, 3, 2);
-    ctx.fillStyle = '#f4ecd8'; ctx.fillRect(qx - 1, qy - 1, 1, 1);
+    ctx.fillStyle = glass ? '#1a2a38' : '#2e2618'; ctx.fillRect(qx - 2, qy - 1, 4, 3);
+    ctx.fillStyle = glass ? '#a8c8e0' : '#d8ccb0'; ctx.fillRect(qx - 1, qy - 1, 3, 2);
+    ctx.fillStyle = glass && hash2(i, Math.floor(p.t * 6), 21) < 0.3 ? '#ffffff' : glass ? '#e0f0ff' : '#f4ecd8';
+    ctx.fillRect(qx - 1, qy - 1, 1, 1);
   }
-  const m = p.stats.mirror;
-  if (!m || p.burrowT > 0) return;
-  const ready = !(p.mirrorT > 0), span = m.arc <= -1 ? Math.PI : Math.acos(m.arc), a0 = Math.atan2(p.aimY, p.aimX);
-  ctx.globalAlpha = ready ? 0.75 : 0.2; ctx.fillStyle = '#c8e8ff';
-  for (let k = -10; k <= 10; k++) {
-    if (ready && hash2(k, Math.floor(p.t * 8), 21) < 0.15) continue; // shimmer
-    const a = a0 + span * k / 10;
-    ctx.fillRect(Math.round(p.x + Math.cos(a) * 12), Math.round(p.y - 2 + Math.sin(a) * 12), 1, 1);
-  }
-  ctx.globalAlpha = 1;
 }
 
 // --- The cocoon: wet, pulsing, sized to whatever you are right now -------------------------
