@@ -524,10 +524,13 @@ function drawWhisper(ctx) {
   const age = WHISPER_TIME - w.t;
   let fade = Math.min(1, w.t / 0.8, age / 0.15);
   if (hash2(Math.floor(game.time * 12), 7, 3) < 0.04) fade *= 0.35; // it flickers, now and then
-  const y = ROOM_Y + 12, head = w.name ? 12 : 0;
+  const y = ROOM_Y + 12, head = 0;
   // The first instant: a faint pulse of red over everything, like a heartbeat.
   if (w.name && age < 0.25) { ctx.globalAlpha = 0.14 * (1 - age / 0.25); ctx.fillStyle = '#c01020'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
-  ctx.globalAlpha = fade;
+  // A plain black box behind it (old-school, and easy to read), sized to the text.
+  const bw = Math.max(...w.lines.map(l => textWidth(l))) + 10, bh = w.lines.length * 9 + 9;
+  ctx.globalAlpha = fade; ctx.fillStyle = '#000000';
+  ctx.fillRect(Math.round(VIEW_W / 2 - bw / 2), y - 4, Math.round(bw), bh);
   // Crooked letters: each sits a little off its line, drifts slowly, and some drip.
   const scrawl = (line, cx, ly, color, seed, shown = line.length, raw = 0) => {
     let x = Math.round(cx - textWidth(line) / 2);
@@ -544,7 +547,6 @@ function drawWhisper(ctx) {
       x += textWidth(ch + 'X') - textWidth('X');
     }
   };
-  if (w.name) scrawl('- ' + w.name + ' -', VIEW_W / 2, y, '#7a1018', 99);
   // Type it out across the lines (laid out in full first, so nothing reflows).
   let left = Math.floor(Math.max(0, age - 0.3) * WHISPER_CPS);
   w.lines.forEach((line, i) => {
