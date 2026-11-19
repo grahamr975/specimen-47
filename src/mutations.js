@@ -78,7 +78,7 @@ function baseStats() {
     onHit: {},    // statuses each attack leaves behind (see onHit())
     guns: [],     // projectile weapons (see gun() below)
     rangeAdd: 0, speedAdd: 0, // extra shot range / speed (Extra Eyes, Bone Lance)
-    bite: false, biteDmg: 0, biteDelay: 9, biteReach: 18, biteAcid: 0, biteHeal: 0, doubleBite: false, leech: 0,
+    bite: false, biteDmg: 0, biteDelay: 9, biteReach: 24, biteAcid: 0, biteHeal: 0, doubleBite: false, leech: 0,
     lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, mawTendrils: 0, bulk: 0,
     lunge: false, lungeDmg: 0, lungeDelay: 9,
     beam: 0, beamRange: 70, vomit: 0, vomitDmg: 0, vomitDelay: 9,
@@ -275,8 +275,8 @@ const MUTATIONS = {
 
   mandibles: {
     name: 'Mandibles', slot: 'MOUTH', rarity: 'common', overlay: ['mandibles'],
-    desc: 'Melee. Fire bites whatever is in front of you, hard and fast; you lunge onto prey just out of reach, and what you bite reels.',
-    short: 'Melee. Bite hard and fast; prey reels.',
+    desc: 'Melee. Fire bites whatever is in a wide arc in front of you, hard and fast, and what you bite reels.',
+    short: 'Melee. Bite hard and fast in a wide arc.',
     apply(s, l) { s.bite = true; s.biteDmg += 2 + 1.2 * l; s.biteDelay = Math.min(s.biteDelay, 0.42 - 0.04 * l); },
   },
   feral: {

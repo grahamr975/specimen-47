@@ -793,19 +793,22 @@ try {
     { let wild = 0, bad = 0; for (let i = 0; i < 300; i++) { newRun(); const z = game.player; const cs = rollChoices(z, 3, null, 'LIMBS', true); if (cs.some(c => MUTATIONS[c.id] && (MUTATIONS[c.id].boss || MUTATIONS[c.id].graft))) wild++; if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== 'LIMBS')) bad++; }
       check(`floor 1's limbs vial: any limbs, sometimes a wild card (${wild}/300), always limbs (${bad} off)`, wild > 10 && wild < 100 && bad === 0); }
   }
-  { // 0zb) Mandibles: the bite lunges onto prey, and bitten prey reels.
+  { // 0zb) Mandibles: no lunge. The bite reaches a little further and wider, from where you stand; bitten prey reels.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 100; q.y = 96;
-    grow(q, 'mandibles'); const r = dummy(48, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; const x0 = q.x;
-    bite(q, q.stats.biteDmg); update(1 / 60); Input.endFrame();
-    check(`the lunge travels: one frame in, you're on the way but not there (moved ${(q.x - x0).toFixed(0)}px)`, q.x - x0 > 2 && q.x - x0 < 20 && r.hp === 99 && q.inv > 0);
-    for (let i = 0; i < 10 && r.hp === 99; i++) { update(1 / 60); Input.endFrame(); }
-    check(`...and the bite lands when you arrive (moved ${(q.x - x0).toFixed(0)}px, ${(99 - r.hp).toFixed(1)} dmg)`, q.x - x0 > 15 && r.hp < 99);
-    check(`bitten prey reels (stagger ${(r.staggerT || 0).toFixed(2)}s)`, r.staggerT > 0.3);
-    { const z = dummy(8, 99); z.speed = 60; bite(q, q.stats.biteDmg); for (let i = 0; i < 10 && q.snapT > 0; i++) { update(1 / 60); Input.endFrame(); } q.inv = 0; const h = q.hp; z.x = q.x + 6; z.y = q.y;
+    grow(q, 'mandibles'); q.aimX = 1; q.aimY = 0; const x0 = q.x;
+    const far = dummy(48, 99); far.speed = 0;
+    bite(q, q.stats.biteDmg); for (let i = 0; i < 6; i++) { update(1 / 60); Input.endFrame(); }
+    check(`no lunge: prey out of reach isn't snapped onto (moved ${(q.x - x0).toFixed(0)}px)`, Math.abs(q.x - x0) < 1 && far.hp === 99);
+    far.dead = true; game.enemies = [];
+    const side = dummy(0, 99); side.speed = 0; side.x = q.x + 6; side.y = q.y + 18; // well off to the side, within reach
+    bite(q, q.stats.biteDmg);
+    check(`the bite's wider arc catches prey off to the side (${(99 - side.hp).toFixed(1)} dmg, reach ${q.stats.biteReach})`, side.hp < 99);
+    check(`bitten prey reels (stagger ${(side.staggerT || 0).toFixed(2)}s)`, side.staggerT > 0.3);
+    { const z = side; z.speed = 60; q.inv = 0; const h = q.hp; z.x = q.x + 6; z.y = q.y;
       for (let i = 0; i < 12; i++) { q.inv = 0; update(1 / 60); Input.endFrame(); }
       check(`...and can't hurt you while it reels (hp ${h} -> ${q.hp})`, q.hp === h); }
-    const far = dummy(90, 99); far.speed = 0; far.y = q.y; const x1 = q.x; game.enemies = [far]; bite(q, q.stats.biteDmg);
-    check('prey too far away: no lunge', q.x === x1 && far.hp === 99);
+    const far2 = dummy(90, 99); far2.speed = 0; far2.y = q.y; const x1 = q.x; game.enemies = [far2]; bite(q, q.stats.biteDmg);
+    check('prey too far away: no lunge', q.x === x1 && far2.hp === 99);
   }
   { // 0y) Swallowing a Failed Specimen whole doesn't split it inside you.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;

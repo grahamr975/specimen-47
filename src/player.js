@@ -380,16 +380,6 @@ function updatePlayer(dt) {
         burst(p.x, p.y + 3, '#7a9a7a', 10, 60, 0.3); Sfx.play('splat');
       }
     }
-  } else if (p.snapT > 0) {
-    // Mandibles: snapping forward onto prey; the bite lands on arrival.
-    p.snapT -= dt;
-    vx = p.snapX * SNAP_SPEED; vy = p.snapY * SNAP_SPEED;
-    if ((p.ghostT -= dt) <= 0) { p.ghostT = 0.02; game.particles.push({ x: p.x - 3, y: p.y - 3, vx: 0, vy: 0, life: 0.1, color: '#5e2229', size: 5 }); }
-    const tg = p.snap && p.snap.target;
-    if (p.snapT <= 0 || !tg || tg.dead || Math.hypot(tg.x - p.x, tg.y - p.y) <= tg.r + p.r + 3) {
-      p.snapT = 0; vx = vy = 0;
-      if (p.snap) { const sn = p.snap; p.snap = null; bite(p, sn.dmg, true, sn.target); }
-    }
   } else if (p.lungeT > 0) {
     // Feral lunge: a short, savage leap that bites at the end.
     p.lungeT -= dt;
@@ -479,7 +469,7 @@ function updatePlayer(dt) {
   }
 
   // --- Attack (everything in your MOUTH). Not while dashing or in your shell. ---
-  const canAttack = p.dashT <= 0 && p.lungeT <= 0 && !(p.snapT > 0) && !p.withdrawn && p.fireT <= 0;
+  const canAttack = p.dashT <= 0 && p.lungeT <= 0 && !p.withdrawn && p.fireT <= 0;
   if (s.charge) {
     // Hold to charge, release to blast with everything at once.
     if (firing && canAttack) {
@@ -832,43 +822,23 @@ function meleeHit(p, e, dmg, dx, dy) {
   if (s.split) spawnFragments(e.x, e.y, Math.atan2(dy, dx), s.split, dmg * 0.25, s.homing, 0, e);
 }
 
-// Mandibles: bite the nearest enemy in front of you (lunging onto it if it's
-// just out of reach), and it reels.
-const BITE_LUNGE = 40, BITE_STAGGER = 0.4, SNAP_SPEED = 380;
-function bite(p, dmg, arrived = false, prey = null) {
+// Mandibles: bite the nearest enemy in a wide arc in front of you, and it
+// reels. No lunge: you bite from where you stand (a lunge onto a boss was a
+// death sentence), so the bite reaches a little further and wider instead.
+const BITE_STAGGER = 0.4, BITE_ARC = 0.1; // BITE_ARC: cos of the half-angle (about 84 degrees each side)
+function bite(p, dmg) {
   const s = p.stats, reach = s.biteReach;
   let target = null, best = reach;
   for (const e of game.enemies) {
     if (e.dead || e.spawnT > 0) continue;
     const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) - e.r;
     if (d > best) continue;
-    if (d > 4 && (dx * p.aimX + dy * p.aimY) / (d + e.r) < 0.3) continue; // must be in front
+    if (d > 4 && (dx * p.aimX + dy * p.aimY) / (d + e.r) < BITE_ARC) continue; // must be in front
     best = d; target = e;
-  }
-  // Arriving from a snap: the bite lands on the prey you snapped at, wherever you're aiming now.
-  if (arrived && prey && !prey.dead && Math.hypot(prey.x - p.x, prey.y - p.y) - prey.r <= reach + 6) target = prey;
-  // The bite lunges: prey just out of reach in front of you pulls you onto
-  // it, untouchable for the instant of the snap.
-  if (!target && !arrived && !p.withdrawn && !(p.pullT > 0)) {
-    let pd = reach + BITE_LUNGE;
-    for (const e of game.enemies) {
-      if (e.dead || e.spawnT > 0) continue;
-      const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) - e.r;
-      if (d > pd || (dx * p.aimX + dy * p.aimY) / (d + e.r) < 0.5) continue;
-      pd = d; target = e;
-    }
-    if (target) { // a fast snap forward: the bite lands when you arrive (see updatePlayer)
-      const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy) || 1, step = Math.max(0, d - target.r - p.r - 2);
-      p.snap = { target, dmg }; p.snapX = dx / d; p.snapY = dy / d;
-      p.snapT = Math.min(0.14, step / SNAP_SPEED);
-      p.inv = Math.max(p.inv, p.snapT + 0.08);
-      Sfx.play('dash');
-      return;
-    }
   }
   const fx = p.x + p.aimX * 10, fy = p.y + p.aimY * 10;
   if (!target) {
-    const c = corpsesNear(p.x, p.y, reach, p.aimX, p.aimY, 0.3)[0];
+    const c = corpsesNear(p.x, p.y, reach, p.aimX, p.aimY, BITE_ARC)[0];
     if (c) damageCorpse(c, dmg, c.x - p.x, c.y - p.y);
     else strikeSeal(p.x + p.aimX * reach * 0.6, p.y + p.aimY * reach * 0.6, reach * 0.6);
     game.fx.push({ kind: 'bite', x: c ? (p.x + c.x) / 2 : fx, y: c ? (p.y + c.y) / 2 : fy, t: 0.1 });
