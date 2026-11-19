@@ -1007,8 +1007,8 @@ const MUTATIONS = {
   },
   huntsman: {
     name: 'Huntsman', from: 'spider', rarity: 'legendary', overlay: ['hindlegs'], icon: ['spider', 'hindlegs'],
-    desc: 'Your dash is a pounce that leaps straight at prey and lands with a shockwave.',
-    short: 'Your dash pounces at prey and lands hard.',
+    desc: 'Your dash is a pounce: it bends toward prey in the direction you leap (never a boss), and lands with a shockwave.',
+    short: 'Your dash bends toward prey ahead, and lands hard.',
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.hop = 0; s.homingPounce = true; },
   },
   trapdoor: {

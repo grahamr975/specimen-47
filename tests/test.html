@@ -810,6 +810,16 @@ try {
     const far2 = dummy(90, 99); far2.speed = 0; far2.y = q.y; const x1 = q.x; game.enemies = [far2]; bite(q, q.stats.biteDmg);
     check('prey too far away: no lunge', q.x === x1 && far2.hp === 99);
   }
+  { // Huntsman: the pounce only bends toward prey roughly where you leap, and never onto a boss.
+    const setup = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 160; q.y = 96; grow(q, 'huntsman'); q.dashCd = 0; return q; };
+    const dash = (q, ax, ay, key) => { q.aimX = ax; q.aimY = ay; q.dashX = q.dashY = 0; Input.keys.clear(); if (key) Input.keys.add(key); Input.pressed.add(' '); update(1 / 60); Input.endFrame(); return { x: q.dashX, y: q.dashY, t: q.dashT, boss: game.bossName, st: game.state, menu: !!game.menu }; };
+    { const q = setup(); const b = spawnEnemy('colossus', q.x + 40, q.y); b.spawnT = 0; b.speed = 0; const d = dash(q, -1, 0, 'a');
+      check(`huntsman: dashing away from a boss doesn't throw you into it (dash ${d.x.toFixed(2)},${d.y.toFixed(2)})`, d.x < -0.9); }
+    { const q = setup(); const e = dummy(60, 99); e.y = q.y + 20; e.speed = 0; const d = dash(q, 1, 0);
+      check(`...and still bends toward prey ahead of you (dash ${d.x.toFixed(2)},${d.y.toFixed(2)})`, d.y > 0.2 && d.x > 0.8); }
+    { const q = setup(); const e = dummy(-60, 99); e.speed = 0; const d = dash(q, 1, 0);
+      check(`...but not toward prey behind you (dash ${d.x.toFixed(2)})`, d.x > 0.9); }
+  }
   { // 0y) Swallowing a Failed Specimen whole doesn't split it inside you.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
     grow(q, 'tongue'); q.stats.tongue.size = 9; const r = spawnEnemy('splitter', q.x + 30, q.y); r.spawnT = 0; r.speed = 0; r.affixes = [];

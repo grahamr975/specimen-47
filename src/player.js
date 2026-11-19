@@ -173,6 +173,7 @@ function bodyFrames(p) {
 
 // Evolutions needed to reach each stage. Owning anything malignant adds a stage.
 const STAGE_AT = [0, 2, 4, 7, 11];
+const POUNCE_RANGE = 130, POUNCE_CONE = 0.87; // Huntsman: prey within ~30 degrees of your leap
 
 // --- Body size ------------------------------------------------------------------------
 // A fresh specimen is small (SIZE_MIN); each part it grows fills it out, up to
@@ -323,9 +324,17 @@ function updatePlayer(dt) {
     p.inv = Math.max(p.inv, s.dashTime + 0.06);
     p.dashHit.clear();
     if (il) { p.dashX = ix; p.dashY = iy; } else { p.dashX = p.aimX; p.dashY = p.aimY; }
-    // Huntsman: the pounce leaps straight at the nearest prey.
-    const prey = s.homingPounce && nearestEnemy(p.x, p.y, 130);
-    if (prey) { const d = Math.hypot(prey.x - p.x, prey.y - p.y) || 1; p.dashX = (prey.x - p.x) / d; p.dashY = (prey.y - p.y) / d; }
+    // Huntsman: the pounce bends toward prey that's already roughly where you're
+    // leaping (never a boss). It never drags you somewhere you didn't choose.
+    if (s.homingPounce) {
+      let prey = null, best = POUNCE_RANGE;
+      for (const e of game.enemies) {
+        if (e.dead || e.spawnT > 0 || isBoss(e)) continue;
+        const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+        if (d < best && (dx * p.dashX + dy * p.dashY) / d > POUNCE_CONE) { best = d; prey = e; }
+      }
+      if (prey) { p.dashX = (prey.x - p.x) / best; p.dashY = (prey.y - p.y) / best; }
+    }
     if (s.dashReload) p.cd = {}; // Jitter: every dash reloads every weapon
     Sfx.play('dash');
   }
