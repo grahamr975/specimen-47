@@ -1990,8 +1990,8 @@ const SETS = {
     name: 'BONE', color: '#d9cfa0',
     tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'barbs', 'crablegs', 'urchinquills'],
     bonus: [
-      { name: 'Ossified', desc: 'Everything you kill bursts into bone shards.', apply(s) { s.setKillShards = 5; } },
-      { name: 'Bone Colossus', desc: 'Every kill bursts into shards, +2 max health, and a hit fires a huge shard ring.', apply(s) { s.setKillShards = 8; s.maxHp += 2; s.ring += 10; } },
+      { name: 'Ossified', desc: 'Anything you block bursts into bone shards.', apply(s) { s.setBlockShards = 5; } },
+      { name: 'Bone Colossus', desc: 'Blocks burst into great shard rings, you are tougher, and you start every room with an armor heart.', apply(s) { s.setBlockShards = 10; s.maxHp += 2; s.roomArmor = true; } },
     ],
     whisper: ['Your bones remember each other.', 'You are more bone than flesh now. It suits you.'],
   },
@@ -1999,8 +1999,8 @@ const SETS = {
     name: 'FUNGAL', color: '#9aae50',
     tags: ['culturejelly', 'venomspike', 'bile', 'caustic', 'sporesac', 'miasma', 'sporepolyp', 'acidgut', 'acidsilk', 'glare', 'bloom', 'venomquills', 'huskbomb', 'eggpods', 'toxic', 'cropduster', 'bileline', 'bilebomb', 'fins', 'maggotburst', 'bacteria', 'sneeze', 'toadgullet', 'digestjelly'],
     bonus: [
-      { name: 'Sporulate', desc: 'What you kill bursts into a blinding spore cloud.', apply(s) { s.setKillCloud = 18; } },
-      { name: 'Fruiting Body', desc: 'Kills burst into clouds, you release spores every few seconds, and your clouds eat flesh.', apply(s) { s.setKillCloud = 22; s.setSporeAura = 4; s.cloudDps = Math.max(s.cloudDps || 0, 1.5); } },
+      { name: 'Sporulate', desc: 'What you kill bursts into a spore cloud, and your clouds corrode.', apply(s) { s.setKillCloud = 18; s.cloudCorrode = true; } },
+      { name: 'Fruiting Body', desc: 'Kills burst into corroding clouds, you release spores every few seconds, and the corroded spread it to whatever they touch.', apply(s) { s.setKillCloud = 22; s.cloudCorrode = true; s.setSporeAura = 4; s.corrodeSpread = true; } },
     ],
     whisper: ['Something is fruiting under your skin.', 'You are a garden now. Everything you touch will bloom.'],
   },
@@ -2017,8 +2017,8 @@ const SETS = {
     name: 'PREDATOR', color: '#d04848',
     tags: ['mandibles', 'leech', 'devour', 'hemorrhage', 'rupture', 'tongue', 'eyes', 'horns', 'nighteyes', 'twitch', 'huntsman', 'burrow', 'hindlegs', 'hemophage', 'starving', 'guthook', 'leechspit', 'haunches', 'ratincisors'],
     bonus: [
-      { name: 'Blood Scent', desc: '+35% damage to wounded prey.', apply(s) { s.setWounded = 0.35; } },
-      { name: 'Apex', desc: 'Wounded prey takes +50%, every kill sends you into a frenzy, and every 8th kill heals you.', apply(s) { s.setWounded = 0.5; s.setKillFrenzy = true; s.setKillHeal = 8; } },
+      { name: 'Blood Scent', desc: 'Prey that is marked or bleeding takes more damage from you.', apply(s) { s.setPrey = 0.3; } },
+      { name: 'Apex Hunter', desc: 'Prey that is marked AND bleeding takes far more, and when marked prey dies, the mark jumps to the next.', apply(s) { s.setPrey = 0.3; s.setPreyBoth = 0.8; s.markSpread = true; } },
     ],
     whisper: ['You can smell where they are hurt.', 'Nothing hunts you now. You hunt.'],
   },
@@ -2026,8 +2026,8 @@ const SETS = {
     name: 'ABOMINATION', color: '#b464c8',
     tags: ['mawtendrils', 'tentacles', 'writhing', 'strangle', 'lashdrain', 'proboscis', 'bloodworm', 'tendrilpolyp', 'fractured', 'lightless', 'parasite', 'splitquills', 'angler', 'rage', 'biters', 'grapple', 'shredpull', 'secondheart', 'regrow', 'overgrown', 'mitosis', 'cancer', 'splittercells'],
     bonus: [
-      { name: 'Grafted', desc: 'When you are hurt, tendrils burst out and lash everything near you.', apply(s) { s.setHurtLash = 3; } },
-      { name: 'Abomination', desc: 'Lashing tendrils when hurt, +30% damage, and you regrow a little flesh every room you clear.', apply(s) { s.setHurtLash = 5; s.damageMul *= 1.3; s.setRoomHeal = true; } },
+      { name: 'Grafted', desc: 'Every sacrifice you carry makes you stronger (cured ones still count).', apply(s, p) { s.sacrifices = sacrificeCount(p); s.damageMul *= 1 + 0.12 * s.sacrifices; } },
+      { name: 'Abomination', desc: 'Every sacrifice makes you much stronger, and when you are hurt, tendrils burst out and lash everything near you.', apply(s, p) { s.sacrifices = sacrificeCount(p); s.damageMul *= 1 + 0.2 * s.sacrifices; s.setHurtLash = 5; } },
     ],
     whisper: ['The pieces of you are starting to agree.', 'There is no name for what you are.'],
   },
@@ -2042,20 +2042,31 @@ function setOf(id) {
 }
 
 // How many parts match each set, by each part's current form.
+// How many parts of each set you carry. A spliced part counts for BOTH of its
+// splice's sets (its own, and its partner's).
 function setCounts(p) {
-  const n = {};
-  for (const m of p.parts) {
-    const k = !m.starter && setOf(m.id);
-    if (k) n[k] = (n[k] || 0) + 1;
+  const n = {}, sets = new Map();
+  for (const m of p.parts) { const k = !m.starter && setOf(m.id); if (k) sets.set(m, new Set([k])); }
+  for (const key of activeSplices(p)) {
+    const halves = SPLICES[key].parts.map(ids => p.parts.find(m => !m.starter && ids.some(id => m.path.includes(id))));
+    if (halves.some(h => !h)) continue;
+    const both = new Set(halves.flatMap(h => [...(sets.get(h) || [])]));
+    for (const h of halves) { const s = sets.get(h) || new Set(); both.forEach(x => s.add(x)); sets.set(h, s); }
   }
+  for (const s of sets.values()) for (const k of s) n[k] = (n[k] || 0) + 1;
   return n;
+}
+
+// Abomination: how much you've given up (parts that are, or were, malignant).
+function sacrificeCount(p) {
+  return p.parts.filter(m => !m.starter && m.path.some(id => MUTATIONS[id].malignant)).length;
 }
 
 // The set bonus you have right now: { set, tier (0 = 3 matching, 1 = 5 matching) } or null.
 function activeSet(p) {
   const n = setCounts(p);
-  for (const k in n) if (n[k] >= 3) return { set: k, tier: n[k] >= 5 ? 1 : 0, count: n[k] };
-  return null;
+  let best = null; for (const k in n) if (n[k] >= 3 && (!best || n[k] > best.count)) best = { set: k, tier: n[k] >= 5 ? 1 : 0, count: n[k] }; // (the strongest, if two qualify)
+  return best;
 }
 
 // ===========================================================================
@@ -2591,7 +2602,7 @@ function checkApex(p) {
 }
 // What each set gives a final form, given how many of your parts belong to it.
 const APEX_PASSIVES = {
-  HIVE: 'A SWARM HATCHES AROUND YOU', BONE: 'BONE SHARDS BURST FROM YOU', FUNGAL: 'YOU TRAIL TOXIC SPORES',
+  HIVE: 'A SWARM HATCHES AROUND YOU', BONE: 'BONE SHARDS BURST FROM YOU', FUNGAL: 'YOU TRAIL CORRODING SPORES',
   PREDATOR: 'KILLS FEED YOU AND SPEED YOU UP', ABOMINATION: 'TENDRILS LASH OUT ON THEIR OWN',
 };
 function apexPassives(p) { return setCounts(p); }

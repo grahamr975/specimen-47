@@ -55,6 +55,7 @@ function recomputeStats(p) {
   if (p.apex) { // the final form
     s.damageMul *= 1.25; s.maxHp += 2; s.rateMul *= 0.9; s.speedMul *= 1.08;
     s.apex = apexPassives(p);
+    if (s.apex.HIVE) s.broodCap = (s.broodCap || 0) + 2; // the final form's swarm needs room
   }
   finalizeStats(s);
   for (const k of splices) {
@@ -859,6 +860,7 @@ function fireRing(p, n) {
 // Something of yours just blocked a hit or broke an enemy shot. Dense Marrow feeds on it.
 const MARROW_MAX = 5, MARROW_TIME = 4;
 function boneBlock(p) {
+  if (p.stats.setBlockShards && game.time - (p.blockShardAt || -9) > 0.25) { p.blockShardAt = game.time; fireRing(p, p.stats.setBlockShards); } // Bone set: a block bursts into shards
   const s = p.stats;
   if (!s.marrowFeed) return;
   p.marrowStacks = Math.min(MARROW_MAX, (p.marrowStacks || 0) + 1);

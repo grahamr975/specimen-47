@@ -52,6 +52,7 @@ function startFloor() {
 // `side` = which door of the new room the player comes through.
 function enterRoom(room, side) {
   game.room = room;
+  if (!room.cleared && game.player && game.player.stats && game.player.stats.roomArmor) game.player.armor = Math.max(game.player.armor || 0, 1); // Bone Colossus
   room.visited = true;
   for (const d in room.doors) room.doors[d].seen = true;
   game.enemies = []; game.bullets = []; game.puddles = []; game.deathFx = []; game.particles = []; game.texts = []; game.fx = [];
@@ -253,7 +254,6 @@ function update(dt) {
     room.locked = false;
     room.cleared = true;
     Sfx.play('door');
-    if (p.stats.setRoomHeal) healPlayer(1, SETS.ABOMINATION.color);
     // Cancerous Growth feeds on every victory.
     if (hasMutation(p, 'cancer')) {
       p.cancerRooms++;

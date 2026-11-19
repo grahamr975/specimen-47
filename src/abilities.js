@@ -68,7 +68,7 @@ const FLESH_CAP = 2; // pieces of you have their own cap (Abomination), apart fr
 function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false, born: game.time };
   a.life = (BROOD[kind] ? BROOD[kind].life : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
-  if (BROOD[kind]) a.hp = BROOD[kind].hp;
+  if (BROOD[kind]) { a.hp = BROOD[kind].hp; a.inv = 0.7; } // freshly hatched: a moment before anything can hurt it
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
   if (kind === 'polyp') { const pp = game.player.stats.polyp; a.r = 4; a.life = pp ? pp.life : 10; }
   if (kind === 'flesh') { // over its own cap: the oldest piece of you rots away
@@ -229,6 +229,7 @@ function updateClouds(dt) {
       if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
         if (!hasStatus(e, 'blind')) floatText(e.x, e.y - 10, '?', '#9aae50');
         inflict(e, 'blind', { t: 2 });
+        if (s.cloudCorrode || c.corrode) inflict(e, 'corrode', corrodeOpts(s)); // Fungal set (and its final form): clouds corrode
         if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
         if (c.fire) damageEnemy(e, 3 * s.damage * dt, 0, 0, true);               // Firestorm
         if (c.toxic) damageEnemy(e, 1.5 * s.damage * dt, 0, 0, true);            // Rot Halo, Toxic Wings
@@ -1471,8 +1472,8 @@ function updateApex(p, dt) {
     for (let i = 0; i < 1 + (ap.HIVE >= 3 ? 1 : 0); i++) spawnAlly('spiderling', p.x + rand(-8, 8), p.y + rand(-6, 6));
     Sfx.play('hatch');
   }
-  if (every('BONE', 5)) fireRing(p, 4 + 2 * ap.BONE);                               // shards burst from you
-  if (every('FUNGAL', 2.4) && p.moving) game.clouds.push({ x: p.x, y: p.y, r: 10 + 2 * ap.FUNGAL, life: 3, toxic: true }); // toxic spores
+  if (every('BONE', 5)) fireRing(p, 6 + 3 * ap.BONE);                               // shards burst from you
+  if (every('FUNGAL', 2.4) && p.moving) game.clouds.push({ x: p.x, y: p.y, r: 10 + 2 * ap.FUNGAL, life: 3, toxic: true, corrode: true }); // corroding spores
   if (every('ABOMINATION', 3)) { // tendrils lash out on their own
     const e = nearestEnemy(p.x, p.y, 60);
     if (e && !e.dead) { game.fx.push({ kind: 'whip', x1: p.x, y1: p.y - 2, x2: e.x, y2: e.y, t: 0.15 }); damageEnemy(e, (2 + ap.ABOMINATION) * s.damage, e.x - p.x, e.y - p.y, true); Sfx.play('whip'); }

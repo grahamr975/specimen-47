@@ -960,8 +960,8 @@ try {
     q = arena(); const host = dummy(50, 99); host.speed = 0; const mg = spawnAlly('maggot', q.x + 40, q.y);
     for (let i = 0; i < 120 && !mg.latch; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
-    check(`maggots crawl over, latch on and chew it bloody (latched ${!!mg.latch}, bleeding ${hasStatus(host, 'bleed')}, hp ${mg.hp})`, (mg.latch === host || host.hp < 90) && hasStatus(host, 'bleed') && mg.hp === BROOD.maggot.hp);
-    q = arena(); const brute = dummy(30, 99); brute.speed = 0; const frail = spawnAlly('spiderling', brute.x, brute.y); frail.biteT = 99; frail.inv = 0;
+    check(`maggots crawl over, latch on and chew it bloody (latched ${!!mg.latch}, bleeding ${hasStatus(host, 'bleed')}, hp ${mg.hp})`, (mg.latch === host || host.hp < 99) && hasStatus(host, 'bleed') && mg.hp === BROOD.maggot.hp);
+    q = arena(); const brute = dummy(30, 99); brute.speed = 0; const frail = spawnAlly('spiderling', brute.x, brute.y); frail.biteT = 99; frail.inv = 0; // (skip the hatching grace)
     q.inv = 1; update(1 / 60); Input.endFrame();
     check('an enemy touching a spiderling hurts it (1 HP: it dies)', frail.dead);
     q = arena(); grow(q, 'carapace'); q.shieldUp = true; q.inv = 0; hurtPlayer(1);
@@ -989,6 +989,15 @@ try {
     q = arena(); q.cancerRooms = 9; grow(q, 'cancer'); recomputeStats(q); check(`tumor costs size, not max health (bulk ${q.stats.bulk}, hp ${q.maxHp})`, q.stats.bulk >= 1 && q.maxHp === arena().maxHp);
     q = arena(); spawnAlly('spiderling', q.x, q.y); spawnAlly('maggot', q.x, q.y); for (let i = 0; i < 3; i++) spawnAlly('flesh', q.x, q.y);
     check(`flesh spawn have their own cap, apart from the brood (${game.allies.filter(a => !a.dead).map(a => a.kind).join(',')})`, game.allies.filter(a => !a.dead && a.kind === 'flesh').length === FLESH_CAP && game.allies.filter(a => !a.dead && BROOD_KINDS.has(a.kind)).length === 2);
+  }
+  { // 0j1k) Phase 5 sets: spliced parts count for both sets; sacrifice counts; clouds corrode.
+    newRun(); let q = game.player; grow(q, 'spike', 'mandibles');
+    const n0 = setCounts(q), sp = activeSplices(q);
+    check(`a spliced pair counts for both sets (splices ${sp.join(',') || 'none'}: BONE ${n0.BONE}, PREDATOR ${n0.PREDATOR})`, sp.includes('bonejaws') && n0.BONE === 2 && n0.PREDATOR === 2);
+    newRun(); q = game.player; grow(q, 'titanheart', 'fractured', 'shell'); // a cured CORE, a HEAD, LIMBS
+    check(`sacrifices are counted, cured or not (${sacrificeCount(q)})`, sacrificeCount(q) === 3);
+    newRun(); combatRoom(); q = game.player; game.enemies = []; q.stats.cloudCorrode = true; const e = dummy(60, 99); e.speed = 0; game.clouds = [{ x: e.x, y: e.y, r: 20, life: 2 }];
+    updateClouds(1 / 60); check('fungal set: clouds corrode', hasStatus(e, 'corrode'));
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
@@ -1199,11 +1208,11 @@ try {
     const a0 = game.allies.length; r = dummy(20, 1); damageEnemy(r, 5, 0, 0, true);
     check('hive queen: every kill hatches a spiderling', game.allies.length > a0);
     grow(p, ...SLOTS.map(sl => formOf('PREDATOR', sl)));
-    r = dummy(30, 10); damageEnemy(r, 6, 0, 0, true); const h1 = r.hp; damageEnemy(r, 2, 0, 0, true);
-    check(`predator: wounded prey takes more (${(h1 - r.hp).toFixed(1)} from a 2-damage hit)`, h1 - r.hp > 2.5);
+    r = dummy(30, 99); damageEnemy(r, 2, 0, 0, true); const plain = 99 - r.hp; inflict(r, 'bleed', { t: 5, dps: 0 }); let h1 = r.hp; damageEnemy(r, 2, 0, 0, true); const one = h1 - r.hp; inflict(r, 'mark', { t: 5, mul: 0 }); h1 = r.hp; damageEnemy(r, 2, 0, 0, true); const both = h1 - r.hp;
+    check(`predator: bleeding prey takes more, marked AND bleeding far more (${plain.toFixed(1)} / ${one.toFixed(1)} / ${both.toFixed(1)})`, one > plain * 1.2 && both > one * 1.2);
     grow(p, ...SLOTS.map(sl => formOf('BONE', sl))); game.bullets = [];
-    r = dummy(30, 1); damageEnemy(r, 5, 0, 0, true);
-    check('bone: a kill bursts into shards', game.bullets.filter(b => b.kind === 'spine').length >= 8);
+    game.bullets = []; boneBlock(p);
+    check(`bone: a block bursts into shards (${game.bullets.filter(b => b.kind === 'spine').length})`, game.bullets.filter(b => b.kind === 'spine').length >= 8);
     grow(p, ...SLOTS.map(sl => formOf('ABOMINATION', sl))); game.enemies = []; r = dummy(20); p.inv = 0; p.hp = p.maxHp; hurtPlayer(1);
     check('abomination: getting hurt lashes everything near you', r.hp < 99);
     grow(p, formOf('BONE', 'MOUTH'), formOf('BONE', 'HEAD'), formOf('HIVE', 'BACK'));

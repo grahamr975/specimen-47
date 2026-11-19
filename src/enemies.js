@@ -167,9 +167,9 @@ function moveKnocked(e, vx, vy, dt) {
 
 function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.dead) return;
-  // Predator set: wounded prey takes more.
+  // Predator set: marked or bleeding prey takes more; both at once, far more.
   const ps = game.player && game.player.stats;
-  if (ps && ps.setWounded && e.hp < e.maxHp * 0.5) dmg *= 1 + ps.setWounded;
+  if (ps && ps.setPrey) { const mk = hasStatus(e, 'mark'), bl = hasStatus(e, 'bleed'); if (mk && bl && ps.setPreyBoth) dmg *= 1 + ps.setPreyBoth; else if (mk || bl) dmg *= 1 + ps.setPrey; }
   dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
   dmg *= marrowMul(game.player); // Dense Marrow: fed by every block
   if (ENEMY_BEHAVIOR[e.type].onHurt) dmg = ENEMY_BEHAVIOR[e.type].onHurt(e, dmg, vx, vy); // (the Enforcer's riot plate)

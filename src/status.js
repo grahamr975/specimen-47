@@ -74,7 +74,11 @@ const STATUS = {
   },
   corrode: { // Corroded: eaten by your bile (or gas, with Corrode): takes more damage from everything, and burns a little
     dmgTaken: st => 1 + (st.mul || CORRODE_MUL),
-    tick(e, st, dt) { damageEnemy(e, (st.dps || CORRODE_DPS) * dt, 0, 0, true); dotFlash(e, 'corrode'); },
+    tick(e, st, dt) {
+      damageEnemy(e, (st.dps || CORRODE_DPS) * dt, 0, 0, true); dotFlash(e, 'corrode');
+      const ps = game.player.stats; // Fruiting Body: the corroded spread it to whatever they touch
+      if (ps.corrodeSpread && (st.spreadT = (st.spreadT || 0) - dt) <= 0) { st.spreadT = 0.5; for (const o of enemiesNear(e.x, e.y, e.r + 6, e)) if (!hasStatus(o, 'corrode')) inflict(o, 'corrode', { t: 1, mul: st.mul, dps: st.dps }); }
+    },
   },
   pollen: { // Bloom: dusted with pollen
     dmgTaken: (st, ps) => ps.pollen ? 1 + (ps.pollenMul || 0.25) : 1,
