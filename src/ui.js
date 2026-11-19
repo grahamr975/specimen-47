@@ -82,11 +82,32 @@ function drawCard(ctx, info, i, x, y, menu) {
   const hover = menu.stage === 'cards' && menu.hover === i;
   const rc = RARITY[info.rarity].color;
   const frame = info.malignant ? MALIGNANT_COLOR : rc;
+  const loses = !!info.shed; // this card tears out a part you already have
+  const cx = x + w / 2;
 
+  // Blood seeps off the bottom edge (always the same drips per card; they run on hover).
+  for (let k = 0; k < 4; k++) {
+    const dx = x + 6 + Math.floor(hash2(i, k, 3) * (w - 12));
+    const len = 1 + Math.floor(hash2(k, i, 7) * 3) + (hover ? Math.floor((menu.t * 4 + k * 0.7) % 4) : 0);
+    ctx.fillStyle = loses ? '#8a1820' : '#4a1418'; ctx.fillRect(dx, y + h, 1, len + 1);
+    if (k % 2 === 0) ctx.fillRect(dx - 1, y + h, 3, 1);
+  }
+
+  // A dark specimen slab in a bony frame.
   ctx.fillStyle = PAL.black; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
   ctx.fillStyle = frame; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = info.malignant ? (hover ? '#28162e' : '#1a0e1e') : hover ? '#221a1e' : '#141014';
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = '#2a2023'; // an inner seam, like a sutured edge
+  ctx.fillRect(x + 3, y + 3, w - 6, 1); ctx.fillRect(x + 3, y + h - 4, w - 6, 1);
+  ctx.fillRect(x + 3, y + 3, 1, h - 6); ctx.fillRect(x + w - 4, y + 3, 1, h - 6);
+  for (let s = x + 7; s < x + w - 6; s += 6) { ctx.fillRect(s, y + 2, 1, 3); ctx.fillRect(s, y + h - 5, 1, 3); } // stitches
+  // Bone knuckles on the corners.
+  for (const [kx, ky] of [[x - 2, y - 2], [x + w - 2, y - 2], [x - 2, y + h - 2], [x + w - 2, y + h - 2]]) {
+    ctx.fillStyle = '#3a3226'; ctx.fillRect(kx, ky, 4, 4);
+    ctx.fillStyle = '#d8ccb0'; ctx.fillRect(kx, ky, 3, 3);
+    ctx.fillStyle = '#fff4dc'; ctx.fillRect(kx, ky, 1, 1);
+  }
   if (hover) { ctx.fillStyle = frame; ctx.fillRect(x + 1, y + 1, w - 2, 1); ctx.fillRect(x + 1, y + h - 2, w - 2, 1); }
   if (info.rarity === 'legendary') {
     ctx.fillStyle = '#fff0c0';
@@ -101,57 +122,84 @@ function drawCard(ctx, info, i, x, y, menu) {
     }
   }
 
-  const cx = x + w / 2;
-  if (info.malignant) {
-    drawText(ctx, 'MALIGNANT', cx, y + 5, MALIGNANT_COLOR, 1, 'center');
-    ctx.fillStyle = rc; ctx.fillRect(x + 4, y + 5, 4, 5);
+  // Header: what it costs you (a red band) or its rarity.
+  if (loses) {
+    const pulse = 0.75 + 0.25 * Math.sin(menu.t * 5);
+    ctx.fillStyle = '#3a060a'; ctx.fillRect(x + 4, y + 4, w - 8, 9);
+    ctx.globalAlpha = pulse; ctx.fillStyle = '#7a1018'; ctx.fillRect(x + 5, y + 5, w - 10, 7); ctx.globalAlpha = 1;
+    ctx.fillStyle = '#8a1820'; for (const dx of [9, 23, w - 30, w - 13]) ctx.fillRect(x + dx, y + 13, 1, 1 + (dx % 3)); // it drips
+    drawText(ctx, 'REPLACES ' + (LOC_NAME[info.slot] || ''), cx, y + 6, '#f4d8d0', 1, 'center');
+  } else if (info.malignant) {
+    drawText(ctx, 'MALIGNANT', cx, y + 6, MALIGNANT_COLOR, 1, 'center');
   } else {
-    drawText(ctx, RARITY[info.rarity].label, cx, y + 5, rc, 1, 'center');
+    drawText(ctx, RARITY[info.rarity].label, cx, y + 6, rc, 1, 'center');
   }
+  if (info.set) { const S = SETS[info.set]; ctx.fillStyle = S.color; ctx.fillRect(x + 5, y + 16, 3, 3); ctx.fillRect(x + w - 8, y + 16, 3, 3); }
 
-  // The mutation's art, in a dark specimen window.
-  ctx.fillStyle = '#060405';
-  ctx.fillRect(Math.round(cx - 27), y + 13, 54, 52);
-  ctx.fillStyle = info.malignant ? '#1e0e22' : '#120d0f';
-  ctx.fillRect(Math.round(cx - 26), y + 14, 52, 50);
+  // The art, in a dark specimen window. A branch shows the part and what it
+  // grows into; a swap shows the part you lose, crossed out.
+  const top = y + 15, winH = 38;
+  ctx.fillStyle = '#060405'; ctx.fillRect(Math.round(cx - 27), top, 54, winH);
+  ctx.fillStyle = info.malignant ? '#1e0e22' : '#120d0f'; ctx.fillRect(Math.round(cx - 26), top + 1, 52, winH - 2);
   const bob = Math.round(Math.sin(menu.t * 3 + i) * 1);
-  const icon = mutIcon(info.id), old = info.from && mutIcon(info.from);
-  if (old && icon) { // evolving: the part as it is now, an arrow, and what it becomes
-    ctx.drawImage(old, Math.round(cx - 26), y + 31, 16, 16);
-    ctx.fillStyle = PAL.white;
-    for (let k = 0; k < 3; k++) ctx.fillRect(Math.round(cx - 10 + k), y + 39 - (2 - k), 1, 1 + (2 - k) * 2);
-    ctx.drawImage(icon, Math.round(cx - 6), y + 23 + bob, 32, 32);
-  } else if (icon) ctx.drawImage(icon, Math.round(cx - 24), y + 15 + bob, 48, 48);
+  const icon = mutIcon(info.id), oldId = info.from || (info.shed && info.shed.id), old = oldId && mutIcon(oldId);
+  if (old && icon) {
+    ctx.drawImage(old, Math.round(cx - 26), top + 11, 16, 16);
+    if (loses) { // crossed out
+      for (let k = 0; k < 14; k++) { ctx.fillStyle = '#e02030'; ctx.fillRect(Math.round(cx - 25 + k), top + 12 + k, 2, 1); ctx.fillRect(Math.round(cx - 12 - k), top + 12 + k, 2, 1); }
+    }
+    ctx.fillStyle = loses ? '#e04048' : PAL.white;
+    for (let k = 0; k < 3; k++) ctx.fillRect(Math.round(cx - 9 + k), top + 19 - (2 - k), 1, 1 + (2 - k) * 2);
+    ctx.drawImage(icon, Math.round(cx - 5), top + 3 + bob, 32, 32);
+  } else if (icon) ctx.drawImage(icon, Math.round(cx - 16), top + 3 + bob, 32, 32);
+  else if (!info.id) drawGorgeArt(ctx, cx, top + winH / 2, menu.t);
+  // Growth pips (how far along its path) or level dots, under the window.
+  let ty = top + winH + 2;
+  if (info.tier) for (let l = 0; l < 3; l++) { ctx.fillStyle = l <= info.tier ? rc : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty, 4, 2); }
+  if (info.level) for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < info.level ? VIAL_COLOR : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty, 4, 2); }
+  ty += 5;
 
-  let ty = y + 70;
-  for (const line of wrapText(info.name.toUpperCase(), 20)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
-  if (info.slot) drawText(ctx, `[${LOC_NAME[info.slot] || info.slot}] ${LOC_TAG[info.slot] || ''}`.trim(), cx, ty, PAL.slate, 1, 'center', null);
-  // Its set, and whether it moves you toward a set bonus.
-  if (info.set) {
-    const S = SETS[info.set], after = info.setAfter;
-    ctx.fillStyle = S.color; ctx.fillRect(x + 4, y + 4, 4, 4); ctx.fillRect(x + w - 8, y + 4, 4, 4);
-    ty += 8;
-    drawText(ctx, S.name + (after >= 2 ? ` ${after}/${after >= 3 ? 5 : 3}` : ''), cx, ty, S.color, 1, 'center', null);
-  }
-  // Growth pips: how far along its path this card takes the slot.
-  if (info.tier) {
-    for (let l = 0; l < 3; l++) { ctx.fillStyle = l <= info.tier ? rc : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty + 8, 4, 2); }
-    ty += 4;
-  }
-  // Level dots: how close this level-up takes the part to its next evolution.
-  if (info.level) {
-    for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < info.level ? VIAL_COLOR : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty + 8, 4, 2); }
-    ty += 4;
-  }
-  ty += 10;
-  if (info.status) { drawText(ctx, info.status, cx, ty, PAL.white, 1, 'center'); ty += 10; }
-  if (info.note) {
-    for (const line of (info.noteLines || [info.note]).flatMap(n => wrapText(n.toUpperCase(), 21))) { drawText(ctx, line, cx, ty, info.noteColor, 1, 'center', null); ty += 7; }
+  for (const line of fitText(info.name, w - 8, 2)) { drawText(ctx, line, cx, ty, rc, 1, 'center'); ty += 8; }
+  const tag = info.slot ? `[${LOC_NAME[info.slot] || info.slot}]` : '';
+  const setTag = info.set ? SETS[info.set].name + (info.setAfter >= 2 ? ` ${info.setAfter}/${info.setAfter >= 3 ? 5 : 3}` : '') : '';
+  if (tag || setTag) {
+    const both = tag + (tag && setTag ? ' ' : '') + setTag;
+    if (textWidth(both) <= w - 8) {
+      const x0 = cx - textWidth(both) / 2;
+      drawText(ctx, tag, x0, ty, PAL.slate, 1, 'left', null);
+      if (setTag) drawText(ctx, setTag, x0 + (tag ? textWidth(tag + ' ') + 1 : 0), ty, SETS[info.set].color, 1, 'left', null);
+      ty += 8;
+    } else {
+      if (tag) { drawText(ctx, tag, cx, ty, PAL.slate, 1, 'center', null); ty += 7; }
+      drawText(ctx, setTag, cx, ty, SETS[info.set].color, 1, 'center', null); ty += 8;
+    }
   }
 
-  // It would complete a splice: don't say which, just let it pulse.
-  else if (info.stirs && Math.floor(menu.t * 3) % 3) drawText(ctx, 'SOMETHING STIRS', cx, y + h - 20, VIAL_COLOR, 1, 'center');
-  drawText(ctx, `[${i + 1}]`, cx, y + h - 10, hover ? rc : PAL.slate, 1, 'center');
+  // The bottom: its status and what it costs or keeps, above the key.
+  const notes = info.note ? fitText(info.note, w - 8, 2) : [];
+  let by = y + h - 13 - notes.length * 7 - (info.status ? 9 : 0);
+  // The short description fills what's left between.
+  ctx.fillStyle = '#2a2023'; ctx.fillRect(Math.round(cx - 12), ty, 24, 1);
+  ty += 4;
+  const room = Math.max(0, Math.min(5, Math.floor((by - ty - 2) / 7)));
+  const said = info.short ? fitText(info.short, w - 10, room) : [];
+  for (const line of said) { drawText(ctx, line, cx, ty, '#cbbcae', 1, 'center', null); ty += 7; }
+  if (info.cost && ty + 7 <= by - 2) for (const line of fitText(info.cost.split('. ')[0], w - 10, Math.floor((by - ty - 2) / 7))) { drawText(ctx, line, cx, ty, MALIGNANT_COLOR, 1, 'center', null); ty += 7; }
+  if (info.status) { drawText(ctx, info.status, cx, by, PAL.white, 1, 'center'); by += 9; }
+  for (const line of notes) { drawText(ctx, line, cx, by, info.noteColor, 1, 'center', null); by += 7; }
+  if (!notes.length && info.stirs && Math.floor(menu.t * 3) % 3) drawText(ctx, 'SOMETHING STIRS', cx, y + h - 20, VIAL_COLOR, 1, 'center');
+  drawText(ctx, `[${i + 1}]`, cx, y + h - 11, hover ? rc : PAL.slate, 1, 'center');
+}
+
+// Gorge's art: a heart, beating.
+function drawGorgeArt(ctx, cx, cy, t) {
+  const s = 1 + (Math.sin(t * 7) > 0.6 ? 1 : 0);
+  ctx.save(); ctx.translate(Math.round(cx), Math.round(cy)); ctx.scale(2 + s * 0.25, 2 + s * 0.25);
+  ctx.fillStyle = '#5e1a22';
+  ctx.fillRect(-5, -3, 4, 3); ctx.fillRect(1, -3, 4, 3); ctx.fillRect(-6, -2, 12, 4); ctx.fillRect(-4, 2, 8, 2); ctx.fillRect(-2, 4, 4, 2);
+  ctx.fillStyle = '#a8343c'; ctx.fillRect(-5, -2, 3, 3); ctx.fillRect(2, -2, 3, 3); ctx.fillRect(-3, 0, 6, 3);
+  ctx.fillStyle = '#e88080'; ctx.fillRect(-4, -2, 1, 1);
+  ctx.restore();
 }
 
 function drawMenu(ctx) {
@@ -175,11 +223,12 @@ function drawMenu(ctx) {
   });
 
   if (menu.t > 0.5) {
-    // Hovering a card: what that kind of part does, in plain words.
+    // Hovering a card: everything it does (the card only says the gist).
     const hov = menu.hover >= 0 && menu.choices[menu.hover] && choiceInfo(p, menu.choices[menu.hover]);
-    const help = hov && (hov.kind === 'level' ? LEVEL_HELP : LOC_HELP[hov.slot]);
+    if (hov && hov.shed) drawShedLink(ctx, hov.shed, cardX(menu.hover, n) + CARD.w / 2, CARD.y + CARD.h + 2, menu.t);
+    const help = hov && (hov.kind === 'level' ? LEVEL_HELP : !hov.id ? GORGE_HELP : hov.desc + (hov.cost ? ' ' + hov.cost : ''));
 
-    if (help) wrapText(help, 76).slice(0, 2).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 201 + i * 8, '#c8b8a8', 1, 'center'));
+    if (help) fitText(help, VIEW_W - 16, 3).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 203 + i * 7, '#c8b8a8', 1, 'center'));
     else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
@@ -194,6 +243,25 @@ const LOC_HELP = {
   CORE: 'CORE: ALWAYS ON. MAKES YOUR WHOLE BODY STRONGER OR TOUGHER. ONLY FROM BOSS CORES.',
 };
 const LEVEL_HELP = 'LEVEL UP: A SMALL BOOST TO THIS PART. AT LEVEL 3 IT EVOLVES INTO SOMETHING NEW.';
+const GORGE_HELP = 'GORGE: HEAL A HEART AND GROW NOTHING. YOUR BODY STAYS EXACTLY AS IT IS.';
+
+// Hovering a card that replaces a part: a red thread runs from the card down
+// to that part's cell in the slot bar, and the cell pulses.
+function drawShedLink(ctx, part, fromX, fromY, t) {
+  const cell = (game.barCells || []).find(c => c.part === part);
+  if (!cell) return;
+  const tx = Math.round(cell.x + cell.w / 2), ty = cell.y - 1, midY = 200;
+  const a = 0.6 + 0.4 * Math.sin(t * 6);
+  ctx.globalAlpha = a; ctx.fillStyle = '#d02030';
+  const x0 = Math.round(fromX);
+  ctx.fillRect(x0, fromY, 1, midY - fromY);
+  ctx.fillRect(Math.min(x0, tx), midY, Math.abs(tx - x0) + 1, 1);
+  ctx.fillRect(tx, midY, 1, ty - midY);
+  ctx.fillRect(tx - 1, ty - 2, 3, 1); ctx.fillRect(tx, ty - 1, 1, 1); // arrowhead
+  ctx.fillRect(cell.x - 1, cell.y - 1, cell.w + 2, 1); ctx.fillRect(cell.x - 1, cell.y + 26, cell.w + 2, 1);
+  ctx.fillRect(cell.x - 1, cell.y - 1, 1, 28); ctx.fillRect(cell.x + cell.w, cell.y - 1, 1, 28);
+  ctx.globalAlpha = 1;
+}
 
 // --- HUD --------------------------------------------------------------------------
 function drawHUD(ctx) {
@@ -311,6 +379,7 @@ const BAR_LAYOUT = ['MOUTH', 'MOUTH', 'LIMBS', 'HEAD', 'BACK', 'CORE'];
 // Words wrap by their real pixel width; a word too long for a whole line is
 // shortened with a dot (HAUNCH.), and so is the last line if more is left over.
 function fitText(s, maxW, maxLines) {
+  if (maxLines <= 0) return [];
   const fits = t => textWidth(t) <= maxW;
   const clip = t => { while (t.length > 1 && !fits(t + '.')) t = t.slice(0, -1); return t + '.'; };
   const lines = [];
@@ -357,8 +426,10 @@ function drawMutationList(ctx) {
   };
   const next = nextSlot(p);
   let nextShown = false;
+  game.barCells = []; // where each part sits, for the card menu's red thread
   BAR_LAYOUT.forEach((loc, i) => {
     const m = cellPart[i], x = cellX(i), w = pitches[i] - 2;
+    game.barCells.push({ part: m, x, y: top, w });
     panel(x, w);
     if (!m) {
       drawText(ctx, LOC_NAME[loc], x + w / 2, top + 3, '#3a3232', 1, 'center', null);
@@ -415,11 +486,16 @@ function drawActiveIcons(ctx, p) {
   });
 }
 
-// --- Whispers: cryptic hints when something new grows in you ---------------------
-const WHISPER_TIME = 5;
+// --- Whispers: what your body feels as something grows -----------------------------
+// When a part grows (`name` given), it pops up mid-screen: the part's name, then
+// the feeling of it arriving, typed out letter by letter. The newest letters
+// are still raw: red, and twitching.
+const WHISPER_TIME = 5.5, WHISPER_CPS = 38;
 
-function whisper(text) {
-  if (text) game.whisper = { text: text.toUpperCase(), t: WHISPER_TIME };
+function whisper(text, name = null, color = null) {
+  if (!text) return;
+  const lines = fitText(text, 220, 4);
+  game.whisper = { text: text.toUpperCase(), lines, name: name && name.toUpperCase(), color: color || PAL.white, t: WHISPER_TIME };
 }
 
 function updateWhisper(dt) {
@@ -430,15 +506,37 @@ function drawWhisper(ctx) {
   const w = game.whisper;
   if (!w) return;
   const age = WHISPER_TIME - w.t;
-  const shown = w.text.slice(0, Math.floor(age * 45)); // types itself out
-  const lines = wrapText(shown, 70);
-  const fade = Math.min(1, w.t / 0.8);
-  const y = ROOM_Y + 6;
-  ctx.globalAlpha = 0.75 * fade;
-  ctx.fillStyle = '#060304';
-  ctx.fillRect(0, y - 3, VIEW_W, lines.length * 8 + 5);
+  const fade = Math.min(1, w.t / 0.8, age / 0.15);
+  const head = w.name ? 11 : 0, hgt = head + w.lines.length * 8 + 8;
+  const y = ROOM_Y + 18;
+  // The first instant: a pulse of red over everything, like a heartbeat.
+  if (w.name && age < 0.25) { ctx.globalAlpha = 0.18 * (1 - age / 0.25); ctx.fillStyle = '#c01020'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+  ctx.globalAlpha = 0.82 * fade;
+  ctx.fillStyle = '#080304'; ctx.fillRect(14, y - 5, VIEW_W - 28, hgt);
+  ctx.fillStyle = '#3a0a10'; ctx.fillRect(14, y - 5, VIEW_W - 28, 1); ctx.fillRect(14, y - 6 + hgt, VIEW_W - 28, 1);
+  for (let k = 0; k < 9; k++) { // the band bleeds a little
+    const dx = 20 + Math.floor(hash2(k, 3, 11) * (VIEW_W - 40)), len = 1 + Math.floor(Math.min(age * 3, 1) * hash2(k, 5, 2) * 5);
+    ctx.fillRect(dx, y - 5 + hgt, 1, len);
+  }
   ctx.globalAlpha = fade;
-  lines.forEach((line, i) => drawText(ctx, line, VIEW_W / 2, y + i * 8, '#c8a8a8', 1, 'center'));
+  if (w.name) {
+    const nw = textWidth(w.name);
+    ctx.fillStyle = w.color; ctx.fillRect(VIEW_W / 2 - nw / 2 - 12, y + 2, 6, 1); ctx.fillRect(VIEW_W / 2 + nw / 2 + 6, y + 2, 6, 1);
+    drawText(ctx, w.name, VIEW_W / 2, y, w.color, 1, 'center');
+  }
+  // Type it out across the lines (laid out in full first, so nothing reflows).
+  let left = Math.floor(Math.max(0, age - 0.3) * WHISPER_CPS);
+  w.lines.forEach((line, i) => {
+    const shown = line.slice(0, Math.max(0, left)); left -= line.length;
+    if (!shown) return;
+    const x0 = Math.round(VIEW_W / 2 - textWidth(line) / 2), ly = y + head + i * 8;
+    const settled = left >= 0 ? shown.length : Math.max(0, shown.length - 3);
+    drawText(ctx, shown.slice(0, settled), x0, ly, '#e0c4bc', 1, 'left');
+    for (let k = settled; k < shown.length; k++) { // still raw
+      const jx = Math.round((Math.random() - 0.5) * 2), jy = Math.round((Math.random() - 0.5) * 2);
+      drawText(ctx, shown[k], x0 + textWidth(shown.slice(0, k) + 'X') - textWidth('X') + jx, ly + jy, '#e02838', 1, 'left');
+    }
+  });
   ctx.globalAlpha = 1;
 }
 

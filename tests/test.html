@@ -887,6 +887,8 @@ try {
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
+    { const cut = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part).filter(id => { const t = cardText(MUTATIONS[id]); const ls = fitText(t, CARD.w - 10, 3); return ls.join(' ').replace(/s+/g, ' ') !== t.toUpperCase().replace(/s+/g, ' '); });
+      check(`every card's short text fits in 3 lines (${cut.length} cut: ${cut.join(',')})`, !cut.length); }
     check(`short names aren't mangled (${fitText('Leech Spitter', 43, 2).join('/')} | ${fitText('Bioluminescent', 27, 2).join('/')} | ${fitText('Battering Skull', 27, 2).join('/')})`, fitText('Leech Spitter', 43, 2).join('/') === 'LEECH/SPITTER' && fitText('Bioluminescent', 27, 2).length === 1 && fitText('Battering Skull', 27, 2).join('/') === 'BATTER./SKULL');
   }
   { // 0k) Typed slots: two weapons, one of each body part.
