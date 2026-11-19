@@ -107,6 +107,11 @@ const Sfx = {
       case 'door': this.noise(0.25, 0.1, 400); this.tone(70, 0.3, 'square', 0.04, 45); break;
       case 'enemyShot': this.tone(260, 0.1, 'sawtooth', 0.025, 140); break;
       case 'splat': this.noise(0.18, 0.08, 500); break;
+      case 'scrawl': // one letter of a whisper being written: a dry scratch, a wet tick, now and then a breath
+        this.noise(0.035, 0.035, 1400 + Math.random() * 1400);
+        this.tone(95 + Math.random() * 45, 0.05, 'triangle', 0.018, 60);
+        if (Math.random() < 0.15) this.tone(58 + Math.random() * 6, 0.3, 'sawtooth', 0.008, 45);
+        break;
       case 'descend': [196, 185, 165, 147, 110].forEach((f, i) => this.later(i * 140, () => this.tone(f, 0.3, 'sine', 0.07))); break;
       case 'die': this.tone(200, 1.4, 'sawtooth', 0.07, 30); this.noise(0.8, 0.12, 500); break;
       case 'heartbeat':

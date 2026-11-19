@@ -515,7 +515,12 @@ function whisper(text, name = null, color = null) {
 }
 
 function updateWhisper(dt) {
-  if (game.whisper && (game.whisper.t -= dt) <= 0) game.whisper = null;
+  const w = game.whisper;
+  if (!w) return;
+  if ((w.t -= dt) <= 0) { game.whisper = null; return; }
+  // Each letter makes a sound as it's written (the same clock drawWhisper types with).
+  const all = w.lines.join(''), typed = Math.min(all.length, Math.floor(Math.max(0, WHISPER_TIME - w.t - 0.3) * WHISPER_CPS));
+  if (typed > (w.typed || 0)) { if (all[typed - 1] !== ' ') Sfx.play('scrawl'); w.typed = typed; }
 }
 
 function drawWhisper(ctx) {
