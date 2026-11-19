@@ -926,6 +926,14 @@ try {
     newRun(); combatRoom(); p = game.player; game.room.slime = []; grow(p, 'mucus'); p.aimX = 1; p.aimY = 0; fireFor(20);
     check(`mucus: sneezes leave a sticky smear (${game.room.slime.length})`, game.room.slime.length > 3);
   }
+  { // 0j1f) Status looks: one hue at a time (damage over time first), DoT ticks flash, rate-limited.
+    newRun(); combatRoom(); game.enemies = []; const e = dummy(40, 99); e.speed = 0;
+    inflict(e, 'slow', { t: 3 }); check(`a slowed enemy is tinted teal (${statusHue(e).hue})`, statusHue(e).hue === STATUS_LOOK.slow.hue);
+    inflict(e, 'bleed', { t: 2, dps: 2 }); check(`bleeding outranks slow for the tint (${statusHue(e).hue})`, statusHue(e).hue === STATUS_LOOK.bleed.hue);
+    e.dotFlashAt = undefined; game.time = 50; dotFlash(e, 'bleed'); const t0 = e.dotFlashAt; game.time = 50.1; dotFlash(e, 'bleed');
+    check('a DoT tick flashes the body, at most ~4x a second', t0 === 50 && e.dotFlashAt === 50);
+    e.status = {}; e.infest = { t: 2 }; check(`infested shows purple (${statusHue(e).hue})`, statusHue(e).hue === '#a040c0');
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

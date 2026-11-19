@@ -500,7 +500,7 @@ function updateInfested(dt) {
     if (!s.ovi) { e.infest = null; continue; }
     const inf = e.infest;
     inf.t -= dt; inf.carried += dt;
-    damageEnemy(e, s.ovi.dps * dt, 0, 0, true);
+    damageEnemy(e, s.ovi.dps * dt, 0, 0, true); dotFlash(e, 'infest');
     if (e.dead || !e.infest) continue; // its death already burst it
     applyHitEffects(e, 'ovi'); // Confuse
     if (s.oviCharm) { // Swarm Queen: it savages its own kind

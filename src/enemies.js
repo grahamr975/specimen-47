@@ -696,6 +696,7 @@ function drawEnemies(ctx) {
     }
     const flash = e.flash > 0 || (winding && Math.floor(e.t * 20) % 2);
     drawCentered(ctx, SPR[flash ? name + '_flash' : name], x, y);
+    if (!flash) drawStatusTint(ctx, e, SPR[name], x, y); // status hue, DoT flash (status.js)
 
   }
 }
@@ -719,7 +720,7 @@ function drawEnemyGlow(ctx) {
     if (e.warden && !e.dead) drawText(ctx, 'WARDEN', e.x, e.y - e.r - 12, '#b03040', 1, 'center');
     if (e.infest && !e.dead) { // something writhing under its skin
       const wx = e.x + Math.sin(game.time * 14 + e.infest.wriggle) * 2, wy = e.y - 1 + Math.cos(game.time * 11) * 1.5;
-      pxCircle(ctx, wx, wy, 1.6, '#3a2a20'); pxCircle(ctx, wx, wy, 1, '#e8dcc0');
+      pxCircle(ctx, wx, wy, 1.6, '#3a1048'); pxCircle(ctx, wx, wy, 1, '#c070e0'); // (purple: infested)
     }
     if (e.spawnT > 0) {
       // Something is crawling out: a warning so spawns are never unfair.
