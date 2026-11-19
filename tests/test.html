@@ -934,6 +934,20 @@ try {
     check('a DoT tick flashes the body, at most ~4x a second', t0 === 50 && e.dotFlashAt === 50);
     e.status = {}; e.infest = { t: 2 }; check(`infested shows purple (${statusHue(e).hue})`, statusHue(e).hue === '#a040c0');
   }
+  { // 0j1g) Proboscis: the tube travels out, holds its prey, pulls back in before switching, never through walls.
+    const setup = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 80; q.y = 98; q.aimX = 1; q.aimY = 0; grow(q, 'proboscis'); q.latch = null; return q; };
+    const tick = (q, n) => { for (let i = 0; i < n; i++) { game.time += 0.1; drainBeam(q); } };
+    let q = setup(); const a = dummy(45, 99); a.speed = 0; a.y = q.y - 2;
+    tick(q, 1); const first = 99 - a.hp; tick(q, 3);
+    check(`the tube has to travel out before it drains (first tick ${first.toFixed(1)}, then ${(99 - a.hp).toFixed(1)})`, first === 0 && a.hp < 99);
+    const b = dummy(30, 99); b.speed = 0; b.y = q.y + 12; a.dead = true; tick(q, 1); const lost = q.latch.cd; tick(q, 3);
+    check(`losing its prey pulls the tube back in (cooldown ${lost}s) before it goes for the next (${(99 - b.hp).toFixed(1)} dmg after 0.3s)`, lost === BEAM_SWITCH && b.hp === 99);
+    tick(q, 8); check(`...then it reaches the next (${(99 - b.hp).toFixed(1)} dmg)`, b.hp < 99);
+    q = setup(); const w = dummy(40, 99); w.speed = 0; w.y = q.y - 2;
+    const tx = Math.floor((q.x + 20) / TILE), ty = Math.floor(q.y / TILE) - 0; game.room.tiles[ty * ROOM_W + tx] = T_BLOCK;
+    tick(q, 8); check(`it never drains through a crate (${(99 - w.hp).toFixed(1)} dmg)`, w.hp === 99);
+    check(`shorter reach (${MUTATIONS.proboscis && newRun() || game.player.stats.beamRange})`, (() => { newRun(); return game.player.stats.beamRange === 56; })());
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

@@ -719,26 +719,51 @@ function lobAt(p, g, scatter, mul = 1) {
   });
 }
 
-// Proboscis: latch onto the nearest prey in front of you and drain it.
+// Proboscis: latch onto prey in front of you and drain it. The tube has to
+// travel out to its prey before it drains, holds on while the prey is alive,
+// in reach and in sight, and when it loses its prey (or kills it) it has to
+// pull back in before it can go for another. It never reaches through walls
+// or crates.
+const BEAM_SPEED = 220, BEAM_SWITCH = 0.6, BEAM_CONE = 0.55, BEAM_GRACE = 8;
+function clearShot(x1, y1, x2, y2) {
+  const d = Math.hypot(x2 - x1, y2 - y1), n = Math.ceil(d / 3);
+  for (let i = 1; i < n; i++) if (pointSolid(game.room, x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n)) return false;
+  return true;
+}
 function drainBeam(p) {
-  const s = p.stats, range = s.beamRange + s.reach;
-  let target = null, best = range;
-  for (const e of game.enemies) {
-    if (e.dead || e.spawnT > 0) continue;
-    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
-    if (d < best && (dx * p.aimX + dy * p.aimY) / d > 0.55) { best = d; target = e; }
+  const s = p.stats, range = s.beamRange + s.reach, ox = p.x, oy = p.y - 2;
+  const L = p.latch || (p.latch = { target: null, tip: 0, cd: 0, at: game.time });
+  const dt = Math.min(0.2, game.time - L.at); L.at = game.time;
+  if (dt >= 0.2) { L.target = null; L.tip = 0; } // you stopped draining: the tube is back in
+  if (L.cd > 0) { L.cd -= dt; return; }           // still pulling back in
+  const holds = e => e && !e.dead && Math.hypot(e.x - ox, e.y - oy) <= range + BEAM_GRACE && clearShot(ox, oy, e.x, e.y);
+  if (L.target && !holds(L.target)) { L.target = null; L.tip = 0; L.cd = BEAM_SWITCH; return; } // lost it (or drained it dry)
+  if (!L.target) {
+    let best = range;
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0) continue;
+      const dx = e.x - ox, dy = e.y - oy, d = Math.hypot(dx, dy);
+      if (d < best && (dx * p.aimX + dy * p.aimY) / d > BEAM_CONE && clearShot(ox, oy, e.x, e.y)) { best = d; L.target = e; }
+    }
+    L.tip = 0;
+    if (!L.target) { // nothing to latch onto: a corpse, or a sealed door
+      const c = corpsesNear(p.x, p.y, range, p.aimX, p.aimY, BEAM_CONE).find(c => clearShot(ox, oy, c.x, c.y));
+      if (c) { damageCorpse(c, s.beam); game.fx.push({ kind: 'beam', x1: ox, y1: oy, x2: c.x, y2: c.y, t: 0.1 }); }
+      else if (strikeSeal(p.x + p.aimX * range * 0.5, p.y + p.aimY * range * 0.5, range * 0.5)) game.fx.push({ kind: 'beam', x1: ox, y1: oy, x2: p.x + p.aimX * 18, y2: p.y + p.aimY * 18, t: 0.1 });
+      return;
+    }
   }
-  if (!target) {
-    const c = corpsesNear(p.x, p.y, range, p.aimX, p.aimY, 0.55)[0];
-    if (c) { damageCorpse(c, s.beam); game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 2, x2: c.x, y2: c.y, t: 0.1 }); }
-    else if (strikeSeal(p.x + p.aimX * range * 0.5, p.y + p.aimY * range * 0.5, range * 0.5)) game.fx.push({ kind: 'beam', x1: p.x, y1: p.y - 2, x2: p.x + p.aimX * 18, y2: p.y + p.aimY * 18, t: 0.1 });
+  const t = L.target, d = Math.hypot(t.x - ox, t.y - oy) || 1;
+  L.tip = Math.min(d, L.tip + BEAM_SPEED * dt);
+  if (L.tip < d - t.r) { // still on its way out
+    game.fx.push({ kind: 'beam', x1: ox, y1: oy, x2: ox + (t.x - ox) / d * L.tip, y2: oy + (t.y - oy) / d * L.tip, t: 0.1 });
     return;
   }
-  drainOne(p, target, s.beam, p.x, p.y - 2);
-  // Siphon: the beam forks into a second victim.
-  if (s.beamChain && !target.dead) {
-    const next = game.enemies.find(o => o !== target && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - target.x, o.y - target.y) < 40);
-    if (next) drainOne(p, next, s.beam * 0.7, target.x, target.y);
+  drainOne(p, t, s.beam, ox, oy);
+  // Siphon: the beam forks into a second victim (it can't fork through walls either).
+  if (s.beamChain && !t.dead) {
+    const next = game.enemies.find(o => o !== t && !o.dead && o.spawnT <= 0 && Math.hypot(o.x - t.x, o.y - t.y) < 40 && clearShot(t.x, t.y, o.x, o.y));
+    if (next) drainOne(p, next, s.beam * 0.7, t.x, t.y);
   }
   Sfx.play('beam');
 }
@@ -761,7 +786,6 @@ function drainOne(p, target, dmg, fromX, fromY) {
   }
 }
 
-// Vomit Stream: a short, wide gush that shoves enemies back.
 // Purge: hurt, you vomit a ring of burning bile around you that shoves everything back.
 function purge(p, n) {
   for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; spawnPuddle(p.x + Math.cos(a) * 14, p.y + 2 + Math.sin(a) * 11, 6, 3, 'player'); }

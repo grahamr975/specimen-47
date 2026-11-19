@@ -81,7 +81,7 @@ function baseStats() {
     bite: false, biteDmg: 0, biteDelay: 9, biteReach: 24, biteAcid: 0, biteHeal: 0, doubleBite: false, leech: 0,
     lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, mawTendrils: 0, bulk: 0,
     lunge: false, lungeDmg: 0, lungeDelay: 9,
-    beam: 0, beamRange: 70, vomit: 0, vomitDmg: 0, vomitDelay: 9,
+    beam: 0, beamRange: 56, vomit: 0, vomitDmg: 0, vomitDelay: 9,
     // Firing style: WHAT you fire comes from MOUTH; HOW can be changed by a
     // path (charge & blast, or rapid stream).
     charge: false, stream: false, chargeBonus: false,
@@ -359,7 +359,8 @@ const MUTATIONS = {
   proboscis: {
     requires: { set: 'PREDATOR', label: 'A PREDATOR PART' },
     name: 'Proboscis', slot: 'MOUTH', rarity: 'rare', overlay: ['proboscis'],
-    desc: 'Hold fire to latch a draining beam onto prey. Drained blood heals you.',
+    desc: 'Hold fire to latch a draining beam onto prey. Drained blood heals you. The tube takes a moment to reach its prey, and to pull back before it can go for another; it cannot reach through walls.',
+    short: 'Hold fire to latch on and drain. Blood heals you.',
     apply(s, l) { s.beam += 0.25 + 0.1 * l; },
   },
   siphon: {
@@ -391,7 +392,7 @@ const MUTATIONS = {
   longtube: {
     name: 'Gorging Tube', from: 'bloat', rarity: 'rare', icon: ['proboscis', 'eyes'],
     desc: 'A longer, hungrier proboscis: much more reach and drain.',
-    apply(s) { s.beamRange += 40; s.beam *= 1.5; },
+    apply(s) { s.beamRange += 32; s.beam *= 1.5; },
   },
   // ---- Playstyle roots: they replace shooting with something else entirely ----
   ovipositor: {
