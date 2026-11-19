@@ -561,21 +561,17 @@ try {
     for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
     check(`walking into a corpse devours it, biomass and all (${d0} -> ${q.dna})`, !game.room.corpses.length && q.dna >= d0 + 3);
   }
-  { // 0v) You are what you eat: elites' corpses offer their traits.
-    check('every trait is a real part, offered by an elite type', Object.entries(GRAFT_OF).every(([type, id]) => ENEMY_TYPES[type] && MUTATIONS[id] && MUTATIONS[id].graft === type));
-    { let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 5; for (let k = 0; k < 6; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); } if (rollChoices(q, 3).concat(rollLevelUps(q, 3)).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].graft)) seen++; }
-      check(`traits never come from normal cards (${seen}/200)`, seen === 0); }
+  { // 0v) The rare finds (once "you are what you eat" traits): only from a vial's wild card, never elites' corpses.
+    check('every rare find is a real part', Object.keys(MUTATIONS).filter(id => MUTATIONS[id].graft).length === 5);
+    { let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 5; for (let k = 0; k < 6; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); } if (rollChoices(q, 3).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].graft)) seen++; }
+      check(`rare finds never come from normal cards (${seen}/200)`, seen === 0); }
     newRun(); combatRoom(); let q = game.player; game.enemies = []; game.room.orbs = []; game.pendingEvolutions = []; q.x = 120; q.y = 96; grow(q, 'spike');
     const e = spawnEnemy('spitter', q.x + 40, q.y, true); e.spawnT = 0; e.affixes = []; damageEnemy(e, 9999, 0, 0, true);
-    const c = game.room.corpses.find(k => k.trait);
-    check(`an elite Bloat Toad leaves a corpse with something to take (${c && c.trait})`, c && c.trait === 'spitter');
-    if (c) for (let i = 0; i < 8 && !game.pendingEvolutions.some(o => o.trait); i++) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); } // (an overkill's hitstop can hold the first frames)
-    check('devouring it offers its trait', game.pendingEvolutions.some(o => o.trait === 'spitter'));
-    openEvolution(game.pendingEvolutions.find(o => o.trait)); game.pendingEvolutions = [];
-    check(`the card: Toad Gullet, or decline (${game.menu.choices.map(k => k.id).join(',')})`, game.menu.choices[0].id === 'toadgullet' && game.menu.choices.some(k => k.id === '_gorge') && /^DEVOURED TRAIT/.test(choiceInfo(q, game.menu.choices[0]).status));
-    game.menu.t = 2; render(); applyChoice(q, game.menu.choices[0]); game.menu = null;
-    check('...and it lobs bile globs', q.stats.guns.some(g => g.id === 'toad' && g.lob));
-    // The traits work.
+    const c = game.room.corpses[0];
+    if (c) for (let i = 0; i < 8; i++) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); }
+    check('devouring an elite offers no trait menu any more', !game.pendingEvolutions.some(o => o.trait) && (!c || !c.trait) && typeof traitCards === 'undefined');
+    check(`a rare find's card says so (${choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status})`, choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status === 'RARE FIND');
+    // The parts work.
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; return z; };
     q = arena(); grow(q, 'urchinquills'); game.room.locked = true; calm(); dummy(80); for (let i = 0; i < 200; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check('urchin quills: rings of spines on their own in a fight', game.bullets.some(b => b.kind === 'spine') || q.quillT !== undefined);
@@ -583,8 +579,6 @@ try {
     q = arena(); grow(q, 'culturejelly'); { const r = dummy(30); r.speed = 0; q.dashCd = 0; Input.keys.clear(); Input.keys.add('d'); Input.pressed.add(' '); for (let i = 0; i < 15; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
       check('culture jelly: the dash ends in a jelly that holds them', statusT(r, 'web') > 0); }
     q = arena(); grow(q, 'ratincisors'); { const r = dummy(12); r.speed = 0; q.aimX = 1; q.aimY = 0; fireFor(10); check('rat incisors: bites leave them bleeding', statusT(r, 'bleed') > 0); }
-    newRun(); q = game.player; grow(q, 'spike', 'bile', 'mandibles', 'spines', 'chitin'); q.capacity = 5;
-    check(`a full body: the trait takes the place of your least-grown part of its kind (${traitCards(q, 'rat').map(k => k.kind + ':' + (k.shed && k.shed.id)).join(',')})`, traitCards(q, 'rat').length === 1 && traitCards(q, 'rat')[0].kind === 'swap');
   }
   { // 0w) The splice journal.
     try { localStorage.removeItem(Journal.key); } catch (e) {}

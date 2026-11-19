@@ -1614,8 +1614,8 @@ const MUTATIONS = {
     apply(s) { s.leapInv = true; },
   },
 
-  // ================= TRAITS: you are what you eat =================
-  // Torn from elites you devour (see GRAFT_OF). Never offered otherwise.
+  // ================= RARE FINDS (only as a vial's wild card) =================
+  // Rare finds (graft): never in the normal pool; they turn up only as a vial's wild card.
   // They level like any part, and at full growth each evolves once.
   ratincisors: {
     name: 'Rat Incisors', slot: 'MOUTH', graft: 'rat', rarity: 'uncommon', icon: ['mandibles', 'hemophage'],
@@ -1679,8 +1679,6 @@ const MUTATIONS = {
   },
 };
 
-// Which elite gives which trait.
-const GRAFT_OF = { rat: 'ratincisors', urchin: 'urchinquills', spitter: 'toadgullet', splitter: 'splittercells', culture: 'culturejelly' };
 
 // WHISPERS: the cryptic line that appears when something new grows in you.
 // Cards never explain mutations; these hint at what just changed.
@@ -2350,16 +2348,6 @@ function bossPicks(p) {
   return out;
 }
 
-// The trait an elite's corpse offers: in a free slot, or in place of your
-// least-grown part of the same kind. [] if you have it or there's no way in.
-function traitCards(p, type) {
-  const id = GRAFT_OF[type];
-  if (!id || hasMutation(p, id)) return [];
-  if (freeSlotsAt(p, locOf(id)) >= 1) return [{ id, kind: 'root' }];
-  const shed = partsAt(p, locOf(id)).sort((a, b) => a.path.length - b.path.length)[0];
-  return shed ? [{ id, kind: 'swap', shed }] : [];
-}
-
 // Is this card a metamorphosis (a new root shedding a grown part)?
 function isMetamorph(p, c) {
   if (typeof c === 'string') c = { id: c };
@@ -2414,7 +2402,7 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
     }
     // The first vials (the first room's mouth, floor 1's limbs) sometimes hold a WILD CARD: a rare find.
     if (plain && out.length && Math.random() < WILD_CHANCE) {
-      const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(GRAFT_OF).map(t => GRAFT_OF[t]).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlotsAt(p, onlyLoc) >= 1).map(id => ({ id, kind: 'root' })));
+      const wild = bossPicks(p).filter(c => locOf(c.id) === onlyLoc).concat(Object.keys(MUTATIONS).filter(id => MUTATIONS[id].graft).filter(id => locOf(id) === onlyLoc && !hasMutation(p, id) && freeSlotsAt(p, onlyLoc) >= 1).map(id => ({ id, kind: 'root' })));
       if (wild.length) { const w = pick(wild); out[Math.floor(Math.random() * out.length)] = card(w); out.wild = true; }
     }
     // Nothing new can grow (no free slot, nothing to branch)? Then the vial
@@ -2486,7 +2474,7 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
   return out.sort(() => Math.random() - 0.5);
 }
 
-// A part that replaces another (metamorphosis, boss pick, devoured trait) keeps
+// A part that replaces another (metamorphosis, boss pick, rare find) keeps
 // its growth: it starts one level above the part it sheds, short of evolving.
 function inheritedLevel(old) { return Math.min(LEVEL_MAX - 1, (old.lvl || 0) + 1); }
 
@@ -2537,14 +2525,14 @@ function choiceInfo(p, c) {
   } else if (c.kind === 'replace') {
     status = rd.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {
-    status = rd.graft ? 'DEVOURED TRAIT' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    status = rd.graft ? 'RARE FIND' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
     if (!m.starter) status += ' LV ' + inheritedLevel(m);
   } else if (c.kind === 'meta') {
     status = 'METAMORPHOSIS LV ' + inheritedLevel(m);
     if (rd.requires) { note = 'FED BY ' + rd.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
-    status = rd.boss ? 'BOSS PICK' : rd.graft ? 'DEVOURED TRAIT' : 'NEW PART';
+    status = rd.boss ? 'BOSS PICK' : rd.graft ? 'RARE FIND' : 'NEW PART';
     note = `TAKES A ${LOC_NAME[loc]} SLOT`;
   }
   // What the set count would be after taking it.
