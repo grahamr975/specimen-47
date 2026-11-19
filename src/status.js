@@ -58,6 +58,11 @@ const STATUS = {
   },
   mark: { // Mark Prey: everything hits it harder
     dmgTaken: st => 1 + (st.mul || 0.4),
+    onKill(e, st, p, s) { // Evil Eye: the mark jumps to the next toughest prey nearby
+      if (!s.markSpread) return;
+      const next = game.enemies.filter(o => o !== e && !o.dead && o.spawnT <= 0 && !hasStatus(o, 'mark') && Math.hypot(o.x - e.x, o.y - e.y) < 120).sort((a, b) => b.hp - a.hp)[0];
+      if (next) { inflict(next, 'mark', { t: 6 * (s.markTime || 1), mul: st.mul || 0.4 }); floatText(next.x, next.y - 12, 'MARKED', PAL.red); }
+    },
     draw(ctx, e) { // a red reticle
       const r = e.r + 3 + (Math.floor(game.time * 6) % 2);
       ctx.fillStyle = PAL.red;

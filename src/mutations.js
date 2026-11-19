@@ -583,7 +583,7 @@ const MUTATIONS = {
   },
   grappletongue: {
     name: 'Grapple Tongue', from: 'barbedtongue', rarity: 'rare', icon: ['tongue', 'grapple'],
-    desc: 'Lash anything too big to swallow, or a wall, and the tongue reels YOU in.',
+    desc: 'Lash anything too big to swallow, or a wall, and the tongue reels YOU in (never into a boss).',
     short: 'Lash a wall or big prey and the tongue reels you in.',
     apply(s) { s.tongueYank = true; },
   },
@@ -671,9 +671,9 @@ const MUTATIONS = {
   },
   evileye: {
     name: 'Evil Eye', from: 'abyssal', rarity: 'rare', icon: ['abyssal', 'nighteyes'],
-    desc: 'Whatever you stare at takes 40% more damage from your shots.',
-    short: 'What you stare at takes more damage.',
-    apply(s) { s.gaze = 0.4; },
+    desc: 'Your marks last twice as long, and when marked prey dies, the mark jumps to the next toughest prey nearby.',
+    short: 'Marks last longer, and jump to new prey.',
+    apply(s) { s.markTime = 2; s.markSpread = true; },
   },
   fractured: {
     name: 'Fractured Sight', from: 'abyssal', rarity: 'rare', overlay: ['mitosis'], icon: ['abyssal', 'mitosis'],
@@ -1026,9 +1026,10 @@ const MUTATIONS = {
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.hop = 0; s.homingPounce = true; },
   },
   trapdoor: {
-    name: 'Trapdoor', from: 'huntsman', rarity: 'rare', icon: ['hindlegs', 'echo'],
-    desc: 'Your pounce stuns everything it lands on.',
-    apply(s) { onHit(s, 'slam', 'stun', { t: 1.2 }); },
+    name: 'Scent Glands', from: 'huntsman', rarity: 'rare', icon: ['hindlegs', 'eyes'],
+    desc: 'Your pounce marks what it lands on with your scent: it takes more damage from everything.',
+    short: 'Your pounce marks what it lands on.',
+    apply(s) { onHit(s, 'slam', 'mark', { t: 5, mul: 0.4 }); },
   },
   mantis: {
     name: 'Mantis Scythes', from: 'huntsman', rarity: 'uncommon', overlay: ['scythes'], icon: ['spider', 'horns'],
@@ -1752,7 +1753,7 @@ const HINTS = {
   hivesight: 'Your eyes go dark and glassy, and the dark is suddenly full of shapes.',
   glare: 'Your eyes burn hotter and whiter until you cannot close them anymore.',
   abyssal: 'A new eye opens in your forehead, black from edge to edge. It sees through skin.',
-  evileye: 'One eye swells larger than the rest. It does not blink. It does not want to.',
+  evileye: 'One eye swells larger than the rest. Once it finds something, it never lets it go.',
   fractured: 'Your eye cracks like ice. You see everything in pieces now.',
   skull: 'Bone floods your scalp. You hear your skull thicken from the inside, a slow creak.',
   horns: 'Two lumps rise on your forehead and split the skin. Horns, curved and heavy.',
@@ -1807,7 +1808,7 @@ const HINTS = {
   // LIMBS
   spider: 'Your legs crack apart at the joints and keep cracking. Eight of them now.',
   huntsman: 'Two of the eight legs grow longer and coil back, ready to snap forward.',
-  trapdoor: 'Your legs thicken at the tips into heavy, digging spades.',
+  trapdoor: 'Glands open along your legs, oozing something musky. Whatever you land on will smell like prey.',
   mantis: 'Two of your legs fold flat and grow edges sharp as glass.',
   centipede: 'Your body stretches out behind you, one segment at a time. You hear each one click into place.',
   spinedsegs: 'Spines erupt along each segment, bristling.',

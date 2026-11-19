@@ -967,6 +967,14 @@ try {
     q = arena(); grow(q, 'carapace'); q.shieldUp = true; q.inv = 0; hurtPlayer(1);
     check(`brood shell: a broken shell spills spiderlings (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling'));
   }
+  { // 0j1i) Predator: marks spread (Evil Eye), the pounce marks (Scent Glands), Grapple Tongue never reels you into a boss.
+    newRun(); combatRoom(); let q = game.player; game.enemies = []; grow(q, 'evileye'); q.x = 60; q.y = 96;
+    const a = dummy(40, 5), b = dummy(70, 50); a.speed = b.speed = 0;
+    inflict(a, 'mark', { t: 6, mul: 0.4 }); damageEnemy(a, 99, 0, 0, true);
+    check(`evil eye: a marked kill passes its mark to the next toughest prey (${hasStatus(b, 'mark')})`, hasStatus(b, 'mark'));
+    newRun(); combatRoom(); q = game.player; grow(q, 'trapdoor');
+    check(`scent glands: the pounce marks (${JSON.stringify((q.stats.onHit.slam || []).map(h => h.id))})`, (q.stats.onHit.slam || []).some(h => h.id === 'mark') && MUTATIONS.trapdoor.name === 'Scent Glands');
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

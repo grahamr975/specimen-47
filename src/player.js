@@ -1634,6 +1634,5 @@ function nightEyesMul(e) {
   let m = 1;
   const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
   if (s.nightEyes && (d > 45 || p.blackoutT > 0)) m *= 1 + s.nightEyes; // Blackout: it's all dark
-  if (s.gaze && (dx * p.aimX + dy * p.aimY) / d > 0.92) m *= 1 + s.gaze;
   return m;
 }

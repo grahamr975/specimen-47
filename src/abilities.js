@@ -835,7 +835,7 @@ function updateTongue(p, dt) {
           applyHitEffects(e, 'tongue');
           if (!s.tonguePierce) {
             T.out = false;
-            if (s.tongueYank && !e.dead && !T.carry) { reelIn(p, e.x, e.y, e); return; } // too big: it reels YOU in
+            if (s.tongueYank && !e.dead && !T.carry && !isBoss(e)) { reelIn(p, e.x, e.y, e); return; } // too big: it reels YOU in (never into a boss)
           }
         }
         continue;
@@ -1184,7 +1184,7 @@ function useActive(p, a, target) {
     case 'mark': { // Extra Eyes: mark one victim; everything hits it harder
       const e = target || pointedEnemy(p, 170);
       if (!e) return false;
-      inflict(e, 'mark', { t: 6, mul: 0.4 + 0.15 * l });
+      inflict(e, 'mark', { t: 6 * (p.stats.markTime || 1), mul: 0.4 + 0.15 * l });
       floatText(e.x, e.y - 12, 'MARKED', PAL.red);
       Sfx.play('flicker');
       return true;
