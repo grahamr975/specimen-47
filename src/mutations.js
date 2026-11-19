@@ -724,6 +724,7 @@ const MUTATIONS = {
     name: 'Night Eyes', slot: 'HEAD', rarity: 'uncommon', malignant: true, overlay: ['compound'],
     desc: '+50% damage (more as it grows) to enemies outside your light. When something closes in, your light snuffs out and the whole room goes dark.',
     cost: 'Your light shrinks to a small circle.',
+    costShort: 'The light begins to fail you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l) { s.nightEyes += 0.3 + 0.2 * l; s.headActive = { kind: 'blackout', l }; s.lightMul *= 0.6; },
   },
   owleyes: {
@@ -746,6 +747,7 @@ const MUTATIONS = {
     name: 'Pitch Black', from: 'nighteyes', rarity: 'rare', malignant: true, icon: ['nighteyes', 'abyssal'],
     desc: 'Far more damage out in the dark.',
     cost: 'Your light shrinks even further.',
+    costShort: 'The dark closes in.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.nightEyes += 0.75; s.lightMul *= 0.8; },
   },
   darkstare: {
@@ -758,6 +760,7 @@ const MUTATIONS = {
     desc: 'You feel them instead of seeing them, and the dark doubles everything.',
     short: 'You feel them in the dark, and the dark doubles all.',
     cost: 'Almost no light at all.',
+    costShort: 'You will not see the light again.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.antennae = true; s.nightEyes += 1; s.lightMul *= 0.6; },
   },
 
@@ -766,6 +769,7 @@ const MUTATIONS = {
     name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, overlay: ['parasite'],
     desc: '+60% damage with everything. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it.',
     cost: 'Sometimes it takes control of your body.',
+    costShort: 'It will want your body.', // the card's line (vague); hovering shows the exact cost
     apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
   },
   symbiote: {
@@ -789,6 +793,7 @@ const MUTATIONS = {
     name: 'Rider', from: 'parasite', rarity: 'rare', malignant: true, icon: ['parasite', 'twitch'],
     desc: '+30% more damage. While it drives, nothing can hurt you.',
     cost: 'It takes control far more often.',
+    costShort: 'It wants the reins.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.damageMul *= 1.3; s.parasiteInv = true; s.parasiteOften = true; },
   },
   berserkhost: {
@@ -801,6 +806,7 @@ const MUTATIONS = {
     name: 'Cerebral Bloat', from: 'rider', rarity: 'rare', malignant: true, icon: ['parasite', 'overgrown'],
     desc: '+40% more damage.',
     cost: '-1 max health.',
+    costShort: 'Something must make room.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.damageMul *= 1.4; s.maxHp -= 1; },
   },
 
@@ -1201,6 +1207,7 @@ const MUTATIONS = {
     desc: 'Hold still to withdraw into your shell and block everything.',
     short: 'Hold still to withdraw and block everything.',
     cost: 'Painfully slow.',
+    costShort: 'You will be so slow.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.shell = true; s.speedMul *= 0.6; },
   },
   // Not offered on its own: Huntsman and Locust grow it.
@@ -1283,6 +1290,7 @@ const MUTATIONS = {
     desc: 'Double damage from every source. Your heart swells, and you swell with it: bigger, stronger, easier to hit.',
     short: 'Double damage, both ways. You swell bigger.',
     cost: 'Max health halved.',
+    costShort: 'Your heart cannot take much.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.damageMul *= 2; s.hpMul *= 0.5; s.bulk += 1; },
   },
   titanheart: {
@@ -1295,6 +1303,7 @@ const MUTATIONS = {
     name: 'Hollow Body', from: 'overgrown', rarity: 'uncommon', malignant: true, overlay: ['hollow'], icon: ['overgrown', 'starving'],
     desc: 'Much faster, and you attack faster.',
     cost: 'Every hit costs 2 health.',
+    costShort: 'Every wound cuts deeper.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.speedMul *= 1.35; s.rateMul *= 0.85; s.hitCost = 2; },
   },
 
@@ -1325,6 +1334,7 @@ const MUTATIONS = {
     name: 'Twin Embryo', from: 'mitosis', rarity: 'rare', malignant: true, icon: ['mitosis', 'hide'],
     desc: 'A tiny twin follows you and copies your attacks.',
     cost: 'If it dies, you lose 1 max health.',
+    costShort: 'If it dies, part of you dies with it.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) { s.twin = true; s.maxHp -= (p && p.twinLost) || 0; },
   },
   bondedtwin: {
@@ -1342,6 +1352,7 @@ const MUTATIONS = {
     name: 'Starving Cells', slot: 'CORE', rarity: 'uncommon', malignant: true, overlay: ['ribs'],
     desc: 'Corpses give double biomass.',
     cost: 'Go 30s without bursting a corpse and you starve, losing health (never fatal).',
+    costShort: 'You must consume... or suffer.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.dnaMul *= 2; s.starve = 30; },
   },
   apexpredator: {
@@ -1367,6 +1378,7 @@ const MUTATIONS = {
     desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
     short: '+10% damage per room. The tumor makes you bigger.',
     cost: 'Every 3rd room cleared, it takes 1 max health.',
+    costShort: 'It feeds on you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) {
       const rooms = (p && p.cancerRooms) || 0;
       s.damageMul *= 1 + (s.cancerRate || 0.1) * rooms;
@@ -1384,6 +1396,7 @@ const MUTATIONS = {
     name: 'Metastasis', from: 'cancer', rarity: 'rare', malignant: true, icon: ['cancer', 'mitosis'],
     desc: 'The growth spreads faster: +20% damage per room instead.',
     cost: 'It still takes 1 max health every 3rd room.',
+    costShort: 'It still feeds on you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); },
   },
 
@@ -2545,7 +2558,7 @@ function choiceInfo(p, c) {
   if (was) counts[was]--;
   const after = set ? (counts[set] || 0) + 1 : 0;
   return {
-    id: gid, name: d.name, rarity: d.rarity, desc: grown.length > 1 ? grown.map(id => MUTATIONS[id].name + ': ' + cardText(MUTATIONS[id])).join(' ') : d.desc, short: cardText(d), cost: d.cost, shed: c.kind !== 'branch' && m && !m.starter ? m : null, malignant: !!d.malignant, cures: !!d.cures, set,
+    id: gid, name: d.name, rarity: d.rarity, costCard: d.costShort, desc: grown.length > 1 ? grown.map(id => MUTATIONS[id].name + ': ' + cardText(MUTATIONS[id])).join(' ') : d.desc, short: cardText(d), cost: d.cost, shed: c.kind !== 'branch' && m && !m.starter ? m : null, malignant: !!d.malignant, cures: !!d.cures, set,
     slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id), grown,
     tier: c.kind === 'branch' && m ? m.path.length : grown.length - 1, overlays: mutOverlays(gid), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
   };

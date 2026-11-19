@@ -200,7 +200,7 @@ function drawCard(ctx, info, i, x, y, menu) {
   const room = Math.max(0, Math.min(5, Math.floor((by - ty - 2) / 7)));
   const said = info.short ? fitText(info.short, w - 10, room) : [];
   for (const line of said) { drawText(ctx, line, cx, ty, '#cbbcae', 1, 'center', null); ty += 7; }
-  if (info.cost && ty + 7 <= by - 2) for (const line of fitText(info.cost.split('. ')[0], w - 10, Math.floor((by - ty - 2) / 7))) { drawText(ctx, line, cx, ty, MALIGNANT_COLOR, 1, 'center', null); ty += 7; }
+  if (info.cost && ty + 7 <= by - 2) for (const line of fitText(info.costCard || info.cost.split('. ')[0], w - 10, Math.floor((by - ty - 2) / 7))) { drawText(ctx, line, cx, ty, MALIGNANT_COLOR, 1, 'center', null); ty += 7; }
   if (info.status) { drawText(ctx, info.status, cx, by, PAL.white, 1, 'center'); by += 9; }
   for (const line of notes) { drawText(ctx, line, cx, by, info.noteColor, 1, 'center', null); by += 7; }
   if (!notes.length && info.stirs && Math.floor(menu.t * 3) % 3) drawText(ctx, 'SOMETHING STIRS', cx, y + h - 20, VIAL_COLOR, 1, 'center');
