@@ -189,6 +189,8 @@ function drawCard(ctx, info, i, x, y, menu) {
       if (tag) { drawText(ctx, tag, cx, ty, PAL.slate, 1, 'center', null); ty += 7; }
       drawText(ctx, setTag, cx, ty, SETS[info.set].color, 1, 'center', null); ty += 8;
     }
+    // What the set does, in its colour (dimmer): "MARKS & BLEEDS", "CORRODES"...
+    if (info.set && SETS[info.set].verb) { ctx.globalAlpha = 0.7; drawText(ctx, SETS[info.set].verb, cx, ty - 1, SETS[info.set].color, 1, 'center', null); ctx.globalAlpha = 1; ty += 7; }
   }
 
   // The bottom: its status and what it costs or keeps, above the key.

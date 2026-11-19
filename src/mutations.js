@@ -1987,7 +1987,7 @@ const HINTS = {
 // ===========================================================================
 const SETS = {
   BONE: {
-    name: 'BONE', color: '#d9cfa0',
+    name: 'BONE', color: '#d9cfa0', verb: 'BLOCKS & SHATTERS', // what the set does (shown on cards)
     tags: ['spike', 'hooks', 'howl', 'regurgitate', 'tripwire', 'compound', 'skull', 'spines', 'needles', 'spinedsegs', 'meteor', 'pupa', 'eruption', 'quake', 'stilts', 'shell', 'hide', 'marrow', 'boneplates', 'barbs', 'crablegs', 'urchinquills'],
     bonus: [
       { name: 'Ossified', desc: 'Anything you block bursts into bone shards.', apply(s) { s.setBlockShards = 5; } },
@@ -1996,7 +1996,7 @@ const SETS = {
     whisper: ['Your bones remember each other.', 'You are more bone than flesh now. It suits you.'],
   },
   FUNGAL: {
-    name: 'FUNGAL', color: '#9aae50',
+    name: 'FUNGAL', color: '#9aae50', verb: 'CORRODES', // what the set does (shown on cards)
     tags: ['culturejelly', 'venomspike', 'bile', 'caustic', 'sporesac', 'miasma', 'sporepolyp', 'acidgut', 'acidsilk', 'glare', 'bloom', 'venomquills', 'huskbomb', 'eggpods', 'toxic', 'cropduster', 'bileline', 'bilebomb', 'fins', 'maggotburst', 'bacteria', 'sneeze', 'toadgullet', 'digestjelly'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a spore cloud, and your clouds corrode.', apply(s) { s.setKillCloud = 18; s.cloudCorrode = true; } },
@@ -2005,7 +2005,7 @@ const SETS = {
     whisper: ['Something is fruiting under your skin.', 'You are a garden now. Everything you touch will bloom.'],
   },
   HIVE: {
-    name: 'HIVE', color: '#e0a830',
+    name: 'HIVE', color: '#e0a830', verb: 'BREEDS A BROOD', // what the set does (shown on cards)
     tags: ['ovipositor', 'chitin', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
     bonus: [
       { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling, and your brood can grow larger (up to 4).', apply(s) { s.setKillBrood = 0.35; s.broodCap = 2; } },
@@ -2014,7 +2014,7 @@ const SETS = {
     whisper: ['The others in you begin to hum together.', 'You are the hive. Every death is a birth.'],
   },
   PREDATOR: {
-    name: 'PREDATOR', color: '#d04848',
+    name: 'PREDATOR', color: '#d04848', verb: 'MARKS & BLEEDS', // what the set does (shown on cards)
     tags: ['mandibles', 'leech', 'devour', 'hemorrhage', 'rupture', 'tongue', 'eyes', 'horns', 'nighteyes', 'twitch', 'huntsman', 'burrow', 'hindlegs', 'hemophage', 'starving', 'guthook', 'leechspit', 'haunches', 'ratincisors'],
     bonus: [
       { name: 'Blood Scent', desc: 'Prey that is marked or bleeding takes more damage from you.', apply(s) { s.setPrey = 0.3; } },
@@ -2023,7 +2023,7 @@ const SETS = {
     whisper: ['You can smell where they are hurt.', 'Nothing hunts you now. You hunt.'],
   },
   ABOMINATION: {
-    name: 'ABOMINATION', color: '#b464c8',
+    name: 'ABOMINATION', color: '#b464c8', verb: 'SACRIFICES', // what the set does (shown on cards)
     tags: ['mawtendrils', 'tentacles', 'writhing', 'strangle', 'lashdrain', 'proboscis', 'bloodworm', 'tendrilpolyp', 'fractured', 'lightless', 'parasite', 'splitquills', 'angler', 'rage', 'biters', 'grapple', 'shredpull', 'secondheart', 'regrow', 'overgrown', 'mitosis', 'cancer', 'splittercells'],
     bonus: [
       { name: 'Grafted', desc: 'Every sacrifice you carry makes you stronger (cured ones still count).', apply(s, p) { s.sacrifices = sacrificeCount(p); s.damageMul *= 1 + 0.12 * s.sacrifices; } },
