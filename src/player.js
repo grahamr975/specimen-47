@@ -356,6 +356,7 @@ function updatePlayer(dt) {
     p.dashCd = s.dashCd;
     if (s.echo) scream(p);
     if (s.skullRing) fireRing(p, s.skullRing);          // Bone Echo: your skull rings
+    if (s.ventCloud) ventCloud(p);                      // Spore Vents
     if (s.dashSpike) dropBoneSpike(p, p.x, p.y + 2, 4); // Scuttle: a spike left behind
     if (mv.burrow) { startBurrow(p); return; }
     p.dashT = s.dashTime;
@@ -1328,6 +1329,7 @@ function hurtPlayer(dmg) {
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
   if (s.purge) purge(p, s.purge); // Purge: you throw it all back up
+  if (s.ventCloud) ventCloud(p);    // Spore Vents
   if (s.hurtFlesh) { for (let i = 0; i < s.hurtFlesh; i++) spawnAlly('flesh', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out

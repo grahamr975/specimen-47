@@ -20,7 +20,7 @@
 
 // Fungal's verb: what your bile and gas do to whatever stands in them.
 const CORRODE_MUL = 0.25, CORRODE_DPS = 0.6;
-function corrodeOpts(s) { return { t: 1.2, mul: s.corrodeMul || CORRODE_MUL, dps: (s.corrodeDps || CORRODE_DPS) * s.damage }; }
+function corrodeOpts(s) { return { t: 1.2 * (s.corrodeLong || 1), mul: s.corrodeMul || CORRODE_MUL, dps: (s.corrodeDps || CORRODE_DPS) * s.damage }; }
 
 const STATUS = {
   bleed: { // ticks damage and drips; a bled-out kill can feed you (Leech Spitter)
@@ -74,9 +74,11 @@ const STATUS = {
   },
   corrode: { // Corroded: eaten by your bile (or gas, with Corrode): takes more damage from everything, and burns a little
     dmgTaken: st => 1 + (st.mul || CORRODE_MUL),
+    onKill(e, st, p, s) { if (s.rotLiver) game.clouds.push({ x: e.x, y: e.y, r: 16, life: 3.2, corrode: true }); }, // Rot Liver
     tick(e, st, dt) {
       damageEnemy(e, (st.dps || CORRODE_DPS) * dt, 0, 0, true); dotFlash(e, 'corrode');
       const ps = game.player.stats; // Fruiting Body: the corroded spread it to whatever they touch
+      if (ps.corrodeSlow && !e.dead) inflict(e, 'slow', { t: 0.4 }); // Mycelial Liver
       if (ps.corrodeSpread && (st.spreadT = (st.spreadT || 0) - dt) <= 0) { st.spreadT = 0.5; for (const o of enemiesNear(e.x, e.y, e.r + 6, e)) if (!hasStatus(o, 'corrode')) inflict(o, 'corrode', { t: 1, mul: st.mul, dps: st.dps }); }
     },
   },

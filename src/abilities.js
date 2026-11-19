@@ -68,7 +68,7 @@ const FLESH_CAP = 2; // pieces of you have their own cap (Abomination), apart fr
 function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false, born: game.time };
   a.life = (BROOD[kind] ? BROOD[kind].life : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
-  if (BROOD[kind]) { a.hp = BROOD[kind].hp; a.inv = 0.7; } // freshly hatched: a moment before anything can hurt it
+  if (BROOD[kind]) { a.hp = BROOD[kind].hp + ((game.player && game.player.stats.broodHp) || 0); a.inv = 0.7; } // freshly hatched: a moment before anything can hurt it (Royal Jelly: tougher)
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
   if (kind === 'polyp') { const pp = game.player.stats.polyp; a.r = 4; a.life = pp ? pp.life : 10; }
   if (kind === 'flesh') { // over its own cap: the oldest piece of you rots away
@@ -100,11 +100,16 @@ const allyDmg = () => game.player.stats.allyDmg || 1;
 function allyBite(a, e, dmg) {
   damageEnemy(e, dmg * allyDmg(), e.x - a.x, e.y - a.y, true);
   if (a.kind === 'spiderling' && game.player.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player'); // Venom Brood
+  if (game.player.stats.broodSlow && !e.dead) inflict(e, 'slow', { t: 1.2 }); // Pheromone Glands
   bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
 }
 
+// The prey the brood goes for: whatever Brood Crest called them onto, else the nearest.
+function broodPrey(a, p) { const t = p.broodTarget; return p.broodRushT > 0 && t && !t.dead ? t : nearestEnemy(a.x, a.y, 200); }
+const broodHaste = p => (p.stats.broodHaste || 1) * (p.broodRushT > 0 ? 0.5 : 1); // Swarm Heart, a swarm call
+
 function updateSpiderling(a, dt, p) {
-  const e = nearestEnemy(a.x, a.y, 200), fly = a.flying ? 1.4 : 1;
+  const e = broodPrey(a, p), fly = a.flying ? 1.4 : 1;
   if (a.leapT > 0) { // mid-pounce: untouchable
     a.leapT -= dt;
     moveEntity(game.room, a, a.vx * dt, a.vy * dt);
@@ -112,7 +117,7 @@ function updateSpiderling(a, dt, p) {
     if (t && !t.dead && Math.hypot(t.x - a.x, t.y - a.y) < t.r + a.r + 1) {
       allyBite(a, t, 0.9);
       if (!t.dead) inflict(t, 'web', { t: 0.6 }); // pinned for a moment
-      a.leapT = 0; a.backT = 0.3; a.biteT = 1.1; // spring back out
+      a.leapT = 0; a.backT = 0.3; a.biteT = 1.1 * broodHaste(p); a.inv = Math.max(a.inv, 0.3); // spring back out (untouchable as it goes)
       const d = Math.hypot(a.x - t.x, a.y - t.y) || 1; a.vx = (a.x - t.x) / d * 120; a.vy = (a.y - t.y) / d * 120;
     }
     return;
@@ -137,13 +142,13 @@ function updateMaggot(a, dt, p) {
   const host = a.latch;
   if (host && !host.dead) { // latched on: ride it, chewing
     a.x = host.x + a.ox; a.y = host.y + a.oy;
-    if (a.biteT <= 0) { a.biteT = 0.45; allyBite(a, host, 0.5); if (!host.dead) inflict(host, 'bleed', { t: 1.2, dps: 1 * allyDmg() }); }
+    if (a.biteT <= 0) { a.biteT = 0.45 * broodHaste(p); allyBite(a, host, 0.5); if (!host.dead) inflict(host, 'bleed', { t: 1.2, dps: 1 * allyDmg() }); }
     if (Math.random() < dt * 0.15) { a.latch = null; a.dazeT = 0.8; const d = Math.hypot(a.ox, a.oy) || 1; moveEntity(game.room, a, a.ox / d * 6, a.oy / d * 6); } // shaken off
     return;
   }
   a.latch = null;
   if (a.dazeT > 0) { a.dazeT -= dt; return; }
-  const e = nearestEnemy(a.x, a.y, 200);
+  const e = broodPrey(a, p);
   const tx = e ? e.x : p.x + Math.cos(a.t * 0.7) * 12, ty = e ? e.y : p.y + Math.sin(a.t * 0.7) * 8;
   const d = Math.hypot(tx - a.x, ty - a.y);
   if (e && d < e.r + a.r + 1) { a.latch = e; const k = Math.atan2(a.y - e.y, a.x - e.x); a.ox = Math.cos(k) * e.r * 0.8; a.oy = Math.sin(k) * e.r * 0.8; a.biteT = 0; return; }
@@ -216,6 +221,13 @@ function drawAllies(ctx) {
 }
 
 // --- Spore clouds ------------------------------------------------------------------------
+// Spore Vents: dash or get hurt, and your back vents a corroding cloud (Rot Vents: harder, burning; Fruiting Vents: it fades into bile).
+function ventCloud(p) {
+  const s = p.stats;
+  game.clouds.push({ x: p.x, y: p.y, r: s.ventCloud, life: 3.2, corrode: true, hard: !!s.ventHard, toxic: !!s.ventHard, pool: !!s.ventPool });
+  Sfx.play('splat');
+}
+
 function spawnCloud(x, y, r) {
   game.clouds.push({ x, y, r, life: 3.2 });
   Sfx.play('splat');
@@ -229,13 +241,14 @@ function updateClouds(dt) {
       if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
         if (!hasStatus(e, 'blind')) floatText(e.x, e.y - 10, '?', '#9aae50');
         inflict(e, 'blind', { t: 2 });
-        if (s.cloudCorrode || c.corrode) inflict(e, 'corrode', corrodeOpts(s)); // Fungal set (and its final form): clouds corrode
+        if (s.cloudCorrode || c.corrode) { const o = corrodeOpts(s); if (c.hard) o.mul = Math.max(o.mul, 0.45); inflict(e, 'corrode', o); } // Fungal set, final form, Spore Vents (Rot Vents: harder)
         if (s.cloudDps) damageEnemy(e, s.cloudDps * s.damage * dt, 0, 0, true); // Rot Bloom
         if (c.fire) damageEnemy(e, 3 * s.damage * dt, 0, 0, true);               // Firestorm
         if (c.toxic) damageEnemy(e, 1.5 * s.damage * dt, 0, 0, true);            // Rot Halo, Toxic Wings
       }
     }
   }
+  for (const c of game.clouds) if (c.life <= 0 && c.pool && !c.pooled) { c.pooled = true; spawnPuddle(c.x, c.y, c.r * 0.6, 3, 'player'); } // Fruiting Vents
   game.clouds = game.clouds.filter(c => c.life > 0);
   for (const sh of game.shells || []) { sh.t -= dt; if ((sh.next -= dt) <= 0 && sh.t > 0) { sh.next = 0.8; spawnCloud(sh.x + rand(-4, 4), sh.y + rand(-4, 4), 12); } } // Rot Shells
   if (game.shells) game.shells = game.shells.filter(sh => sh.t > 0);
@@ -1080,6 +1093,7 @@ const ACTIVES = {
   blackout:    { name: 'BLACKOUT',     key: 'head', cd: l => 10 - l },
   mindspike:   { name: 'MIND SPIKE',   key: 'head', cd: l => 4.6 - 0.3 * l },
   pollenburst: { name: 'POLLEN BURST', key: 'head', cd: l => 6 - 0.5 * l },
+  swarmcall:   { name: 'SWARM CALL',   key: 'head', cd: l => Math.max(2.5, 5.5 - 0.5 * l) },
   pincer:      { name: 'PINCER',       key: 'limb', cd: l => 2.8 - 0.2 * l },
   leap:        { name: 'LEAP',         key: 'limb', cd: l => 3.4 - 0.3 * l },
 };
@@ -1133,6 +1147,7 @@ function headTarget(p, kind) {
     else if (kind === 'headbutt') v = d < 16 ? -d : null;                         // whatever gets in your face
     else if (kind === 'blackout') v = d < 90 ? 1 : null;                          // anything closing in
     else if (kind === 'pollenburst') v = d < 50 ? 1 : null;                       // anything close
+    else if (kind === 'swarmcall') v = d < 180 && (p.stats.crestHatch || game.allies.some(a => BROOD_KINDS.has(a.kind) && !a.dead)) ? ((e.x - p.x) * p.aimX + (e.y - p.y) * p.aimY) / (d + e.r) : null; // the prey nearest your aim (if you have a brood to call)
     if (v != null && v > score) { score = v; best = e; }
   }
   return best;
@@ -1225,6 +1240,13 @@ function useActive(p, a, target) {
       for (const e of game.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < 90) inflict(e, 'blind', { t: 1.5 + 0.25 * l });
       floatText(p.x, p.y - 18, 'BLACKOUT', '#6a6aa0');
       Sfx.play('flicker');
+      return true;
+    }
+    case 'swarmcall': { // Brood Crest: your brood swarms the prey you aim at, biting faster for a while
+      const e = target; if (!e) return false;
+      p.broodTarget = e; p.broodRushT = 3;
+      if (s.crestHatch) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Hatching Crest
+      floatText(e.x, e.y - 14, 'SWARM', SETS.HIVE.color); Sfx.play('hatch');
       return true;
     }
     case 'mindspike': { // Parasite Brain: it lashes out with your mind
@@ -1398,6 +1420,23 @@ function platePos(p, i, n) {
 
 function updateDefense(p, dt) {
   const s = p.stats;
+  // Brood Crest's swarm call wears off (the call itself is a head ability: see 'swarmcall').
+  if (p.broodRushT > 0) p.broodRushT -= dt;
+  // Hive Womb: in a fight, spiderlings keep hatching (only into room under the cap: it never culls your brood).
+  if (s.wombHatch && game.room.locked && (p.wombT = (p.wombT ?? s.wombHatch) - dt) <= 0) {
+    p.wombT = s.wombHatch;
+    if (game.allies.filter(a => BROOD_KINDS.has(a.kind) && !a.dead).length < broodCap(p)) { spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
+  }
+  // Second Mouth: the hump bites whatever comes up behind you.
+  if (s.backMouth && (p.backMouthT = (p.backMouthT || 0) - dt) <= 0) {
+    const e = game.enemies.find(o => !o.dead && o.spawnT <= 0 && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 14 && ((o.x - p.x) * p.aimX + (o.y - p.y) * p.aimY) < 0);
+    if (e) {
+      p.backMouthT = s.backMouth;
+      damageEnemy(e, 1.5 * s.damage, e.x - p.x, e.y - p.y, true);
+      bloodSpray(e.x, e.y, e.x - p.x, e.y - p.y, 4, ENEMY_TYPES[e.type].fluid, 70);
+      game.fx.push({ kind: 'bite', x: (p.x + e.x) / 2, y: (p.y + e.y) / 2, t: 0.1 }); Sfx.play('bite');
+    }
+  }
   if (p.marrowT > 0 && (p.marrowT -= dt) <= 0) p.marrowStacks = 0; // Dense Marrow fades
   if (s.splitPulse && game.room.locked && (p.splitT = (p.splitT ?? s.splitPulse) - dt) <= 0) { p.splitT = s.splitPulse; spawnAlly('flesh', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); Sfx.play('squelch'); } // Runaway Mitosis
   if (s.quillPulse && game.room.locked && (p.quillT = (p.quillT ?? s.quillPulse) - dt) <= 0) { p.quillT = s.quillPulse; fireRing(p, s.quillCount || 6); } // Urchin Quills

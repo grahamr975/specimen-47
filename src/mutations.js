@@ -1642,6 +1642,107 @@ const MUTATIONS = {
     apply(s) { s.leapInv = true; },
   },
 
+  // ================= PHASE 5: ROOTS FOR THE EMPTY SLOTS =================
+  // --- Hive HEAD: the brood answers to you ---
+  broodcrest: {
+    name: 'Brood Crest', slot: 'HEAD', rarity: 'uncommon', shallow: true, icon: ['antennae', 'eggsac'],
+    desc: 'A ridge of chitin crowns your head. Every few seconds your brood swarms the prey you are aiming at, biting faster for a while.',
+    short: 'Your brood swarms what you aim at.',
+    apply(s, l) { s.headActive = { kind: 'swarmcall', l }; },
+  },
+  pheromone: {
+    name: 'Pheromone Glands', from: 'broodcrest', rarity: 'rare', icon: ['antennae', 'toxic'],
+    desc: 'The crest weeps a scent your brood rubs into every bite: what they bite is slowed.',
+    short: 'Brood bites slow their prey.',
+    apply(s) { s.broodSlow = true; },
+  },
+  hatchingcrest: {
+    name: 'Hatching Crest', from: 'broodcrest', rarity: 'rare', icon: ['eggsac', 'spider'],
+    desc: 'Eggs ripen in the crest: every swarm call also hatches a spiderling.',
+    short: 'Every swarm call hatches a spiderling.',
+    apply(s) { s.crestHatch = true; },
+  },
+  // --- Hive CORE: a womb that never stops ---
+  hivewomb: {
+    name: 'Hive Womb', slot: 'CORE', rarity: 'uncommon', shallow: true, icon: ['brood', 'eggsac'],
+    desc: 'In a fight, a spiderling hatches out of you every few seconds (within your brood cap).',
+    short: 'In a fight, spiderlings keep hatching.',
+    apply(s, l) { s.wombHatch = Math.max(3, 6.5 - 0.7 * l); },
+  },
+  royaljelly: {
+    name: 'Royal Jelly', from: 'hivewomb', rarity: 'rare', icon: ['brood', 'regrow'],
+    desc: 'You feed your brood something rich: every spiderling and maggot is tougher.',
+    short: 'Your brood is tougher.',
+    apply(s) { s.broodHp = 1; },
+  },
+  swarmheart: {
+    name: 'Swarm Heart', from: 'hivewomb', rarity: 'rare', icon: ['brood', 'twitch'],
+    desc: 'Your heart beats for the whole swarm: your brood attacks much faster.',
+    short: 'Your brood attacks faster.',
+    apply(s) { s.broodHaste = 0.6; },
+  },
+  // --- Fungal BACK: vents along the spine ---
+  sporevents: {
+    name: 'Spore Vents', slot: 'BACK', rarity: 'uncommon', shallow: true, icon: ['spores', 'miasma'],
+    desc: 'Vents open along your spine. Dashing or getting hurt vents a corroding spore cloud.',
+    short: 'Dashing or getting hurt vents a corroding cloud.',
+    apply(s, l) { s.ventCloud = 16 + 3 * l; },
+  },
+  rotvents: {
+    name: 'Rot Vents', from: 'sporevents', rarity: 'rare', icon: ['miasma', 'bile'],
+    desc: 'What you vent is thick with rot: the clouds corrode harder and burn.',
+    short: 'Your vented clouds corrode harder and burn.',
+    apply(s) { s.ventHard = true; },
+  },
+  fruitingvents: {
+    name: 'Fruiting Vents', from: 'sporevents', rarity: 'rare', icon: ['spores', 'bile'],
+    desc: 'Your vented clouds settle as they fade, bursting into pools of burning bile.',
+    short: 'Vented clouds fade into bile pools.',
+    apply(s) { s.ventPool = true; },
+  },
+  // --- Fungal CORE: a liver that keeps it going ---
+  fungalliver: {
+    name: 'Fungal Liver', slot: 'CORE', rarity: 'uncommon', shallow: true, icon: ['bacteria', 'bile'],
+    desc: 'Your liver grows a fur of mold. Everything you Corrode stays Corroded much longer.',
+    short: 'Your corrosion lasts much longer.',
+    apply(s, l) { s.corrodeLong = 1.6 + 0.3 * l; },
+  },
+  rotliver: {
+    name: 'Rot Liver', from: 'fungalliver', rarity: 'rare', icon: ['bacteria', 'miasma'],
+    desc: 'Corroded prey that dies bursts into a corroding cloud.',
+    short: 'Corroded kills burst into a corroding cloud.',
+    apply(s) { s.rotLiver = true; },
+  },
+  mycelialliver: {
+    name: 'Mycelial Liver', from: 'fungalliver', rarity: 'rare', icon: ['bacteria', 'silk'],
+    desc: 'Threads of mold creep into whatever you Corrode: Corroded enemies are slowed.',
+    short: 'Corroded enemies are slowed.',
+    apply(s) { s.corrodeSlow = true; },
+  },
+  // --- Abomination BACK: what grows on your back is a sacrifice too ---
+  hunchback: {
+    name: 'Hunchback', slot: 'BACK', rarity: 'uncommon', shallow: true, malignant: true, icon: ['overgrown', 'spines'],
+    desc: 'A swollen hump rises between your shoulders: you hit harder.',
+    short: 'A swollen hump: you hit harder.',
+    cost: 'You grow bigger and easier to hit.',
+    costShort: 'It weighs on you.',
+    apply(s) { s.damageMul *= 1.25; s.bulk += 1; },
+  },
+  glassspine: {
+    name: 'Glass Spine', from: 'hunchback', rarity: 'rare', malignant: true, icon: ['spines', 'twitch'],
+    desc: 'Your spine turns to glass: your dash recovers much faster and goes further. But you are brittle: every hit costs more.',
+    short: 'Much faster dashes.',
+    cost: 'Every hit costs you more.',
+    costShort: 'You could shatter.',
+    apply(s) { s.dashCd *= 0.55; s.dashSpeed *= 1.2; s.hitCost = (s.hitCost || 1) + 0.5; },
+  },
+  secondmouth: {
+    name: 'Second Mouth', from: 'hunchback', rarity: 'rare', icon: ['mandibles', 'overgrown'],
+    desc: 'The hump splits open into a mouth. It bites anything that comes up behind you.',
+    short: 'Your hump bites what comes up behind you.',
+    apply(s) { s.backMouth = 0.6; },
+  },
+
   // ================= ONE-EVOLUTION PARTS =================
   // Parts that evolve once, fully grown (graft): no fork, just one end form.
   // They level like any part, and at full growth each evolves once.
@@ -1974,6 +2075,21 @@ const HINTS = {
   sporebloom: 'The pollen turns bitter and stinging.',
   hayfever: 'The pollen thickens until you can taste it.',
   nightbloom: 'The petals start to glow.',
+  broodcrest: 'A ridge of chitin pushes up through your scalp. The little ones turn to look at you.',
+  pheromone: 'The crest starts to weep. It smells like an order.',
+  hatchingcrest: 'Something hard and round ripens in the ridge on your head.',
+  hivewomb: 'A second womb knots itself below your ribs. It is already full.',
+  royaljelly: 'Your milk thickens to jelly. They grow fat on it.',
+  swarmheart: 'Your heartbeat splits into a hundred smaller ones, and they all answer.',
+  sporevents: 'Your spine blisters into a row of puckered holes. They breathe out.',
+  rotvents: 'What comes out of your back smells like a grave.',
+  fruitingvents: 'The holes in your back grow little caps. They drip.',
+  fungalliver: 'Your liver goes soft and white and furred.',
+  rotliver: 'Your liver rots and keeps working. It likes the rot.',
+  mycelialliver: 'White threads grow out of your liver, looking for somewhere to go.',
+  hunchback: 'Your shoulders bunch and swell into a hump. It pulses when you are angry.',
+  glassspine: 'Your spine goes cold and clear. You can hear it ring when you move.',
+  secondmouth: 'The hump on your back splits along a seam, and the seam has teeth.',
   // Parts other nodes grow
   spores: 'Your lungs grow a soft grey fur. You cough it up in clouds.',
   hindlegs: 'Your back legs bunch up thick with muscle.',
@@ -1997,7 +2113,7 @@ const SETS = {
   },
   FUNGAL: {
     name: 'FUNGAL', color: '#9aae50', verb: 'CORRODES', // what the set does (shown on cards)
-    tags: ['culturejelly', 'venomspike', 'bile', 'caustic', 'sporesac', 'miasma', 'sporepolyp', 'acidgut', 'acidsilk', 'glare', 'bloom', 'venomquills', 'huskbomb', 'eggpods', 'toxic', 'cropduster', 'bileline', 'bilebomb', 'fins', 'maggotburst', 'bacteria', 'sneeze', 'toadgullet', 'digestjelly'],
+    tags: ['culturejelly', 'sporevents', 'fungalliver', 'venomspike', 'bile', 'caustic', 'sporesac', 'miasma', 'sporepolyp', 'acidgut', 'acidsilk', 'glare', 'bloom', 'venomquills', 'huskbomb', 'eggpods', 'toxic', 'cropduster', 'bileline', 'bilebomb', 'fins', 'maggotburst', 'bacteria', 'sneeze', 'toadgullet', 'digestjelly'],
     bonus: [
       { name: 'Sporulate', desc: 'What you kill bursts into a spore cloud, and your clouds corrode.', apply(s) { s.setKillCloud = 18; s.cloudCorrode = true; } },
       { name: 'Fruiting Body', desc: 'Kills burst into corroding clouds, you release spores every few seconds, and the corroded spread it to whatever they touch.', apply(s) { s.setKillCloud = 22; s.cloudCorrode = true; s.setSporeAura = 4; s.corrodeSpread = true; } },
@@ -2006,7 +2122,7 @@ const SETS = {
   },
   HIVE: {
     name: 'HIVE', color: '#e0a830', verb: 'BREEDS A BROOD', // what the set does (shown on cards)
-    tags: ['ovipositor', 'chitin', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
+    tags: ['ovipositor', 'chitin', 'broodcrest', 'hivewomb', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
     bonus: [
       { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling, and your brood can grow larger (up to 4).', apply(s) { s.setKillBrood = 0.35; s.broodCap = 2; } },
       { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, your brood lives twice as long, and it grows larger still (up to 6).', apply(s) { s.setKillBrood = 1; s.allyLife = 2; s.broodCap = 4; } },
@@ -2024,7 +2140,7 @@ const SETS = {
   },
   ABOMINATION: {
     name: 'ABOMINATION', color: '#b464c8', verb: 'SACRIFICES', // what the set does (shown on cards)
-    tags: ['mawtendrils', 'tentacles', 'writhing', 'strangle', 'lashdrain', 'proboscis', 'bloodworm', 'tendrilpolyp', 'fractured', 'lightless', 'parasite', 'splitquills', 'angler', 'rage', 'biters', 'grapple', 'shredpull', 'secondheart', 'regrow', 'overgrown', 'mitosis', 'cancer', 'splittercells'],
+    tags: ['mawtendrils', 'hunchback', 'tentacles', 'writhing', 'strangle', 'lashdrain', 'proboscis', 'bloodworm', 'tendrilpolyp', 'fractured', 'lightless', 'parasite', 'splitquills', 'angler', 'rage', 'biters', 'grapple', 'shredpull', 'secondheart', 'regrow', 'overgrown', 'mitosis', 'cancer', 'splittercells'],
     bonus: [
       { name: 'Grafted', desc: 'Every sacrifice you carry makes you stronger (cured ones still count).', apply(s, p) { s.sacrifices = sacrificeCount(p); s.damageMul *= 1 + 0.12 * s.sacrifices; } },
       { name: 'Abomination', desc: 'Every sacrifice makes you much stronger, and when you are hurt, tendrils burst out and lash everything near you.', apply(s, p) { s.sacrifices = sacrificeCount(p); s.damageMul *= 1 + 0.2 * s.sacrifices; s.setHurtLash = 5; } },

@@ -114,7 +114,7 @@ try {
     check('every mutation has a whisper' + (missing.length ? ' (missing: ' + missing.join(',') + ')' : ''), !missing.length);
     const tooLong = Object.keys(HINTS).filter(id => HINTS[id].length > 140);
     check('whispers fit in two lines' + (tooLong.length ? ' (too long: ' + tooLong.join(',') + ')' : ''), !tooLong.length);
-    const traitTree = id => !!MUTATIONS[rootOf(id)].graft; // devoured traits evolve once, no branching
+    const traitTree = id => !!MUTATIONS[rootOf(id)].graft || !!MUTATIONS[rootOf(id)].shallow; // one-evolution parts, and the shallow Phase 5 roots (one fork)
     const bad = ids.filter(id => !MUTATIONS[id].part && !traitTree(id) && pathTo(id).length < 3 && childrenOf(id).length !== 2);
     check('every root and tier-1 branch splits in two' + (bad.length ? ' (' + bad.join(',') + ')' : ''), !bad.length);
     const badTraits = ids.filter(id => MUTATIONS[id].graft && (childrenOf(id).length !== 1 || childrenOf(childrenOf(id)[0] || id).length));
@@ -549,9 +549,9 @@ try {
       newRun(); combatRoom(); const q = game.player; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96;
       grow(q, ...['MOUTH', 'BACK', 'LIMBS'].map(sl => formOf(k, sl)).filter(Boolean)); q.apex = true; recomputeStats(q);
       calm(); game.room.locked = true; const a0 = game.allies.length, c0 = game.clouds.length; const r = dummy(40); r.speed = 0;
-      for (let i = 0; i < 600; i++) { q.hp = q.maxHp; q.inv = 1; Input.keys.clear(); if (i % 60 < 30) Input.keys.add('d'); else Input.keys.add('a'); update(1 / 60); Input.endFrame(); }
+      let spMax = 0; for (let i = 0; i < 600; i++) { spMax = Math.max(spMax, game.allies.filter(a => a.kind === 'spiderling' && !a.dead).length); q.hp = q.maxHp; q.inv = 1; Input.keys.clear(); if (i % 60 < 30) Input.keys.add('d'); else Input.keys.add('a'); update(1 / 60); Input.endFrame(); }
       Input.keys.clear(); render();
-      const did = { HIVE: game.allies.filter(a => a.kind === 'spiderling').length > a0, BONE: true, FUNGAL: game.clouds.length > c0 || game.clouds.some(c => c.toxic), ABOMINATION: r.hp < 99 || r.dead, PREDATOR: true }[k];
+      const did = { HIVE: spMax > a0, BONE: true, FUNGAL: game.clouds.length > c0 || game.clouds.some(c => c.toxic), ABOMINATION: r.hp < 99 || r.dead, PREDATOR: true }[k];
       check(`final form, ${k}-heavy (${q.stats.apex[k] || 0} parts): ${APEX_PASSIVES[k].toLowerCase()}`, q.stats.apex[k] > 0 && did);
     }
   }
@@ -998,6 +998,23 @@ try {
     check(`sacrifices are counted, cured or not (${sacrificeCount(q)})`, sacrificeCount(q) === 3);
     newRun(); combatRoom(); q = game.player; game.enemies = []; q.stats.cloudCorrode = true; const e = dummy(60, 99); e.speed = 0; game.clouds = [{ x: e.x, y: e.y, r: 20, life: 2 }];
     updateClouds(1 / 60); check('fungal set: clouds corrode', hasStatus(e, 'corrode'));
+  }
+  { // 0j1l) Phase 5 roots: Brood Crest, Hive Womb, Spore Vents, Fungal Liver, Hunchback.
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.allies = []; game.clouds = []; game.puddles = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96; return q; };
+    let q = arena(); grow(q, 'hivewomb'); game.room.locked = true; calm(); dummy(120, 999).speed = 0;
+    for (let i = 0; i < 60 * 8; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`hive womb: spiderlings keep hatching in a fight (${game.allies.filter(a => a.kind === 'spiderling').length}, cap ${broodCap(q)})`, game.allies.some(a => a.kind === 'spiderling'));
+    q = arena(); grow(q, 'broodcrest'); spawnAlly('maggot', q.x, q.y); const prey = dummy(80, 99); prey.speed = 0; q.aimX = 1; q.aimY = 0; q.headCd = 0; autoHead(q);
+    check(`brood crest: a swarm call turns your brood onto the prey you aim at (${q.broodTarget === prey}, ${q.broodRushT}s)`, q.broodTarget === prey && q.broodRushT > 0);
+    q = arena(); grow(q, 'sporevents'); q.inv = 0; hurtPlayer(1);
+    check(`spore vents: getting hurt vents a corroding cloud (${game.clouds.length})`, game.clouds.some(c => c.corrode));
+    q = arena(); const t0 = corrodeOpts(q.stats).t; grow(q, 'rotliver'); check(`fungal liver: corrosion lasts longer (${t0} -> ${corrodeOpts(q.stats).t.toFixed(1)}s)`, corrodeOpts(q.stats).t > t0 * 1.5);
+    const z = dummy(40, 1); inflict(z, 'corrode', corrodeOpts(q.stats)); damageEnemy(z, 5, 0, 0, true);
+    check(`rot liver: corroded kills burst into a corroding cloud (${game.clouds.length})`, game.clouds.some(c => c.corrode));
+    q = arena(); const r0 = q.r; grow(q, 'hunchback'); check(`hunchback: harder hits, paid for in size (r ${r0} -> ${q.r.toFixed(1)})`, q.stats.bulk === 1 && q.r > r0 && MUTATIONS.hunchback.malignant);
+    q = arena(); grow(q, 'secondmouth'); q.aimX = 1; q.aimY = 0; const back = dummy(-10, 99); back.speed = 0;
+    for (let i = 0; i < 10; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`second mouth: the hump bites what comes up behind you (${(99 - back.hp).toFixed(1)})`, back.hp < 99);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
