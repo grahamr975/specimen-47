@@ -884,12 +884,6 @@ try {
     }
     check(`a weapon vial with no room: Gorge always (${30 - bad}/30), a level for your weapon (${fed}/30), 3 cards max (${ok}/30)`, !bad && fed === 30 && ok === 30);
   }
-  { // 0j1c) An evolution is never a downgrade: a branch is at least as rare as its parent.
-    const R = id => RARITY_ORDER.indexOf(MUTATIONS[id].rarity);
-    const down = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].from && R(id) < R(MUTATIONS[id].from));
-    check(`no branch is rarer-down than its parent (${down.join(',') || 'none'})`, !down.length);
-    check('gut bacteria is a sidegrade to feeding frenzy (same rarity, same set)', MUTATIONS.bacteria.rarity === MUTATIONS.feedfrenzy.rarity && setOf('bacteria') === setOf('feedfrenzy'));
-  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

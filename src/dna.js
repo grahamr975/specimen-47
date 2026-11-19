@@ -19,9 +19,9 @@ function spawnCorpse(e, spriteName) {
   stain(e.x, e.y + 2, e.r + 1, T.fluid);
   game.room.corpses.push({
     x: e.x, y: e.y, r: Math.max(5, e.r), sprite: spriteName,
-    // Gut Bacteria: richer corpses that burst at a touch.
+    // Gut Bacteria: richer corpses that take longer to burst.
     dna: T.dna * (e.elite ? 3 : 1) + game.player.stats.bacteria,
-    hp: (e.elite ? 6 : 2.5) * (game.player.stats.bacteria ? 0.4 : 1),
+    hp: (e.elite ? 6 : 2.5) + game.player.stats.bacteria,
     fluid: T.fluid, gib: T.gib, t: Math.random() * 5, shake: 0,
     trait: e.elite && GRAFT_OF[e.type] ? e.type : null, // an elite's body: something to take from it
   });
