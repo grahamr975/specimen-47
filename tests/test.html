@@ -684,7 +684,7 @@ try {
     check(`bullfrog: a glob bounces once, bursting twice (${seen.size} globs, ${game.puddles.filter(pd => pd.team === 'player').length} puddles)`, seen.size === 2 && game.puddles.filter(pd => pd.team === 'player').length >= 2);
     q = arena(); q.parts.push({ id: 'mitosis2', path: ['splittercells', 'mitosis2'], loc: 'CORE', lvl: 0 }); recomputeStats(q);
     dummy(150, 99); game.room.locked = true; for (let i = 0; i < 60 * 8; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
-    check(`runaway mitosis: in a fight, pieces split off on their own (${game.allies.filter(a => a.kind === 'maggot').length} so far)`, game.allies.some(a => a.kind === 'maggot'));
+    check(`runaway cells: in a fight, flesh spawn split off on their own (${game.allies.filter(a => a.kind === 'flesh').length} so far)`, game.allies.some(a => a.kind === 'flesh'));
     q = arena(); q.parts.push({ id: 'digestjelly', path: ['culturejelly', 'digestjelly'], loc: 'BACK', lvl: 0 }); recomputeStats(q);
     r = dummy(30, 99); r.speed = 0; q.dashT = 0.01; update(1 / 60); Input.endFrame();
     check(`digesting jelly: wider, and what it holds bleeds and stays slowed (web ${hasStatus(r, 'web')}, bleed ${hasStatus(r, 'bleed')}, slow ${hasStatus(r, 'slow')})`, hasStatus(r, 'web') && hasStatus(r, 'bleed') && hasStatus(r, 'slow'));
@@ -974,6 +974,21 @@ try {
     check(`evil eye: a marked kill passes its mark to the next toughest prey (${hasStatus(b, 'mark')})`, hasStatus(b, 'mark'));
     newRun(); combatRoom(); q = game.player; grow(q, 'trapdoor');
     check(`scent glands: the pounce marks (${JSON.stringify((q.stats.onHit.slam || []).map(h => h.id))})`, (q.stats.onHit.slam || []).some(h => h.id === 'mark') && MUTATIONS.trapdoor.name === 'Scent Glands');
+  }
+  { // 0j1j) Abomination: sacrifice. The parasite helps you aim (and fully grown shoots for you); costs vary (aim, speed, size).
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.allies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96; return q; };
+    let q = arena(); grow(q, 'parasite'); const d0 = q.stats.damageMul;
+    const e = dummy(80, 99); e.speed = 0; e.y = q.y + 20; q.aimX = 1; q.aimY = 0; assistAim(q, q.stats.aimAssist);
+    check(`parasite brain: no damage bonus, it steers your aim onto prey (aim y ${q.aimY.toFixed(2)})`, d0 === arena().stats.damageMul && q.aimY > 0.05);
+    q = arena(); grow(q, 'spike', 'brainworm'); const t = dummy(60, 99); t.speed = 0; game.room.locked = true; q.aimX = -1; q.aimY = 0;
+    for (let i = 0; i < 150; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`fully grown, it fires your weapons for you (${(99 - t.hp).toFixed(1)} dmg while you aim away)`, t.hp < 99);
+    q = arena(); grow(q, 'fractured'); const before = []; for (let i = 0; i < 10; i++) { q.t += 0.13; q.aimX = 1; q.aimY = 0; const a = Math.atan2(q.aimY, q.aimX) + (Math.sin(q.t * 2.3) + 0.5 * Math.sin(q.t * 5.7)) * q.stats.aimDrift; before.push(a); }
+    check(`fractured eye: malignant, harder hits, aim drifts (drift ${q.stats.aimDrift})`, MUTATIONS.fractured.malignant && q.stats.aimDrift > 0 && q.stats.damageMul > 1.2);
+    q = arena(); const sp0 = q.stats.speedMul; grow(q, 'cerebral'); check(`bloated cerebrum costs speed, not health (speed x${q.stats.speedMul.toFixed(2)})`, q.stats.speedMul < sp0 && q.maxHp === arena().maxHp);
+    q = arena(); q.cancerRooms = 9; grow(q, 'cancer'); recomputeStats(q); check(`tumor costs size, not max health (bulk ${q.stats.bulk}, hp ${q.maxHp})`, q.stats.bulk >= 1 && q.maxHp === arena().maxHp);
+    q = arena(); spawnAlly('spiderling', q.x, q.y); spawnAlly('maggot', q.x, q.y); for (let i = 0; i < 3; i++) spawnAlly('flesh', q.x, q.y);
+    check(`flesh spawn have their own cap, apart from the brood (${game.allies.filter(a => !a.dead).map(a => a.kind).join(',')})`, game.allies.filter(a => !a.dead && a.kind === 'flesh').length === FLESH_CAP && game.allies.filter(a => !a.dead && BROOD_KINDS.has(a.kind)).length === 2);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });

@@ -59,16 +59,22 @@ const BROOD_KINDS = new Set(['spiderling', 'maggot']);
 const BROOD = {
   spiderling: { hp: 1, life: 8 },
   maggot:     { hp: 3, life: 18 },
+  flesh:      { hp: 3, life: 14 }, // Splitter / Runaway Cells: torn-off pieces of you (they fight like maggots)
 };
 const BROOD_CAP = 2;
 const broodCap = (p = game.player) => BROOD_CAP + ((p && p.stats.broodCap) || 0);
+const FLESH_CAP = 2; // pieces of you have their own cap (Abomination), apart from Hive's brood
 
 function spawnAlly(kind, x, y) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false, born: game.time };
-  a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
+  a.life = (BROOD[kind] ? BROOD[kind].life : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   if (BROOD[kind]) a.hp = BROOD[kind].hp;
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
   if (kind === 'polyp') { const pp = game.player.stats.polyp; a.r = 4; a.life = pp ? pp.life : 10; }
+  if (kind === 'flesh') { // over its own cap: the oldest piece of you rots away
+    const fl = game.allies.filter(o => o.kind === 'flesh' && !o.dead).sort((m, n) => m.born - n.born);
+    for (let i = 0; i <= fl.length - FLESH_CAP; i++) killAlly(fl[i], true);
+  }
   if (BROOD_KINDS.has(kind)) { // over the cap: the oldest of the brood withers
     const brood = game.allies.filter(o => BROOD_KINDS.has(o.kind) && !o.dead).sort((m, n) => m.born - n.born);
     for (let i = 0; i <= brood.length - broodCap(); i++) killAlly(brood[i], true);
@@ -153,7 +159,7 @@ function updateAllies(dt) {
     if (a.life <= 0) { killAlly(a, true); continue; }
     if (a.kind === 'polyp') { updatePolyp(a, dt); continue; } // rooted in place
     if (a.kind === 'spiderling') { updateSpiderling(a, dt, p); continue; }
-    if (a.kind === 'maggot') { updateMaggot(a, dt, p); continue; }
+    if (a.kind === 'maggot' || a.kind === 'flesh') { updateMaggot(a, dt, p); continue; }
     // Your twin hovers just behind you, mirroring your aim.
     const tx = p.x - p.aimX * 12 + p.aimY * 8, ty = p.y - p.aimY * 12 - p.aimX * 8;
     const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
@@ -161,7 +167,7 @@ function updateAllies(dt) {
   }
   // Enemies that touch the brood hurt it (not mid-pounce, and never a maggot's own host).
   for (const a of game.allies) {
-    if (a.dead || !BROOD_KINDS.has(a.kind) || a.inv > 0 || a.leapT > 0) continue;
+    if (a.dead || !(BROOD_KINDS.has(a.kind) || a.kind === 'flesh') || a.inv > 0 || a.leapT > 0) continue;
     for (const e of game.enemies) {
       if (e.dead || e.spawnT > 0 || e === a.latch || Math.hypot(e.x - a.x, e.y - a.y) >= e.r + a.r) continue;
       a.hp -= 1; a.inv = 0.6; burst(a.x, a.y, '#7a3a2a', 3, 40);
@@ -1392,7 +1398,7 @@ function platePos(p, i, n) {
 function updateDefense(p, dt) {
   const s = p.stats;
   if (p.marrowT > 0 && (p.marrowT -= dt) <= 0) p.marrowStacks = 0; // Dense Marrow fades
-  if (s.splitPulse && game.room.locked && (p.splitT = (p.splitT ?? s.splitPulse) - dt) <= 0) { p.splitT = s.splitPulse; spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); Sfx.play('squelch'); } // Runaway Mitosis
+  if (s.splitPulse && game.room.locked && (p.splitT = (p.splitT ?? s.splitPulse) - dt) <= 0) { p.splitT = s.splitPulse; spawnAlly('flesh', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); Sfx.play('squelch'); } // Runaway Mitosis
   if (s.quillPulse && game.room.locked && (p.quillT = (p.quillT ?? s.quillPulse) - dt) <= 0) { p.quillT = s.quillPulse; fireRing(p, s.quillCount || 6); } // Urchin Quills
   if (!s.plates) { p.plates = 0; return; }
   p.plates = Math.min(p.plates, s.plates);

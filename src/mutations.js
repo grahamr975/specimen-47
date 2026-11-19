@@ -676,9 +676,12 @@ const MUTATIONS = {
     apply(s) { s.markTime = 2; s.markSpread = true; },
   },
   fractured: {
-    name: 'Fractured Eye', from: 'abyssal', rarity: 'rare', overlay: ['mitosis'], icon: ['abyssal', 'mitosis'],
-    desc: 'Every hit bursts into seeking fragments.',
-    apply(s) { s.split += 2; },
+    name: 'Fractured Eye', from: 'abyssal', rarity: 'rare', malignant: true, overlay: ['mitosis'], icon: ['abyssal', 'mitosis'],
+    desc: 'Your shots and bites hit much harder, but your eye will not hold still: your aim drifts and wobbles off target.',
+    costShort: 'Your eye will not hold still.',
+    cost: 'Your aim drifts and wobbles off target.',
+    short: 'You hit much harder.',
+    apply(s) { s.damageMul *= 1.5; s.aimDrift = 0.3; },
   },
 
   skull: {
@@ -768,50 +771,51 @@ const MUTATIONS = {
   parasite: {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
     name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, overlay: ['parasite'],
-    desc: '+60% damage with everything. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it.',
-    short: 'Something else makes you much stronger.',
+    desc: 'It steers your aim onto the prey nearest your crosshair, harder as it grows. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it. Fully grown, it shoots for you.',
+    short: 'It steers your aim onto prey.',
     cost: 'Sometimes it takes control of your body.',
     costShort: 'It will want your body.', // the card's line (vague); hovering shows the exact cost
-    apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
+    apply(s, l) { s.parasite = true; s.aimAssist = Math.max(s.aimAssist || 0, 0.25 + 0.1 * l); s.headActive = { kind: 'mindspike', l }; },
   },
   symbiote: {
     name: 'Symbiote Brain', from: 'parasite', rarity: 'legendary', cures: true, icon: ['parasite', 'antennae'],
-    desc: 'CURED. The parasite works with you now: keep the damage, keep control.',
-    short: 'CURED. Keep the damage, and keep control.',
-    apply(s) { s.symbiote = true; },
+    desc: 'CURED. The parasite works with you now: it never takes control, and it steers your aim harder.',
+    short: 'CURED. A helper now: it steers your aim harder.',
+    apply(s) { s.symbiote = true; s.aimAssist = (s.aimAssist || 0) + 0.15; },
   },
   brainworm: {
     name: 'Brain Worm', from: 'symbiote', rarity: 'rare', icon: ['parasite', 'echo'],
-    desc: 'Your hits sometimes stun.',
-    apply(s) { onHit(s, 'any', 'stun', { t: 0.8 }, { chance: 0.12 }); },
+    desc: 'Fully grown, it aims and fires your weapons for you every few seconds, and your hits sometimes stun.',
+    short: 'It shoots for you, and your hits can stun.',
+    apply(s) { onHit(s, 'any', 'stun', { t: 0.8 }, { chance: 0.12 }); s.parasiteGunner = PARASITE_GUNNER; },
   },
   overmind: {
     name: 'Overbrain', from: 'symbiote', rarity: 'rare', overlay: ['echo'], icon: ['parasite', 'skull'],
-    desc: 'It screams through you when you dash, stunning everything near. +20% damage.',
-    short: 'Dashing screams, stunning all near. You hit harder.',
-    apply(s) { s.echo = Math.max(s.echo, 1.2); s.damageMul *= 1.2; },
+    desc: 'Fully grown, it aims and fires your weapons for you every few seconds, and it screams through you when you dash, stunning everything near.',
+    short: 'It shoots for you, and screams when you dash.',
+    apply(s) { s.echo = Math.max(s.echo, 1.2); s.parasiteGunner = PARASITE_GUNNER; },
   },
   rider: {
     name: 'Rider Nerves', from: 'parasite', rarity: 'rare', malignant: true, icon: ['parasite', 'twitch'],
-    desc: '+30% more damage. While it drives, nothing can hurt you.',
-    short: 'Let it drive. You hit harder.',
+    desc: 'While it drives, nothing can hurt you, and it steers your aim harder even when it lets go.',
+    short: 'While it drives, nothing can hurt you.',
     cost: 'It takes control far more often.',
     costShort: 'It wants the reins.', // the card's line (vague); hovering shows the exact cost
-    apply(s) { s.damageMul *= 1.3; s.parasiteInv = true; s.parasiteOften = true; },
+    apply(s) { s.parasiteInv = true; s.parasiteOften = true; s.aimAssist = (s.aimAssist || 0) + 0.1; },
   },
   berserkhost: {
     name: 'Berserker Brain', from: 'rider', rarity: 'rare', icon: ['parasite', 'feral'],
-    desc: 'While it drives, it attacks the nearest enemy for you, twice as fast.',
-    short: 'While it drives, it attacks twice as fast.',
-    apply(s) { s.parasiteFrenzy = true; },
+    desc: 'While it drives, it attacks the nearest enemy for you, twice as fast. Fully grown, it shoots for you even when it lets go.',
+    short: 'It hunts for you, and shoots for you.',
+    apply(s) { s.parasiteFrenzy = true; s.parasiteGunner = PARASITE_GUNNER; },
   },
   cerebral: {
     name: 'Bloated Cerebrum', from: 'rider', rarity: 'rare', malignant: true, icon: ['parasite', 'overgrown'],
-    desc: '+40% more damage.',
-    short: 'Your skull swells. You hit much harder.',
-    cost: '-1 max health.',
-    costShort: 'Something must make room.', // the card's line (vague); hovering shows the exact cost
-    apply(s) { s.damageMul *= 1.4; s.maxHp -= 1; },
+    desc: 'Your swollen brain hits much harder, and fully grown it shoots for you. But your head weighs you down: you move slower.',
+    short: 'You hit much harder, and it shoots for you.',
+    cost: 'You move slower.',
+    costShort: 'Your head drags you down.',
+    apply(s) { s.damageMul *= 1.4; s.speedMul *= 0.8; s.parasiteGunner = PARASITE_GUNNER; },
   },
 
   bloom: {
@@ -1384,28 +1388,27 @@ const MUTATIONS = {
     name: 'Tumor', from: 'starving', rarity: 'rare', malignant: true, overlay: ['tumor'],
     desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
     short: 'Stronger with every room. The tumor makes you bigger.',
-    cost: 'Every 3rd room cleared, it takes 1 max health.',
-    costShort: 'It feeds on you.', // the card's line (vague); hovering shows the exact cost
+    cost: 'It keeps swelling: every 6 rooms you grow bigger and easier to hit.',
+    costShort: 'It keeps growing.',
     apply(s, l, p) {
       const rooms = (p && p.cancerRooms) || 0;
       s.damageMul *= 1 + (s.cancerRate || 0.1) * rooms;
-      s.maxHp -= Math.floor(rooms / 3);
       s.bulk += Math.min(2, Math.floor(rooms / 6)); // the tumor swells as it grows
     },
   },
   benignmass: {
     name: 'Benign Tumor', from: 'cancer', rarity: 'legendary', cures: true, icon: ['cancer', 'regrow'],
-    desc: 'CURED. The growth keeps making you stronger, but no longer costs health.',
-    short: 'CURED. The growth keeps strengthening you, free.',
-    apply(s, l, p) { s.maxHp += Math.floor(((p && p.cancerRooms) || 0) / 3); },
+    desc: 'CURED. The growth keeps making you stronger, but it stops swelling.',
+    short: 'CURED. Stronger every room, without the swelling.',
+    apply(s, l, p) { s.bulk -= Math.min(2, Math.floor(((p && p.cancerRooms) || 0) / 6)); },
   },
   metastasis: {
     name: 'Metastatic Tumor', from: 'cancer', rarity: 'rare', malignant: true, icon: ['cancer', 'mitosis'],
-    desc: 'The growth spreads faster: +20% damage per room instead.',
+    desc: 'The growth spreads faster: +20% damage per room instead, and it swells faster too.',
     short: 'The growth spreads faster: more damage per room.',
-    cost: 'It still takes 1 max health every 3rd room.',
-    costShort: 'It still feeds on you.', // the card's line (vague); hovering shows the exact cost
-    apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); },
+    cost: 'It swells faster: you grow bigger sooner.',
+    costShort: 'It spreads.',
+    apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); s.bulk += Math.min(1, Math.floor(rooms / 4)); },
   },
 
   // --- Bone Plates: armor you can see, and it fights back ---
@@ -1663,7 +1666,7 @@ const MUTATIONS = {
     name: 'Splitter Cells', slot: 'CORE', graft: 'splitter', rarity: 'uncommon', icon: ['mitosis', 'regrow'],
     desc: 'When you are hurt, pieces of you split off and fight for you.',
     short: 'When hurt, pieces of you split off and fight.',
-    apply(s, l) { s.hurtBrood = 1 + (l >= 2 ? 1 : 0); },
+    apply(s, l) { s.hurtFlesh = 1 + (l >= 2 ? 1 : 0); },
   },
   culturejelly: {
     name: 'Jelly Glands', slot: 'BACK', graft: 'culture', rarity: 'uncommon', icon: ['regrow', 'bile'],
@@ -1694,7 +1697,7 @@ const MUTATIONS = {
     name: 'Runaway Cells', from: 'splittercells', rarity: 'rare', icon: ['mitosis', 'overgrown'],
     desc: 'More of you splits off when you are hurt, and in a fight a piece splits off on its own every few seconds.',
     short: 'More of you splits off, even on its own.',
-    apply(s) { s.hurtBrood = (s.hurtBrood || 0) + 1; s.splitPulse = 7; },
+    apply(s) { s.hurtFlesh = (s.hurtFlesh || 0) + 1; s.splitPulse = 7; },
   },
   digestjelly: {
     name: 'Digesting Glands', from: 'culturejelly', rarity: 'rare', icon: ['bile', 'regrow'],

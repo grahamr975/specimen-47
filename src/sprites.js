@@ -1338,6 +1338,11 @@ function withFlash(name, img) {
 
   // Allies & body parts for the extra mutations.
   for (const [name, img] of [['spiderling', paintSpiderling()], ['maggot', paintMaggot()], ['twin', paintPureSpecimen(0, 0, 0.42)], ['polyp', paintPolypAlly()]]) { SPR[name] = img; SPR[name + '_L'] = flipH(img); }
+  { // Flesh spawn (Splitter / Runaway Cells): a maggot-shaped lump of your own raw meat
+    const m = SPR.maggot, c = document.createElement('canvas'); c.width = m.width; c.height = m.height;
+    const g = c.getContext('2d'); g.drawImage(m, 0, 0); g.globalCompositeOperation = 'source-atop'; g.globalAlpha = 0.7; g.fillStyle = '#9a2030'; g.fillRect(0, 0, c.width, c.height);
+    SPR.flesh = c; SPR.flesh_L = flipH(c);
+  }
   SPR.segment = paintSegment();
 
   // (HUD art is baked on first use by bakeHud(), since it needs the room size from world.js.)

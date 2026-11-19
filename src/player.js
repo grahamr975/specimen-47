@@ -175,6 +175,38 @@ function bodyFrames(p) {
 const STAGE_AT = [0, 2, 4, 7, 11];
 const POUNCE_RANGE = 130, POUNCE_CONE = 0.87; // Huntsman: prey within ~30 degrees of your leap
 
+// --- Parasite Brain: a passenger that helps you aim --------------------------------------
+// It nudges your aim toward the prey nearest your crosshair (strength 0..1 of the
+// way there, only for prey within ~30 degrees). Fully grown, every few seconds
+// it turns you onto the nearest prey in sight and fires your weapons for you.
+const PARASITE_GUNNER = 1.8, ASSIST_CONE = 0.86, ASSIST_RANGE = 190;
+function assistAim(p, k) {
+  let best = null, bd = -1;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d > ASSIST_RANGE) continue;
+    const dot = (dx * p.aimX + dy * p.aimY) / d;
+    if (dot > ASSIST_CONE && dot > bd) { bd = dot; best = e; }
+  }
+  if (!best) return;
+  const d = Math.hypot(best.x - p.x, best.y - p.y) || 1, x = p.aimX + ((best.x - p.x) / d - p.aimX) * k, y = p.aimY + ((best.y - p.y) / d - p.aimY) * k, l = Math.hypot(x, y) || 1;
+  p.aimX = x / l; p.aimY = y / l;
+}
+function parasiteGunner(p, dt) {
+  if (!game.room.locked || p.burrowT > 0 || p.withdrawn) return;
+  if ((p.gunnerT = (p.gunnerT ?? p.stats.parasiteGunner) - dt) > 0) return;
+  const e = game.enemies.filter(o => !o.dead && o.spawnT <= 0 && Math.hypot(o.x - p.x, o.y - p.y) < 200 && clearShot(p.x, p.y - 2, o.x, o.y))
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+  if (!e) return;
+  p.gunnerT = p.stats.parasiteGunner;
+  const ax = p.aimX, ay = p.aimY, d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+  p.aimX = (e.x - p.x) / d; p.aimY = (e.y - p.y) / d;
+  p.cd = {}; fireWeapons(p); // it pulls the trigger: everything fires, at once
+  p.aimX = ax; p.aimY = ay;
+  floatText(p.x, p.y - 16, '!', MALIGNANT_COLOR);
+}
+
 // --- Body size ------------------------------------------------------------------------
 // A fresh specimen is small (SIZE_MIN); each part it grows fills it out, up to
 // SIZE_FULL with every slot taken. The Ultimate Metamorphosis swells it to
@@ -291,6 +323,12 @@ function updatePlayer(dt) {
     if (l > 1) { p.aimX = dx / l; p.aimY = dy / l; }
     firing = Input.mouse.down;
   }
+  if (s.aimAssist) assistAim(p, Math.min(0.85, s.aimAssist)); // Parasite Brain: it steers your aim onto prey
+  if (s.aimDrift) { // Fractured Eye: your aim will not hold still
+    const a = Math.atan2(p.aimY, p.aimX) + (Math.sin(p.t * 2.3) + 0.5 * Math.sin(p.t * 5.7)) * s.aimDrift;
+    p.aimX = Math.cos(a); p.aimY = Math.sin(a);
+  }
+  if (s.parasiteGunner) parasiteGunner(p, dt); // fully grown, it shoots for you
   p.venting = !!(s.miasma && firing && !p.withdrawn); // Miasma: hold fire to vent
   // Berserker Host: while the parasite drives, it hunts the nearest enemy for you.
   if (s.parasiteFrenzy && p.controlT > 0) {
@@ -1288,7 +1326,7 @@ function hurtPlayer(dmg) {
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
   if (s.purge) purge(p, s.purge); // Purge: you throw it all back up
-  if (s.hurtBrood) { for (let i = 0; i < s.hurtBrood; i++) spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
+  if (s.hurtFlesh) { for (let i = 0; i < s.hurtFlesh; i++) spawnAlly('flesh', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
     for (const e of game.enemies) {
