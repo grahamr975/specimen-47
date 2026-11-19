@@ -47,15 +47,15 @@ function burstCorpse(c) {
     d.fillStyle = Math.random() < 0.5 ? '#cfc4a4' : '#9a9284';
     d.fillRect(Math.round(c.x + rand(-5, 5)), Math.round(c.y + rand(-3, 3)), randInt(1, 3), 1);
   }
-  // Brood Chamber: sometimes a maggot crawls out instead of DNA.
+  // Brood Chamber: sometimes a maggot crawls out too.
   const hatched = s.brood && Math.random() < s.brood;
   if (hatched) {
     spawnAlly('maggot', c.x, c.y);
     floatText(c.x, c.y - 10, 'IT HATCHED', '#c8c08e');
     Sfx.play('hatch');
   }
-  // Spill the DNA (none if a maggot ate it).
-  const n = hatched ? 0 : Math.round(c.dna * s.dnaMul);
+  // Spill the DNA.
+  const n = Math.round(c.dna * s.dnaMul);
   for (let i = 0; i < n; i++) {
     const a = rand(0, Math.PI * 2), sp = rand(30, 80);
     game.room.orbs.push({ x: c.x, y: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0 });

@@ -1232,6 +1232,7 @@ function hurtPlayer(dmg) {
     p.inv = 0.6;
     burst(p.x, p.y, '#8a7a5a', 14, 90);
     if (s.shieldRing) fireRing(p, s.shieldRing);
+    if (s.shieldBrood) { for (let i = 0; i < s.shieldBrood; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); } // Brood Shell
     if (s.shieldBlast) { // Reactive Plate
       game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: 44, t: 0.25 });
       for (const e of game.enemies) {

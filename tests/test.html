@@ -948,6 +948,25 @@ try {
     tick(q, 8); check(`it never drains through a crate (${(99 - w.hp).toFixed(1)} dmg)`, w.hp === 99);
     check(`shorter reach (${MUTATIONS.proboscis && newRun() || game.player.stats.beamRange})`, (() => { newRun(); return game.player.stats.beamRange === 56; })());
   }
+  { // 0j1h) Hive: the brood is capped (2, raised by the set), and spiderlings and maggots fight their own way.
+    const arena = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.allies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96; return q; };
+    let q = arena(); for (let i = 0; i < 5; i++) spawnAlly(i % 2 ? 'maggot' : 'spiderling', q.x, q.y);
+    check(`the brood is capped at ${BROOD_CAP} (${game.allies.filter(a => !a.dead).length} alive after 5 hatch)`, game.allies.filter(a => !a.dead).length === BROOD_CAP);
+    q.stats.broodCap = 4; for (let i = 0; i < 8; i++) spawnAlly('spiderling', q.x, q.y);
+    check(`...and the Hive set raises it (${game.allies.filter(a => !a.dead).length})`, game.allies.filter(a => !a.dead).length === 6);
+    q = arena(); const prey = dummy(60, 99); prey.speed = 0; const sp = spawnAlly('spiderling', q.x + 40, q.y); let webbed = false, left = false;
+    for (let i = 0; i < 90; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); if (hasStatus(prey, 'web')) webbed = true; if (webbed && sp.backT > 0) left = true; }
+    check(`spiderlings pounce, bite and web their prey (${(99 - prey.hp).toFixed(1)} dmg, webbed ${webbed}), then spring back out (${left})`, prey.hp < 99 && webbed && left);
+    q = arena(); const host = dummy(50, 99); host.speed = 0; const mg = spawnAlly('maggot', q.x + 40, q.y);
+    for (let i = 0; i < 120 && !mg.latch; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`maggots crawl over, latch on and chew it bloody (latched ${!!mg.latch}, bleeding ${hasStatus(host, 'bleed')}, hp ${mg.hp})`, (mg.latch === host || host.hp < 90) && hasStatus(host, 'bleed') && mg.hp === BROOD.maggot.hp);
+    q = arena(); const brute = dummy(30, 99); brute.speed = 0; const frail = spawnAlly('spiderling', brute.x, brute.y); frail.biteT = 99; frail.inv = 0;
+    q.inv = 1; update(1 / 60); Input.endFrame();
+    check('an enemy touching a spiderling hurts it (1 HP: it dies)', frail.dead);
+    q = arena(); grow(q, 'carapace'); q.shieldUp = true; q.inv = 0; hurtPlayer(1);
+    check(`brood shell: a broken shell spills spiderlings (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling'));
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

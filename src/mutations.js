@@ -898,10 +898,10 @@ const MUTATIONS = {
     onGain(p) { p.shieldUp = true; },
   },
   carapace: {
-    name: 'Carapace', from: 'chitin', rarity: 'rare', overlay: ['spines'], icon: ['spines', 'chitin'],
-    desc: 'When your shell breaks, it explodes into 16 shards.',
-    short: 'When your shell breaks, it explodes into shards.',
-    apply(s) { s.shieldRing = 16; },
+    name: 'Brood Shell', from: 'chitin', rarity: 'rare', overlay: ['eggs'], icon: ['chitin', 'eggsac'],
+    desc: 'When your shell breaks, it splits open and spiderlings spill out of it.',
+    short: 'When your shell breaks, spiderlings spill out.',
+    apply(s) { s.shieldBrood = 2; },
   },
   thornplate: {
     name: 'Thorned Plate', from: 'carapace', rarity: 'rare', overlay: ['barbs'], icon: ['chitin', 'barbs'],
@@ -1322,8 +1322,8 @@ const MUTATIONS = {
   },
   brood: {
     name: 'Brood Chamber', from: 'mitosis', rarity: 'uncommon', overlay: ['brood'], icon: ['mitosis', 'hemophage'],
-    desc: 'Burst corpses sometimes birth a friendly maggot instead of biomass.',
-    short: 'Corpses sometimes birth a friendly maggot.',
+    desc: 'Burst corpses sometimes birth a friendly maggot as well.',
+    short: 'Corpses sometimes birth a maggot too.',
     apply(s, l) { s.brood = 0.2 + 0.1 * l; },
   },
   clutch: {
@@ -1784,7 +1784,7 @@ const HINTS = {
   bonestorm: 'The quills sharpen to needles. They itch to go through something.',
   splitquills: 'Your quills fork at the tips like split hair.',
   chitin: 'A hard plate creeps across your back, slow and grinding, like a tooth coming in.',
-  carapace: 'The plate swells with pressure. You can hear it creak when you breathe.',
+  carapace: 'Something lays eggs in the gap between your shell and your skin. You feel them shift when you move.',
   thornplate: 'Thorns punch up through your shell from underneath.',
   reactive: 'Something coils under the plate like a spring.',
   molt: 'Your skin goes loose and papery. It peels at the edges.',
@@ -2004,8 +2004,8 @@ const SETS = {
     name: 'HIVE', color: '#e0a830',
     tags: ['ovipositor', 'chitin', 'puppetlarva', 'polyp', 'graspingbed', 'feedingpolyps', 'silk', 'snaptrap', 'molt', 'eggsac', 'broodmother', 'spider', 'wings', 'silktendril', 'tunnelbrood', 'brood', 'leechswarm'],
     bonus: [
-      { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling.', apply(s) { s.setKillBrood = 0.35; } },
-      { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, and your brood lives twice as long.', apply(s) { s.setKillBrood = 1; s.allyLife = 2; } },
+      { name: 'Swarm', desc: 'Kills sometimes hatch a spiderling, and your brood can grow larger (up to 4).', apply(s) { s.setKillBrood = 0.35; s.broodCap = 2; } },
+      { name: 'Hive Queen', desc: 'Every kill hatches a spiderling, your brood lives twice as long, and it grows larger still (up to 6).', apply(s) { s.setKillBrood = 1; s.allyLife = 2; s.broodCap = 4; } },
     ],
     whisper: ['The others in you begin to hum together.', 'You are the hive. Every death is a birth.'],
   },

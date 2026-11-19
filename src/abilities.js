@@ -45,13 +45,44 @@ function lurePoint(p) {
 }
 
 // --- Allies -----------------------------------------------------------------------------
+// --- The brood: spiderlings and maggots ---------------------------------------------------
+// Hatched allies share a cap (BROOD_CAP, raised by the Hive set bonus); when a
+// new one hatches over it, the oldest withers away. Each kind fights its own way:
+//   SPIDERLING: twitchy hit-and-run. It darts in bursts with pauses between,
+//     pounces on prey, bites and webs it for a moment, then springs back out.
+//     Fragile (1 HP), short-lived, but untouchable mid-pounce.
+//   MAGGOT: slow and relentless. It inches along, latches onto prey and stays
+//     on, chewing it bloody, until the prey dies or shakes it off. Tough (3 HP),
+//     long-lived, and safe from the thing it's latched onto.
+// Enemies that touch a spiderling or maggot hurt it.
+const BROOD_KINDS = new Set(['spiderling', 'maggot']);
+const BROOD = {
+  spiderling: { hp: 1, life: 8 },
+  maggot:     { hp: 3, life: 18 },
+};
+const BROOD_CAP = 2;
+const broodCap = (p = game.player) => BROOD_CAP + ((p && p.stats.broodCap) || 0);
+
 function spawnAlly(kind, x, y) {
-  const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false };
+  const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false, born: game.time };
   a.life = (kind === 'spiderling' ? 8 : kind === 'maggot' ? 18 : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
+  if (BROOD[kind]) a.hp = BROOD[kind].hp;
   if (kind === 'spiderling' && game.player && game.player.stats.flyingBrood) a.flying = true; // Winged Brood
   if (kind === 'polyp') { const pp = game.player.stats.polyp; a.r = 4; a.life = pp ? pp.life : 10; }
+  if (BROOD_KINDS.has(kind)) { // over the cap: the oldest of the brood withers
+    const brood = game.allies.filter(o => BROOD_KINDS.has(o.kind) && !o.dead).sort((m, n) => m.born - n.born);
+    for (let i = 0; i <= brood.length - broodCap(); i++) killAlly(brood[i], true);
+  }
   game.allies.push(a);
   return a;
+}
+
+function killAlly(a, withered = false) {
+  if (a.dead) return;
+  const p = game.player;
+  a.dead = true; burst(a.x, a.y, withered ? '#4a3a30' : '#5a3a28', withered ? 3 : 5, 30);
+  if (a.kind === 'maggot' && p.stats.maggotBurst) { spawnPuddle(a.x, a.y, 14, 3, 'player'); Sfx.play('splat'); } // Rupturing Maggots
+  if (a.kind === 'polyp' && p.stats.polypBurst) polypPop(a);
 }
 
 function ensureTwin() {
@@ -59,35 +90,84 @@ function ensureTwin() {
   if (p.stats.twin && !p.twinDead && !game.allies.some(a => a.kind === 'twin')) spawnAlly('twin', p.x - 10, p.y);
 }
 
+const allyDmg = () => game.player.stats.allyDmg || 1;
+function allyBite(a, e, dmg) {
+  damageEnemy(e, dmg * allyDmg(), e.x - a.x, e.y - a.y, true);
+  if (a.kind === 'spiderling' && game.player.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player'); // Venom Brood
+  bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
+}
+
+function updateSpiderling(a, dt, p) {
+  const e = nearestEnemy(a.x, a.y, 200), fly = a.flying ? 1.4 : 1;
+  if (a.leapT > 0) { // mid-pounce: untouchable
+    a.leapT -= dt;
+    moveEntity(game.room, a, a.vx * dt, a.vy * dt);
+    const t = a.prey;
+    if (t && !t.dead && Math.hypot(t.x - a.x, t.y - a.y) < t.r + a.r + 1) {
+      allyBite(a, t, 0.9);
+      if (!t.dead) inflict(t, 'web', { t: 0.6 }); // pinned for a moment
+      a.leapT = 0; a.backT = 0.3; a.biteT = 1.1; // spring back out
+      const d = Math.hypot(a.x - t.x, a.y - t.y) || 1; a.vx = (a.x - t.x) / d * 120; a.vy = (a.y - t.y) / d * 120;
+    }
+    return;
+  }
+  if (a.backT > 0) { a.backT -= dt; moveEntity(game.room, a, a.vx * dt, a.vy * dt); return; }
+  if (e && a.biteT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + 24) { // pounce
+    const d = Math.hypot(e.x - a.x, e.y - a.y) || 1;
+    a.prey = e; a.leapT = 0.16; a.inv = 0.25; a.vx = (e.x - a.x) / d * 230 * fly; a.vy = (e.y - a.y) / d * 230 * fly;
+    return;
+  }
+  // Dart, pause, dart: short bursts toward prey (or around you), a little off-line.
+  if ((a.dartT = (a.dartT || 0) - dt) <= -rand(0.15, 0.35)) {
+    const tx = e ? e.x : p.x + Math.cos(a.t) * 14, ty = e ? e.y : p.y + Math.sin(a.t) * 10;
+    const d = Math.hypot(tx - a.x, ty - a.y) || 1, side = rand(-0.6, 0.6);
+    a.dx = (tx - a.x) / d - (ty - a.y) / d * side; a.dy = (ty - a.y) / d + (tx - a.x) / d * side;
+    a.dartT = e ? 0.12 : 0.08;
+  }
+  if (a.dartT > 0) moveEntity(game.room, a, a.dx * 150 * fly * dt, a.dy * 150 * fly * dt);
+}
+
+function updateMaggot(a, dt, p) {
+  const host = a.latch;
+  if (host && !host.dead) { // latched on: ride it, chewing
+    a.x = host.x + a.ox; a.y = host.y + a.oy;
+    if (a.biteT <= 0) { a.biteT = 0.45; allyBite(a, host, 0.5); if (!host.dead) inflict(host, 'bleed', { t: 1.2, dps: 1 * allyDmg() }); }
+    if (Math.random() < dt * 0.15) { a.latch = null; a.dazeT = 0.8; const d = Math.hypot(a.ox, a.oy) || 1; moveEntity(game.room, a, a.ox / d * 6, a.oy / d * 6); } // shaken off
+    return;
+  }
+  a.latch = null;
+  if (a.dazeT > 0) { a.dazeT -= dt; return; }
+  const e = nearestEnemy(a.x, a.y, 200);
+  const tx = e ? e.x : p.x + Math.cos(a.t * 0.7) * 12, ty = e ? e.y : p.y + Math.sin(a.t * 0.7) * 8;
+  const d = Math.hypot(tx - a.x, ty - a.y);
+  if (e && d < e.r + a.r + 1) { a.latch = e; const k = Math.atan2(a.y - e.y, a.x - e.x); a.ox = Math.cos(k) * e.r * 0.8; a.oy = Math.sin(k) * e.r * 0.8; a.biteT = 0; return; }
+  // Inching: stretch, then bunch up.
+  const inch = Math.max(0, Math.sin(a.t * 6)), speed = 44 * inch * (a.flying ? 1.4 : 1);
+  if (d > 2) moveEntity(game.room, a, (tx - a.x) / d * speed * dt, (ty - a.y) / d * speed * dt);
+}
+
 function updateAllies(dt) {
   const p = game.player;
   for (const a of game.allies) {
     a.t += dt; a.life -= dt; a.biteT -= dt; a.inv -= dt;
-    if (a.life <= 0) {
-      a.dead = true; burst(a.x, a.y, '#5a3a28', 4, 30);
-      if (a.kind === 'maggot' && p.stats.maggotBurst) { spawnPuddle(a.x, a.y, 14, 3, 'player'); Sfx.play('splat'); }
-      if (a.kind === 'polyp' && p.stats.polypBurst) polypPop(a);
-      continue;
-    }
+    if (a.life <= 0) { killAlly(a, true); continue; }
     if (a.kind === 'polyp') { updatePolyp(a, dt); continue; } // rooted in place
-    let tx, ty, speed;
-    if (a.kind === 'twin') {
-      // Hover just behind you, mirroring your aim.
-      tx = p.x - p.aimX * 12 + p.aimY * 8; ty = p.y - p.aimY * 12 - p.aimX * 8; speed = 120;
-    } else {
-      const e = nearestEnemy(a.x, a.y, 200);
-      if (e) {
-        tx = e.x; ty = e.y; speed = (a.kind === 'spiderling' ? 95 : 42) * (a.flying ? 1.5 : 1);
-        if (Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1 && a.biteT <= 0) {
-          a.biteT = 0.5;
-          damageEnemy(e, (a.kind === 'maggot' ? 1 : 0.8) * (p.stats.allyDmg || 1), e.x - a.x, e.y - a.y, true);
-          if (a.kind === 'spiderling' && p.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player');
-          bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
-        }
-      } else { tx = p.x + Math.cos(a.t) * 14; ty = p.y + Math.sin(a.t) * 10; speed = 50; }
-    }
+    if (a.kind === 'spiderling') { updateSpiderling(a, dt, p); continue; }
+    if (a.kind === 'maggot') { updateMaggot(a, dt, p); continue; }
+    // Your twin hovers just behind you, mirroring your aim.
+    const tx = p.x - p.aimX * 12 + p.aimY * 8, ty = p.y - p.aimY * 12 - p.aimX * 8;
     const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
-    if (d > 2) moveEntity(game.room, a, (dx / d) * speed * dt, (dy / d) * speed * dt);
+    if (d > 2) moveEntity(game.room, a, (dx / d) * 120 * dt, (dy / d) * 120 * dt);
+  }
+  // Enemies that touch the brood hurt it (not mid-pounce, and never a maggot's own host).
+  for (const a of game.allies) {
+    if (a.dead || !BROOD_KINDS.has(a.kind) || a.inv > 0 || a.leapT > 0) continue;
+    for (const e of game.enemies) {
+      if (e.dead || e.spawnT > 0 || e === a.latch || Math.hypot(e.x - a.x, e.y - a.y) >= e.r + a.r) continue;
+      a.hp -= 1; a.inv = 0.6; burst(a.x, a.y, '#7a3a2a', 3, 40);
+      if (a.hp <= 0) killAlly(a);
+      break;
+    }
   }
   // Your twin can be hurt by enemies (contact) just like you.
   const twin = game.allies.find(a => a.kind === 'twin' && !a.dead);
