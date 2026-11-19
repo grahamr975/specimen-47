@@ -320,7 +320,7 @@ const MUTATIONS = {
   tentacles: {
     name: 'Tendrils', slot: 'MOUTH', rarity: 'uncommon', overlay: ['tentacles'],
     desc: 'Melee. Fire lashes enemies in front of you at mid range: 1 / 2 / 3 targets.',
-    short: 'Melee. Lash 1 / 2 / 3 enemies at mid range.',
+    short: 'Melee. Lash the enemies in front of you.',
     apply(s, l) { s.lash = true; s.lashDmg += 1.5 + 0.8 * l; s.lashTargets = Math.max(s.lashTargets, l); s.lashDelay = Math.min(s.lashDelay, 0.6 - 0.05 * l); },
   },
   caustic: {
@@ -331,7 +331,7 @@ const MUTATIONS = {
   writhing: {
     name: 'Writhing Mass', from: 'caustic', rarity: 'rare', icon: ['tentacles', 'grapple'],
     desc: 'Many more tendrils: +2 targets and longer reach. The mass makes you bigger, stronger, and easier to hit.',
-    short: '+2 targets, longer reach. You grow bigger.',
+    short: 'More targets, longer reach. You grow bigger.',
     apply(s) { s.lashTargets += 2; s.lashRange += 15; s.bulk += 1; },
   },
   strangle: {
@@ -466,7 +466,7 @@ const MUTATIONS = {
   corrode: {
     name: 'Corrode', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'bile'],
     desc: 'Your gas corrodes too, and everything Corroded takes +50% damage (instead of +25%) and burns twice as fast.',
-    short: 'Gas corrodes. Corroded takes +50%, burns more.',
+    short: 'Your gas corrodes too, and harder.',
     apply(s) { s.gasCorrode = true; s.corrodeMul = 0.5; s.corrodeDps = CORRODE_DPS * 2; },
   },
   choke: {
@@ -666,13 +666,13 @@ const MUTATIONS = {
   abyssal: {
     name: 'Abyssal Eye', from: 'eyes', rarity: 'legendary', overlay: ['thirdeye'],
     desc: 'It sees through flesh. Shots pierce 2 enemies and seek. +30% damage.',
-    short: 'Shots pierce 2 and seek. +30% damage.',
+    short: 'Shots pierce and seek. Much more damage.',
     apply(s) { s.pierce += 2; s.homing += 3; s.damageMul *= 1.3; },
   },
   evileye: {
     name: 'Evil Eye', from: 'abyssal', rarity: 'rare', icon: ['abyssal', 'nighteyes'],
     desc: 'Whatever you stare at takes 40% more damage from your shots.',
-    short: 'What you stare at takes 40% more damage.',
+    short: 'What you stare at takes more damage.',
     apply(s) { s.gaze = 0.4; },
   },
   fractured: {
@@ -723,6 +723,7 @@ const MUTATIONS = {
   nighteyes: {
     name: 'Night Eyes', slot: 'HEAD', rarity: 'uncommon', malignant: true, overlay: ['compound'],
     desc: '+50% damage (more as it grows) to enemies outside your light. When something closes in, your light snuffs out and the whole room goes dark.',
+    short: 'Far more damage to prey outside your light.',
     cost: 'Your light shrinks to a small circle.',
     costShort: 'The light begins to fail you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l) { s.nightEyes += 0.3 + 0.2 * l; s.headActive = { kind: 'blackout', l }; s.lightMul *= 0.6; },
@@ -768,6 +769,7 @@ const MUTATIONS = {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
     name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, overlay: ['parasite'],
     desc: '+60% damage with everything. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it.',
+    short: 'Something else makes you much stronger.',
     cost: 'Sometimes it takes control of your body.',
     costShort: 'It will want your body.', // the card's line (vague); hovering shows the exact cost
     apply(s, l) { s.damageMul *= 1.6; s.parasite = true; s.headActive = { kind: 'mindspike', l }; },
@@ -786,12 +788,13 @@ const MUTATIONS = {
   overmind: {
     name: 'Overmind', from: 'symbiote', rarity: 'rare', overlay: ['echo'], icon: ['parasite', 'skull'],
     desc: 'It screams through you when you dash, stunning everything near. +20% damage.',
-    short: 'Dashing screams, stunning all near. +20% damage.',
+    short: 'Dashing screams, stunning all near. You hit harder.',
     apply(s) { s.echo = Math.max(s.echo, 1.2); s.damageMul *= 1.2; },
   },
   rider: {
     name: 'Rider', from: 'parasite', rarity: 'rare', malignant: true, icon: ['parasite', 'twitch'],
     desc: '+30% more damage. While it drives, nothing can hurt you.',
+    short: 'Let it drive. You hit harder.',
     cost: 'It takes control far more often.',
     costShort: 'It wants the reins.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.damageMul *= 1.3; s.parasiteInv = true; s.parasiteOften = true; },
@@ -805,6 +808,7 @@ const MUTATIONS = {
   cerebral: {
     name: 'Cerebral Bloat', from: 'rider', rarity: 'rare', malignant: true, icon: ['parasite', 'overgrown'],
     desc: '+40% more damage.',
+    short: 'Your skull swells. You hit much harder.',
     cost: '-1 max health.',
     costShort: 'Something must make room.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.damageMul *= 1.4; s.maxHp -= 1; },
@@ -896,6 +900,7 @@ const MUTATIONS = {
   carapace: {
     name: 'Carapace', from: 'chitin', rarity: 'rare', overlay: ['spines'], icon: ['spines', 'chitin'],
     desc: 'When your shell breaks, it explodes into 16 shards.',
+    short: 'When your shell breaks, it explodes into shards.',
     apply(s) { s.shieldRing = 16; },
   },
   thornplate: {
@@ -1225,6 +1230,7 @@ const MUTATIONS = {
   hide: {
     name: 'Thick Hide', slot: 'CORE', rarity: 'common',
     desc: '+1 max health per growth, and heal 1.',
+    short: 'Thicker skin: more health as it grows.',
     apply(s, l) { s.maxHp += l; },
     onGain(p) { p.hp += 1; },
   },
@@ -1296,7 +1302,7 @@ const MUTATIONS = {
   titanheart: {
     name: 'Titan Heart', from: 'overgrown', rarity: 'legendary', cures: true, icon: ['overgrown', 'hide'],
     desc: 'CURED. Keep double damage, and +25% max health instead of half.',
-    short: 'CURED. Double damage, and +25% max health.',
+    short: 'CURED. Double damage, and more health.',
     apply(s) { s.hpMul *= 2.5; },
   },
   hollow: {
@@ -1370,13 +1376,13 @@ const MUTATIONS = {
   feedfrenzy: {
     name: 'Feeding Frenzy', from: 'apexpredator', rarity: 'rare', icon: ['starving', 'feral'],
     desc: 'Bursting a corpse sends you into a frenzy: +40% damage for a few seconds.',
-    short: 'Bursting a corpse: +40% damage for a while.',
+    short: 'Bursting a corpse sends you into a frenzy.',
     apply(s) { s.feedFrenzy = 0.4; },
   },
   cancer: {
     name: 'Cancerous Growth', from: 'starving', rarity: 'rare', malignant: true, overlay: ['tumor'],
     desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
-    short: '+10% damage per room. The tumor makes you bigger.',
+    short: 'Stronger with every room. The tumor makes you bigger.',
     cost: 'Every 3rd room cleared, it takes 1 max health.',
     costShort: 'It feeds on you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) {
@@ -1395,6 +1401,7 @@ const MUTATIONS = {
   metastasis: {
     name: 'Metastasis', from: 'cancer', rarity: 'rare', malignant: true, icon: ['cancer', 'mitosis'],
     desc: 'The growth spreads faster: +20% damage per room instead.',
+    short: 'The growth spreads faster: more damage per room.',
     cost: 'It still takes 1 max health every 3rd room.',
     costShort: 'It still feeds on you.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); },
@@ -1438,7 +1445,7 @@ const MUTATIONS = {
   feedingglass: {
     name: 'Feeding Glass', from: 'mirrorplates', rarity: 'rare', icon: ['eyes', 'hemophage'],
     desc: 'Every 6th shot your plates throw back heals you, and thrown-back shots hit twice as hard again.',
-    short: 'Every 6th thrown-back shot heals you.',
+    short: 'Thrown-back shots sometimes heal you.',
     apply(s) { s.plateMirror.heal = 6; s.plateMirror.mul *= 2; },
   },
 

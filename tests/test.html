@@ -953,6 +953,8 @@ try {
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
     { const cut = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part).filter(id => { const t = cardText(MUTATIONS[id]); const ls = fitText(t, CARD.w - 10, 3); return ls.join(' ').replace(/s+/g, ' ') !== t.toUpperCase().replace(/s+/g, ' '); });
       check(`every card's short text fits in 3 lines (${cut.length} cut: ${cut.join(',')})`, !cut.length); }
+    { const nums = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].part && /[0-9%]/.test(cardText(MUTATIONS[id]) + (MUTATIONS[id].costShort || '')));
+      check(`no card line shows numbers or percents (${nums.join(',') || 'none'})`, !nums.length); }
     { const bad = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].cost && (!MUTATIONS[id].costShort || fitText(MUTATIONS[id].costShort, CARD.w - 10, 2).join(' ') !== MUTATIONS[id].costShort.toUpperCase()));
       check(`every malignant cost has a vague card line that fits (${bad.join(',') || 'all'})`, !bad.length); }
     check(`short names aren't mangled (${fitText('Leech Spitter', 43, 2).join('/')} | ${fitText('Bioluminescent', 27, 2).join('/')} | ${fitText('Battering Skull', 27, 2).join('/')})`, fitText('Leech Spitter', 43, 2).join('/') === 'LEECH/SPITTER' && fitText('Bioluminescent', 27, 2).length === 1 && fitText('Battering Skull', 27, 2).join('/') === 'BATTER./SKULL');
