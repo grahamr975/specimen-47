@@ -724,7 +724,7 @@ function lobAt(p, g, scatter, mul = 1) {
 // in reach and in sight, and when it loses its prey (or kills it) it has to
 // pull back in before it can go for another. It never reaches through walls
 // or crates.
-const BEAM_SPEED = 220, BEAM_SWITCH = 0.6, BEAM_CONE = 0.55, BEAM_GRACE = 8;
+const BEAM_SPEED = 110, BEAM_SWITCH = 1.0, BEAM_CONE = 0.55, BEAM_GRACE = 8;
 function clearShot(x1, y1, x2, y2) {
   const d = Math.hypot(x2 - x1, y2 - y1), n = Math.ceil(d / 3);
   for (let i = 1; i < n; i++) if (pointSolid(game.room, x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n)) return false;
@@ -735,9 +735,18 @@ function drainBeam(p) {
   const L = p.latch || (p.latch = { target: null, tip: 0, cd: 0, at: game.time });
   const dt = Math.min(0.2, game.time - L.at); L.at = game.time;
   if (dt >= 0.2) { L.target = null; L.tip = 0; } // you stopped draining: the tube is back in
-  if (L.cd > 0) { L.cd -= dt; return; }           // still pulling back in
+  if (L.cd > 0) { // still pulling back in: the tube shrinks back into your mouth
+    L.cd -= dt;
+    const k = Math.max(0, L.cd / BEAM_SWITCH) * (L.len || 0);
+    if (k > 2) game.fx.push({ kind: 'beam', x1: ox, y1: oy, x2: ox + (L.dx || 0) * k, y2: oy + (L.dy || 0) * k, t: 0.1 });
+    return;
+  }
   const holds = e => e && !e.dead && Math.hypot(e.x - ox, e.y - oy) <= range + BEAM_GRACE && clearShot(ox, oy, e.x, e.y);
-  if (L.target && !holds(L.target)) { L.target = null; L.tip = 0; L.cd = BEAM_SWITCH; return; } // lost it (or drained it dry)
+  if (L.target && !holds(L.target)) { // lost it (or drained it dry): pull back before going for another
+    const t = L.target, d = Math.hypot(t.x - ox, t.y - oy) || 1;
+    L.dx = (t.x - ox) / d; L.dy = (t.y - oy) / d; L.len = Math.min(L.tip, d);
+    L.target = null; L.tip = 0; L.cd = BEAM_SWITCH; return;
+  }
   if (!L.target) {
     let best = range;
     for (const e of game.enemies) {
