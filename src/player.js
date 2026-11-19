@@ -592,7 +592,7 @@ function fireWeapons(p, only) {
   let fired = false, mul = 1;
   const boost = () => { if (!fired) mul = takeAmbush(p); fired = true; };
   s.guns.forEach((g, i) => { if (ready('gun' + i, g.delay)) { boost(); fireGun(p, g, mul); } });
-  if (s.lunge && ready('lunge', s.lungeDelay)) { boost(); p.dmgBoost = mul; p.lungeT = 0.1; p.lungeX = p.aimX; p.lungeY = p.aimY; }
+  if (s.lunge && ready('lunge', s.lungeDelay)) { boost(); p.dmgBoost = mul; startLunge(p); }
   if (s.lash && ready('lash', s.lashDelay)) { boost(); p.dmgBoost = mul; lash(p); }
   if (s.bite && ready('bite', s.biteDelay)) { boost(); p.dmgBoost = mul; bite(p, s.biteDmg); }
   if (!s.lunge) p.dmgBoost = 1;
@@ -617,7 +617,7 @@ function twinCopy(p) {
 function releaseCharge(p, frac) {
   const s = p.stats;
   p.dmgBoost = (1 + 1.5 * frac) * takeAmbush(p);
-  if (s.lunge) { p.lungeT = 0.1; p.lungeX = p.aimX; p.lungeY = p.aimY; } // dmgBoost is read when the lunge lands
+  if (s.lunge) startLunge(p); // dmgBoost is read when the lunge lands
   if (s.lash) lash(p);
   if (s.bite) bite(p, s.biteDmg);
   const mul = p.dmgBoost / (1 + 1.5 * frac);
@@ -1002,6 +1002,17 @@ function lashHit(p, e) {
     }
     if (s.lashAcid) spawnPuddle(e.x, e.y, s.lashAcid, 2, 'player');
   }
+}
+
+// Feral Lunge: a short leap the way YOU choose (where you're moving, or where
+// you aim if you're standing still; never pulled toward prey), untouchable
+// for the leap and a moment after. It savages what's ahead when it lands.
+const LUNGE_TIME = 0.1;
+function startLunge(p) {
+  const m = Math.hypot(p.inX || 0, p.inY || 0);
+  p.lungeT = LUNGE_TIME;
+  if (m > 0.1) { p.lungeX = p.inX / m; p.lungeY = p.inY / m; } else { p.lungeX = p.aimX; p.lungeY = p.aimY; }
+  p.inv = Math.max(p.inv, LUNGE_TIME + 0.12);
 }
 
 // Feral Lunge: savage everything in a cone in front of you at the end of a leap.

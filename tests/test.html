@@ -561,16 +561,16 @@ try {
     for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
     check(`walking into a corpse devours it, biomass and all (${d0} -> ${q.dna})`, !game.room.corpses.length && q.dna >= d0 + 3);
   }
-  { // 0v) The rare finds (once "you are what you eat" traits): only from a vial's wild card, never elites' corpses.
-    check('every rare find is a real part', Object.keys(MUTATIONS).filter(id => MUTATIONS[id].graft).length === 5);
+  { // 0v) The one-evolution parts (once 'you are what you eat' traits) are in the normal pool, with set tags.
+    { const ids = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].graft); check(`all five are in the pool, each with a set (${ids.map(id => id + ':' + setOf(id)).join(',')})`, ids.length === 5 && ids.every(id => rootsOf(locOf(id)).includes(id) && setOf(id))); }
     { let seen = 0; for (let i = 0; i < 200; i++) { newRun(); const q = game.player; q.capacity = 5; for (let k = 0; k < 6; k++) { const c = rollChoices(q, 3)[0]; if (c.id !== '_gorge') applyChoice(q, c); } if (rollChoices(q, 3).some(c => MUTATIONS[c.id] && MUTATIONS[c.id].graft)) seen++; }
-      check(`rare finds never come from normal cards (${seen}/200)`, seen === 0); }
+      check(`...and they turn up in normal offers (${seen}/200 runs)`, seen > 0); }
     newRun(); combatRoom(); let q = game.player; game.enemies = []; game.room.orbs = []; game.pendingEvolutions = []; q.x = 120; q.y = 96; grow(q, 'spike');
     const e = spawnEnemy('spitter', q.x + 40, q.y, true); e.spawnT = 0; e.affixes = []; damageEnemy(e, 9999, 0, 0, true);
     const c = game.room.corpses[0];
     if (c) for (let i = 0; i < 8; i++) { q.x = c.x; q.y = c.y; update(1 / 60); Input.endFrame(); }
     check('devouring an elite offers no trait menu any more', !game.pendingEvolutions.some(o => o.trait) && (!c || !c.trait) && typeof traitCards === 'undefined');
-    check(`a rare find's card says so (${choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status})`, choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status === 'RARE FIND');
+    check(`a one-evolution part reads as a normal new part (${choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status})`, choiceInfo(q, { id: 'toadgullet', kind: 'root' }).status === 'NEW PART');
     // The parts work.
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; return z; };
     q = arena(); grow(q, 'urchinquills'); game.room.locked = true; calm(); dummy(80); for (let i = 0; i < 200; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
@@ -803,6 +803,10 @@ try {
       check(`...and can't hurt you while it reels (hp ${h} -> ${q.hp})`, q.hp === h); }
     const far2 = dummy(90, 99); far2.speed = 0; far2.y = q.y; const x1 = q.x; game.enemies = [far2]; bite(q, q.stats.biteDmg);
     check('prey too far away: no lunge', q.x === x1 && far2.hp === 99);
+    { // Feral Lunge leaps where you move (not toward prey), untouchable while it does.
+      newRun(); combatRoom(); const z = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 160; z.y = 96; grow(z, 'feral');
+      const prey = dummy(40, 99); prey.speed = 0; z.aimX = 1; z.aimY = 0; z.inX = -1; z.inY = 0; z.inv = 0; startLunge(z);
+      check(`feral lunge leaps the way you move, away from the prey you aim at (lunge ${z.lungeX}), with i-frames (${z.inv.toFixed(2)}s)`, z.lungeX === -1 && z.inv >= z.lungeT); }
   }
   { // Huntsman: the pounce only bends toward prey roughly where you leap, and never onto a boss.
     const setup = () => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 160; q.y = 96; grow(q, 'huntsman'); q.dashCd = 0; return q; };
