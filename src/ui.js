@@ -134,25 +134,41 @@ function drawCard(ctx, info, i, x, y, menu) {
   } else {
     drawText(ctx, RARITY[info.rarity].label, cx, y + 6, rc, 1, 'center');
   }
-  if (info.set) { const S = SETS[info.set]; ctx.fillStyle = S.color; ctx.fillRect(x + 5, y + 16, 3, 3); ctx.fillRect(x + w - 8, y + 16, 3, 3); }
+  // Set gems in the corners (two-window cards show the set on their tag line only).
+  if (info.set && !info.from && !info.shed) { const S = SETS[info.set]; ctx.fillStyle = S.color; ctx.fillRect(x + 5, y + 16, 3, 3); ctx.fillRect(x + w - 8, y + 16, 3, 3); }
 
   // The art, in a dark specimen window. A branch shows the part and what it
   // grows into; a swap shows the part you lose, crossed out.
   const top = y + 15, winH = 38;
-  ctx.fillStyle = '#060405'; ctx.fillRect(Math.round(cx - 27), top, 54, winH);
-  ctx.fillStyle = info.malignant ? '#1e0e22' : '#120d0f'; ctx.fillRect(Math.round(cx - 26), top + 1, 52, winH - 2);
   const bob = Math.round(Math.sin(menu.t * 3 + i) * 1);
   const icon = mutIcon(info.id), oldId = info.from || (info.shed && info.shed.id), old = oldId && mutIcon(oldId);
+  const box = (bx, by, bw, bh, edge) => { // a specimen window
+    ctx.fillStyle = edge; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#060405'; ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2);
+    ctx.fillStyle = info.malignant ? '#1e0e22' : '#120d0f'; ctx.fillRect(bx + 2, by + 2, bw - 4, bh - 4);
+  };
   if (old && icon) {
-    ctx.drawImage(old, Math.round(cx - 26), top + 11, 16, 16);
-    if (loses) { // crossed out
-      for (let k = 0; k < 14; k++) { ctx.fillStyle = '#e02030'; ctx.fillRect(Math.round(cx - 25 + k), top + 12 + k, 2, 1); ctx.fillRect(Math.round(cx - 12 - k), top + 12 + k, 2, 1); }
+    // Two windows: what you have now (left, small) and what you get (right).
+    const lx = x + 6, ly = top + 6, ls = 26, rs = 38, rx = x + w - 6 - rs;
+    box(lx, ly, ls, ls, loses ? '#8a1820' : '#3a3034');
+    if (loses) ctx.globalAlpha = 0.55; // it's going
+    ctx.drawImage(old, lx + 5, ly + 5, 16, 16);
+    ctx.globalAlpha = 1;
+    if (loses) for (let k = 0; k < ls - 6; k++) { // crossed out
+      ctx.fillStyle = '#e02030';
+      ctx.fillRect(lx + 3 + k, ly + 3 + k, 2, 1); ctx.fillRect(lx + ls - 5 - k, ly + 3 + k, 2, 1);
     }
+    // Arrows between: red when it tears the old part out, white when it keeps it.
     ctx.fillStyle = loses ? '#e04048' : PAL.white;
-    for (let k = 0; k < 3; k++) ctx.fillRect(Math.round(cx - 9 + k), top + 19 - (2 - k), 1, 1 + (2 - k) * 2);
-    ctx.drawImage(icon, Math.round(cx - 5), top + 3 + bob, 32, 32);
-  } else if (icon) ctx.drawImage(icon, Math.round(cx - 16), top + 3 + bob, 32, 32);
-  else if (!info.id) drawGorgeArt(ctx, cx, top + winH / 2, menu.t);
+    const ax = Math.round((lx + ls + rx) / 2) - 4, ay = top + winH / 2;
+    for (const off of [0, 4]) for (let k = 0; k < 3; k++) ctx.fillRect(ax + off + k, ay - 2 + k, 1, 1), ctx.fillRect(ax + off + k, ay + 2 - k, 1, 1);
+    box(rx, top, rs, rs, rc);
+    ctx.drawImage(icon, rx + 3, top + 3 + bob, 32, 32);
+  } else {
+    box(Math.round(cx - 27), top, 54, winH, '#060405');
+    if (icon) ctx.drawImage(icon, Math.round(cx - 16), top + 3 + bob, 32, 32);
+    else if (!info.id) drawGorgeArt(ctx, cx, top + winH / 2, menu.t);
+  }
   // Growth pips (how far along its path) or level dots, under the window.
   let ty = top + winH + 2;
   if (info.tier) for (let l = 0; l < 3; l++) { ctx.fillStyle = l <= info.tier ? rc : '#2a2222'; ctx.fillRect(Math.round(cx - 7 + l * 5), ty, 4, 2); }
