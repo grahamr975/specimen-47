@@ -150,8 +150,10 @@ try {
     const metaBack = bodyOffers(p, 'BACK').filter(c => c.shed === spinesPart);
     check('a fully grown part offers a METAMORPHOSIS into a rarer root', spinesPart.path.join() === 'spines,urchinhide,venomquills' && metaBack.length > 0 && metaBack.every(c => c.kind === 'meta' && RARITY_ORDER.indexOf(MUTATIONS[c.id].rarity) > 0));
     const at = p.parts.indexOf(spinesPart);
-    applyChoice(p, metaBack.find(c => c.id === 'chitin'));
-    check('metamorphosis sheds the old path and starts over in the same slot', p.parts[at].path.join() === 'chitin' && game.banner.text === 'METAMORPHOSIS' && !hasMutation(p, 'spines'));
+    const metaCard = metaBack.find(c => c.id === 'chitin'), shown = choiceInfo(p, metaCard);
+    applyChoice(p, metaCard);
+    check(`metamorphosis sheds the old path and arrives as evolved as it was (${p.parts[at].path.join('>')})`, p.parts[at].path[0] === 'chitin' && p.parts[at].path.length === 3 && game.banner.text === 'METAMORPHOSIS' && !hasMutation(p, 'spines'));
+    check(`...and the card showed exactly that form (${shown.name}, ${shown.tier + 1} steps)`, shown.id === p.parts[at].id && shown.tier === 2);
     check(`...but keeps its growth: the new part starts a level up (lv ${p.parts[at].lvl}; the card said "${choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status}")`, p.parts[at].lvl === 1 && /LV 1/.test(choiceInfo(p, { id: 'chitin', kind: 'meta', shed: spinesPart }).status));
     { const old = { id: 'venomquills', path: ['spines', 'urchinhide', 'venomquills'], loc: 'BACK', lvl: 3 }; check(`...capped one level short of evolving (lv 3 -> ${inheritedLevel(old)})`, inheritedLevel(old) === LEVEL_MAX - 1); }
     game.depth = 1;

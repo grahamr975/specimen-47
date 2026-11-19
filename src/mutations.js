@@ -2279,6 +2279,23 @@ function partsAt(p, loc) { return p.parts.filter(m => m.loc === loc); }
 function partAt(p, loc) { return p.parts.find(m => m.loc === loc) || null; }
 function newPart(id) { return { id, path: [id], loc: locOf(id), lvl: 0 }; }
 
+// The path a replacement grows in on: as many steps down its tree as the part
+// it replaces had grown (so swapping a grown part is a sidegrade, never a
+// step back to a bare root). Where its tree forks, the branch is chosen by the
+// pair of parts, so the card shows exactly what you'll get.
+function swapPath(root, old) {
+  const path = [root];
+  let seed = 0;
+  for (const ch of root + '>' + old.id) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  while (path.length < old.path.length) {
+    const kids = childrenOf(path[path.length - 1]);
+    if (!kids.length) break;
+    path.push(kids[seed % kids.length]);
+    seed = Math.floor(seed / kids.length) + 7;
+  }
+  return path;
+}
+
 // The part that holds a node, or the part a branch would grow from.
 function partFor(p, id) {
   const d = MUTATIONS[id];
@@ -2550,34 +2567,37 @@ function choiceInfo(p, c) {
     return { name: 'Gorge', rarity: 'common', desc: 'Grow nothing. Heal a heart.', short: 'Grow nothing. Keep your body as it is.', status: 'HEAL 1 HEART', note: free > 0 ? 'KEEPS THE SLOT FREE' : null, noteColor: VIAL_COLOR, overlays: [], slot: '' };
   }
   c = resolveCard(p, c);
-  const d = MUTATIONS[c.id], loc = locOf(c.id);
+  const loc = locOf(c.id);
   const m = c.kind === 'branch' ? (c.part || partFor(p, c.id)) : c.shed;
+  // Replacing a grown part: the card shows the evolved form you'd get (swapPath).
+  const grown = (c.kind === 'swap' || c.kind === 'meta') && m && !m.starter ? swapPath(c.id, m) : [c.id];
+  const gid = grown[grown.length - 1], d = MUTATIONS[gid], rd = MUTATIONS[c.id];
   let status, note = null, noteColor = PAL.slate;
   if (c.kind === 'branch') { // a branch ADDS to the part: it keeps everything it already does
     status = null;
     note = m ? 'KEEPS ' + MUTATIONS[m.id].name : null; noteColor = PAL.white;
   } else if (c.kind === 'replace') {
-    status = d.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    status = rd.boss ? 'BOSS PICK' : 'TAKES ROOT'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
   } else if (c.kind === 'swap') {
-    status = d.graft ? 'DEVOURED TRAIT' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
+    status = rd.graft ? 'DEVOURED TRAIT' : 'BOSS PICK'; note = 'SHEDS ' + MUTATIONS[m.id].name; noteColor = COST_COLOR;
     if (!m.starter) status += ' LV ' + inheritedLevel(m);
   } else if (c.kind === 'meta') {
     status = 'METAMORPHOSIS LV ' + inheritedLevel(m);
-    if (d.requires) { note = 'FED BY ' + d.requires.label; noteColor = VIAL_COLOR; }
+    if (rd.requires) { note = 'FED BY ' + rd.requires.label; noteColor = VIAL_COLOR; }
     else note = 'SHEDS ' + MUTATIONS[m.id].name;
   } else {
-    status = d.boss ? 'BOSS PICK' : d.graft ? 'DEVOURED TRAIT' : 'NEW PART';
+    status = rd.boss ? 'BOSS PICK' : rd.graft ? 'DEVOURED TRAIT' : 'NEW PART';
     note = `TAKES A ${LOC_NAME[loc]} SLOT`;
   }
   // What the set count would be after taking it.
-  const counts = setCounts(p), set = setOf(c.id);
+  const counts = setCounts(p), set = setOf(gid);
   const was = m && !m.starter && setOf(m.id);
   if (was) counts[was]--;
   const after = set ? (counts[set] || 0) + 1 : 0;
   return {
-    id: c.id, name: d.name, rarity: d.rarity, desc: d.desc, short: cardText(d), cost: d.cost, shed: c.kind !== 'branch' && m && !m.starter ? m : null, malignant: !!d.malignant, cures: !!d.cures, set,
-    slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id),
-    tier: c.kind === 'branch' && m ? m.path.length : 0, overlays: mutOverlays(c.id), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
+    id: gid, name: d.name, rarity: d.rarity, desc: grown.length > 1 ? grown.map(id => MUTATIONS[id].name + ': ' + cardText(MUTATIONS[id])).join(' ') : d.desc, short: cardText(d), cost: d.cost, shed: c.kind !== 'branch' && m && !m.starter ? m : null, malignant: !!d.malignant, cures: !!d.cures, set,
+    slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id), grown,
+    tier: c.kind === 'branch' && m ? m.path.length : grown.length - 1, overlays: mutOverlays(gid), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
   };
 }
 
@@ -2657,7 +2677,7 @@ function applyChoice(p, c) {
   }
   c = resolveCard(p, c);
   p.evolutions++;
-  const d = MUTATIONS[c.id];
+  let d = MUTATIONS[c.id], gid = c.id; // gid: the node you end up with
   if (c.kind === 'branch') {
     const m = c.part || partFor(p, c.id);
     m.path.push(c.id);
@@ -2665,7 +2685,14 @@ function applyChoice(p, c) {
     m.lvl = 0; // evolving starts its levels over
   } else {
     const old = c.shed, part = newPart(c.id), at = old ? p.parts.indexOf(old) : -1;
-    if (old && !old.starter) part.lvl = inheritedLevel(old); // a replacement keeps the old part's growth, +1
+    if (old && !old.starter) {
+      // A replacement is never a step back: it arrives as evolved as the part
+      // it replaces (see swapPath), and a level up (see inheritedLevel).
+      part.path = swapPath(c.id, old); part.id = gid = part.path[part.path.length - 1];
+      part.lvl = inheritedLevel(old);
+      for (const id of part.path.slice(0, -1)) if (MUTATIONS[id].onGain) MUTATIONS[id].onGain(p);
+      d = MUTATIONS[gid];
+    }
     if (old) bloodSpray(p.x, p.y, 0, 0, 14, FLUID.blood, 90); // the old part tears out
     if (old && !old.starter) { // Metamorphosis: the grown path sloughs off; something rarer takes root
       game.banner = { text: c.kind === 'swap' ? 'BOSS PICK' : 'METAMORPHOSIS', sub: MUTATIONS[old.id].name + ' > ' + d.name, color: RARITY[d.rarity].color, t: 2.6 };
@@ -2674,12 +2701,12 @@ function applyChoice(p, c) {
     }
     if (at >= 0) p.parts.splice(at, 1, part); else p.parts.push(part);
   }
-  whisper(HINTS[c.id], d.name, d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color); // what it feels like as it grows in
-  p.lastSet = setOf(c.id);
+  whisper(HINTS[gid], d.name, d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color); // what it feels like as it grows in
+  p.lastSet = setOf(gid);
   if (d.onGain) d.onGain(p);
   const col = d.malignant ? MALIGNANT_COLOR : RARITY[d.rarity].color;
   floatText(p.x, p.y - 14, d.name.toUpperCase(), col);
-  if (d.from && !childrenOf(c.id).length) {
+  if (c.kind === 'branch' && d.from && !childrenOf(gid).length) {
     // A path reaches its end form.
     game.banner = { text: 'FULLY GROWN', sub: d.name + ' - YOU GROW STRONGER', color: col, t: 2.2 };
     burst(p.x, p.y, col, 24, 110, 0.7);
