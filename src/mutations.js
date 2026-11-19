@@ -79,7 +79,7 @@ function baseStats() {
     guns: [],     // projectile weapons (see gun() below)
     rangeAdd: 0, speedAdd: 0, // extra shot range / speed (Extra Eyes, Bone Lance)
     bite: false, biteDmg: 0, biteDelay: 9, biteReach: 18, biteAcid: 0, biteHeal: 0, doubleBite: false, leech: 0,
-    lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, mawTendrils: 0,
+    lash: false, lashDmg: 0, lashDelay: 9, lashRange: 52, lashTargets: 1, lashAcid: 0, mawTendrils: 0, bulk: 0,
     lunge: false, lungeDmg: 0, lungeDelay: 9,
     beam: 0, beamRange: 70, vomit: 0, vomitDmg: 0, vomitDelay: 9,
     // Firing style: WHAT you fire comes from MOUTH; HOW can be changed by a
@@ -328,8 +328,9 @@ const MUTATIONS = {
   },
   writhing: {
     name: 'Writhing Mass', from: 'caustic', rarity: 'rare', icon: ['tentacles', 'grapple'],
-    desc: 'Many more tendrils: +2 targets and longer reach.',
-    apply(s) { s.lashTargets += 2; s.lashRange += 15; },
+    desc: 'Many more tendrils: +2 targets and longer reach. The mass makes you bigger, stronger, and easier to hit.',
+    short: '+2 targets, longer reach. You grow bigger.',
+    apply(s) { s.lashTargets += 2; s.lashRange += 15; s.bulk += 1; },
   },
   strangle: {
     name: 'Strangle', from: 'caustic', rarity: 'rare', icon: ['tentacles', 'echo'],
@@ -1276,9 +1277,10 @@ const MUTATIONS = {
   },
   overgrown: {
     name: 'Overgrown Heart', from: 'marrow', rarity: 'uncommon', malignant: true, overlay: ['bigheart'],
-    desc: 'Double damage from every source.',
+    desc: 'Double damage from every source. Your heart swells, and you swell with it: bigger, stronger, easier to hit.',
+    short: 'Double damage, both ways. You swell bigger.',
     cost: 'Max health halved.',
-    apply(s) { s.damageMul *= 2; s.hpMul *= 0.5; },
+    apply(s) { s.damageMul *= 2; s.hpMul *= 0.5; s.bulk += 1; },
   },
   titanheart: {
     name: 'Titan Heart', from: 'overgrown', rarity: 'legendary', cures: true, icon: ['overgrown', 'hide'],
@@ -1359,12 +1361,14 @@ const MUTATIONS = {
   },
   cancer: {
     name: 'Cancerous Growth', from: 'starving', rarity: 'rare', malignant: true, overlay: ['tumor'],
-    desc: '+10% damage for every room you clear, forever.',
+    desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
+    short: '+10% damage per room. The tumor makes you bigger.',
     cost: 'Every 3rd room cleared, it takes 1 max health.',
     apply(s, l, p) {
       const rooms = (p && p.cancerRooms) || 0;
       s.damageMul *= 1 + (s.cancerRate || 0.1) * rooms;
       s.maxHp -= Math.floor(rooms / 3);
+      s.bulk += Math.min(2, Math.floor(rooms / 6)); // the tumor swells as it grows
     },
   },
   benignmass: {

@@ -86,9 +86,22 @@ function recomputeStats(p) {
   if (!(s.shieldCd > 0)) p.shieldUp = false; // no shell part, no shell
   // Max health bonuses count in whole hearts; heals and hits count in half hearts.
   p.maxHp = Math.max(1, Math.floor((BASE_HP + s.maxHp + (p.coreBonus || 0)) * s.hpMul)) * HP_PER_HEART;
+  // You grow as your body fills out, and swell in the final form. Bulk (some
+  // Abomination parts) makes you bigger still: more power, and more to hit.
+  s.damageMul *= 1 + BULK_DAMAGE * s.bulk;
+  p.size = bodySize(p, s);
+  p.r = Math.min(PLAYER_R_MAX, 3.5 + 2.5 * p.size + BULK_R * s.bulk);
+  if (p.sizeShown === undefined) p.sizeShown = p.size;
   if (!s.flyover && game.room && circleHitsWall(game.room, p.x, p.y, p.r, false)) {
-    const spot = randomFloorSpot(game.room, null, 0);
-    p.x = spot.x; p.y = spot.y; // lost your wings over a crate: drop to the floor nearby
+    // Grown into a wall: squeeze out to the nearest open spot. (Or lost your
+    // wings over a crate: drop to the floor nearby.)
+    let free = null;
+    for (let d = 1; d <= 12 && !free; d++) for (let a = 0; a < 8 && !free; a++) {
+      const x = p.x + Math.cos(a * Math.PI / 4) * d, y = p.y + Math.sin(a * Math.PI / 4) * d;
+      if (!circleHitsWall(game.room, x, y, p.r, false)) free = { x, y };
+    }
+    const spot = free || randomFloorSpot(game.room, null, 0);
+    p.x = spot.x; p.y = spot.y;
   }
   p.hp = Math.min(p.hp, p.maxHp);
 
@@ -160,6 +173,66 @@ function bodyFrames(p) {
 
 // Evolutions needed to reach each stage. Owning anything malignant adds a stage.
 const STAGE_AT = [0, 2, 4, 7, 11];
+
+// --- Body size ------------------------------------------------------------------------
+// A fresh specimen is small (SIZE_MIN); each part it grows fills it out, up to
+// SIZE_FULL with every slot taken. The Ultimate Metamorphosis swells it to
+// SIZE_APEX. Bulk (some Abomination parts) doesn't scale you: it grows
+// lopsided masses on the body (drawBulk), +BULK_DAMAGE damage and +BULK_R hitbox each.
+// Size is drawn (the whole body scales around its feet) and felt: the hitbox
+// grows with it, a little.
+const SIZE_MIN = 0.6, SIZE_FULL = 1.25, SIZE_APEX = 1.5, BULK_R = 0.6, BULK_DAMAGE = 0.1, PLAYER_R_MAX = 7.5;
+function bodySize(p, s = p.stats) {
+  const grown = Math.min(MAX_SLOTS, p.parts.filter(m => !m.starter).length);
+  const base = p.apex ? SIZE_APEX : SIZE_MIN + (SIZE_FULL - SIZE_MIN) * grown / MAX_SLOTS;
+  return base;
+}
+
+// How much to blow up the painted body (each stage is painted at STAGE_SCALE)
+// to reach your real size.
+function bodyDrawScale(p) {
+  const k = (p.sizeShown || STAGE_SCALE[p.stage]) / STAGE_SCALE[p.stage];
+  return Math.abs(k - 1) < 0.03 ? 1 : k;
+}
+
+// The body buffer: body and limbs are drawn here at painted size, then
+// stretched onto the screen around the feet (nearest-neighbour, so it stays pixel art).
+const BODY_BUF = 128, BODY_ANCHOR = [64, 88];
+let bodyBuf = null;
+function beginBodyBuffer(ax, ay) {
+  if (!bodyBuf) { bodyBuf = document.createElement('canvas'); bodyBuf.width = bodyBuf.height = BODY_BUF; }
+  const g = bodyBuf.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, BODY_BUF, BODY_BUF);
+  g.translate(BODY_ANCHOR[0] - Math.round(ax), BODY_ANCHOR[1] - Math.round(ay));
+  return g;
+}
+function endBodyBuffer(ctx, ax, ay, k) {
+  const w = Math.round(BODY_BUF * k), smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bodyBuf, Math.round(ax) - Math.round(BODY_ANCHOR[0] * k), Math.round(ay) - Math.round(BODY_ANCHOR[1] * k), w, w);
+  ctx.imageSmoothingEnabled = smooth;
+}
+
+// Bulk: lopsided tumorous masses swelling out of the body, three per point of
+// bulk, each pulsing with your heartbeat. Spots are in painted-body space (24x24).
+const BULK_SPOTS = [[9, 12.5, 3.4], [4, 15.5, 3], [13.5, 11.5, 2.8], [6, 20.5, 2.6], [15, 20, 2.4], [10.5, 9, 2.4], [1.5, 18.5, 2.4], [18, 10, 2.2], [8.5, 22, 2.2]];
+function drawBulk(ctx, p, x, y, left) {
+  const n = Math.min(BULK_SPOTS.length, Math.round(p.stats.bulk * 3));
+  const beat = Math.pow(Math.max(0, Math.sin(p.t * 5.5)), 6); // a hard thump, then rest
+  for (let i = 0; i < n; i++) {
+    const [sx, sy, r0] = BULK_SPOTS[i];
+    const [px, py] = specimenPoint(p.stage, left ? 24 - sx : sx, sy);
+    const cx = x - 12 + px, cy = y - 12 + py, sc = STAGE_SCALE[p.stage];
+    const r = r0 * sc * 1.25 + beat * (i % 3 === 0 ? 0.9 : 0.4);
+    pxCircle(ctx, cx, cy, r + 1, '#1a0608');                  // outline
+    pxCircle(ctx, cx, cy, r, '#8a2234');                      // the mass: raw, angry
+    pxCircle(ctx, cx - r * 0.25, cy - r * 0.2, r * 0.68, '#c84a5c'); // swollen, lit from above
+    ctx.fillStyle = '#e8a8a8'; ctx.fillRect(Math.round(cx - r * 0.45), Math.round(cy - r * 0.55), 1, 1); // a wet glint
+    ctx.fillStyle = '#3e0e16'; // a dark vein wandering across it
+    for (let k = 0; k < r * 1.4; k++) ctx.fillRect(Math.round(cx - r * 0.5 + k * 0.7), Math.round(cy + r * 0.15 + Math.sin(k * 1.3 + i) * 0.9), 1, 1);
+  }
+}
 function specimenStage(p) {
   let st = 0;
   STAGE_AT.forEach((n, i) => { if (p.evolutions >= n) st = i; });
@@ -198,6 +271,8 @@ function updatePlayer(dt) {
   if (il) { ix /= il; iy /= il; }
   p.moving = il > 0;
   updatePlayerGore(p, dt);
+  // Growing isn't instant: the body swells past its new size and wobbles back.
+  { const a = (p.size - p.sizeShown) * 70 - (p.sizeV || 0) * 7; p.sizeV = (p.sizeV || 0) + a * dt; p.sizeShown += p.sizeV * dt; }
   p.inX = ix; p.inY = iy; // (a boss lair's door checks you're walking into it)
 
   // --- Aim: arrow keys (Isaac-style) or mouse ---
@@ -1351,7 +1426,7 @@ function drawPlayer(ctx) {
   const mvNow = movement(p), pose = p.pose = bodyPose(p);
   // Soft shadow on the floor: smaller and fainter the higher you are.
   const hk = clamp(1 - pose.alt * 0.05, 0.55, 1);
-  const sw = Math.round(7 * STAGE_SCALE[p.stage] * hk);
+  const sw = Math.round(7 * (p.sizeShown || STAGE_SCALE[p.stage]) * hk);
   ctx.fillStyle = `rgba(0,0,0,${(0.35 * hk).toFixed(2)})`;
   ctx.fillRect(Math.round(p.x - sw), Math.round(p.y + 4), sw * 2, 3);
   ctx.fillRect(Math.round(p.x - sw + 2), Math.round(p.y + 3), sw * 2 - 4, 5);
@@ -1367,6 +1442,10 @@ function drawPlayer(ctx) {
   // Withdrawn into the shell: only the shell shows.
   if (p.withdrawn) { drawCentered(ctx, ovSet.shell, x, y + 2); return; }
   if (p.venting && s.gasInvis) ctx.globalAlpha = 0.4; // Phantom
+  // Body and limbs are drawn at their painted size into a buffer, then blown up
+  // (or shrunk) to your real size around your feet. Pixels stay hard-edged.
+  const outer = ctx, k = bodyDrawScale(p);
+  if (k !== 1) ctx = beginBodyBuffer(x, y + 8);
   const limbsOk = !(p.limbWear > 0); // torn limbs aren't drawn
   const legs = limbsOk && p.legs; // real, walking spider legs replace the painted ones
   if (legs) drawSpiderLegs(ctx, p, x, y, 'far');
@@ -1389,6 +1468,7 @@ function drawPlayer(ctx) {
     ctx.drawImage(body, Math.round(x - body.width * sx / 2), Math.round(y - body.height * sy / 2 + body.height * (1 - sy) / 2), Math.round(body.width * sx), Math.round(body.height * sy));
   } else drawCentered(ctx, body, x, y);
   for (const ov of OVERLAY_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !limbOverlayHidden(p, ov)) drawCentered(ctx, ovSet[ov], x, y);
+  if (s.bulk) drawBulk(ctx, p, x, y, left); // misshapen masses (Abomination bulk), over everything
   drawPlayerGore(ctx, p, x, y, body); // blood from close kills
   drawBodyMarks(ctx, p, x, y);
   if (limbsOk) drawLimbDetails(ctx, p, x, y);
@@ -1396,6 +1476,7 @@ function drawPlayer(ctx) {
   if (legs) drawSpiderLegs(ctx, p, x, y, 'near');
   if (tents) drawTentacles(ctx, p, x, y, 'near');
   if (limbsOk) drawProceduralLimbs(ctx, p, x, y, 'near');
+  if (ctx !== outer) { endBodyBuffer(outer, x, y + 8, k); ctx = outer; }
   drawDefense(ctx, p);
   drawTongue(ctx, p);
   if (p.evolveT > 0) drawCocoon(ctx, p, x, y);

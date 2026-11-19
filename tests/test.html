@@ -886,6 +886,17 @@ try {
     }
     check(`a weapon vial with no room: Gorge always (${30 - bad}/30), a level for your weapon (${fed}/30), 3 cards max (${ok}/30)`, !bad && fed === 30 && ok === 30);
   }
+  { // 0j1d) The body grows as it fills out; bulk makes it misshapen (not bigger), stronger and easier to hit.
+    newRun(); combatRoom(); let p = game.player; const s0 = p.size, r0 = p.r;
+    grow(p, 'spike', 'haunches', 'skull'); const s3 = p.size;
+    grow(p, 'spike', 'haunches', 'skull', 'spines', 'marrow', 'bile'); const s6 = p.size, r6 = p.r, d6 = p.stats.damageMul;
+    p.apex = true; recomputeStats(p); const sA = p.size; p.apex = false;
+    check(`you grow as parts fill you out (size ${s0} -> ${s3.toFixed(2)} -> ${s6.toFixed(2)}, apex ${sA})`, s0 === SIZE_MIN && s3 > s0 && s6 === SIZE_FULL && sA === SIZE_APEX && r6 > r0);
+    grow(p, 'spike', 'haunches', 'skull', 'spines', 'overgrown', 'bile');
+    check(`bulk: same size, wider hitbox, and its damage (bulk ${p.stats.bulk}, r ${r6.toFixed(1)} -> ${p.r.toFixed(1)})`, p.stats.bulk === 1 && p.size === SIZE_FULL && p.r > r6 && p.r <= PLAYER_R_MAX);
+    p.sizeShown = p.size; p.x = 160; p.y = 96; render();
+    check('a misshapen body draws without errors', true);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
@@ -1002,7 +1013,7 @@ try {
     const n0 = q.gore.length; for (let i = 0; i < 25; i++) { Input.keys.clear(); Input.keys.add('d'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
     check(`...walking starts to clean it off (${n0} -> ${q.gore.reduce((a, g) => a + g.life, 0).toFixed(1)} left)`, q.gore.reduce((a, g) => a + g.life, 0) < n0 * 0.95);
     for (let i = 0; i < 400 && q.gore.length; i++) { Input.keys.clear(); Input.keys.add(i % 120 < 60 ? 'd' : 'a'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
-    check('...and enough walking cleans you up', !q.gore.length);
+    check(`...and enough walking cleans you up (${q.gore.length} left, x ${q.x.toFixed(0)}, r ${q.r}, size ${q.size}, shown ${q.sizeShown})`, !q.gore.length);
   }
   { // The Bone set: blocks, breaks enemy shots, and leaves bone behind.
     const arena = (...ids) => { newRun(); combatRoom(); const q = game.player; game.enemies = []; game.bullets = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 120; q.y = 96; q.aimX = 1; q.aimY = 0; q.inv = 0; grow(q, ...ids); return q; };

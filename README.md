@@ -39,6 +39,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
   - **HEAD: senses, plus an ability that fires by itself** (no button). One head. Extra Eyes mark the toughest prey in sight (it takes more damage from everything), Battering Skull headbutts whatever gets in your face, Night Eyes black out your light when something closes in (everything counts as in the dark), Parasite Brain mind-spikes the nearest enemy, Bloom bursts pollen when something gets close.
   - **BACK: what happens when you dash or get hurt.** One back.
   - **CORE: your engine.** Only grows from devoured boss cores.
+- **You grow.** A fresh specimen is small; every part it grows fills it out, and the Ultimate Metamorphosis swells it bigger still. The hitbox grows a little with you. Some Abomination parts add **bulk** (Overgrown Heart, Writhing Mass, and Cancerous Growth as the tumor spreads): lopsided masses swell out of your body, each one +10% damage and a wider hitbox. Power, and more of you to hit.
 - **Branching paths.** Each part grows one path, so no two runs end the same:
   - A free slot is offered new **roots**, one per kind of part you don't have yet.
   - A planted part **branches**: two ways to go, and taking one locks out the other. Usually both show up side by side, and the card says what you'd give up.
