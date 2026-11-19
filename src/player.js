@@ -597,7 +597,6 @@ function fireWeapons(p, only) {
   if (s.bite && ready('bite', s.biteDelay)) { boost(); p.dmgBoost = mul; bite(p, s.biteDmg); }
   if (!s.lunge) p.dmgBoost = 1;
   if (s.beam && ready('beam', 0.1)) drainBeam(p);
-  if (s.vomit && ready('vomit', s.vomitDelay)) { boost(); vomit(p); }
   if (s.ovi && ready('ovi', s.ovi.delay)) { boost(); fireLarva(p, mul); }
   if (s.howl && ready('howl', s.howl.delay)) { boost(); howl(p, mul); }
   if (s.polyp && ready('polyp', s.polyp.delay)) { boost(); plantPolyp(p); }
@@ -623,7 +622,6 @@ function releaseCharge(p, frac) {
   const mul = p.dmgBoost / (1 + 1.5 * frac);
   if (!s.lunge) p.dmgBoost = 1;
   for (const g of s.guns) blast(p, frac, g, mul);
-  if (s.vomit) blast(p, frac, { id: 'vomit', dmg: s.vomitDmg, speed: 160, range: 0.3, r: 1.5, round: true, color: '#9aae50', acid: 0, bleed: 0 }, mul);
   if (s.ovi) for (let i = 0; i < 1 + Math.round(2 * frac); i++) fireLarva(p, mul, 0.3 * i);
   if (s.howl) howl(p, mul * (1 + frac));
   if (s.polyp) plantPolyp(p);
@@ -695,7 +693,7 @@ function fireGun(p, g, mul = 1) {
       venomBurst: g.id === 'spike' && s.venomBarrage, // Venom Barrage: bursts into bile
       eatShots: g.id === 'spike' && !!s.spikeEat,     // Bone Lance: shatters enemy shots it crosses
       killRing: g.id === 'spike' ? s.spikeKillRing || 0 : 0, // Splinter: a kill bursts into shards
-      barb: g.barb ? g.barb * s.damage * mul : 0, blind: g.blind || 0, pollen: g.pollen || undefined, // Barb Flinger, Spore Sneeze
+      barb: g.barb ? g.barb * s.damage * mul : 0, blind: g.blind || 0, pollen: g.pollen || undefined, mucus: !!g.mucus, // Barb Flinger, Spore Sneeze, Mucus
       flame: g.id === 'bile' && s.sporeFire,        // Spore Fire: the flame ignites spore clouds
       kind: 'shot', round: g.round, fade: g.fade, color: shotColor(s, g),
     });
@@ -717,7 +715,7 @@ function lobAt(p, g, scatter, mul = 1) {
   const flight = clamp(Math.hypot(tx - p.x, ty - p.y) / 120, 0.3, 1.1);
   spawnBullet({
     x: p.x, y: p.y, vx: (tx - p.x) / flight, vy: (ty - p.y) / flight, r: g.r, life: flight, maxLife: flight,
-    dmg: g.dmg * mul, spore: g.cloud * (s.cloudMul || 1), lobAcid: Math.max(s.lobAcid || 0, g.acid || 0), bounce: g.bounce || 0, kind: 'lob', color: g.color,
+    dmg: g.dmg * mul, spore: g.cloud * (s.cloudMul || 1), lobAcid: Math.max(s.lobAcid || 0, g.acid || 0), linger: s.lobLinger || 0, bounce: g.bounce || 0, kind: 'lob', color: g.color,
   });
 }
 
@@ -764,17 +762,11 @@ function drainOne(p, target, dmg, fromX, fromY) {
 }
 
 // Vomit Stream: a short, wide gush that shoves enemies back.
-function vomit(p) {
-  const s = p.stats, base = Math.atan2(p.aimY, p.aimX);
-  for (let i = 0; i < s.vomit; i++) {
-    const a = base + rand(-0.35, 0.35), sp = rand(130, 175);
-    spawnBullet({
-      x: p.x + p.aimX * 6, y: p.y + p.aimY * 6 - 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      r: 1.5, dmg: s.vomitDmg, life: rand(0.16, 0.26), knock: 150, kind: 'shot', round: true, color: '#9aae50',
-      homing: s.homing * 0.5, split: 0, acid: Math.random() < 0.25 ? 7 : 0,
-    });
-  }
-  Sfx.play('splat');
+// Purge: hurt, you vomit a ring of burning bile around you that shoves everything back.
+function purge(p, n) {
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; spawnPuddle(p.x + Math.cos(a) * 14, p.y + 2 + Math.sin(a) * 11, 6, 3, 'player'); }
+  for (const e of enemiesNear(p.x, p.y, 36)) { const d = Math.hypot(e.x - p.x, e.y - p.y) || 1; knock(e, (e.x - p.x) / d, (e.y - p.y) / d, 240); }
+  burst(p.x, p.y, '#9aae50', 18, 110, 0.4); floatText(p.x, p.y - 22, 'PURGE', '#9aae50'); Sfx.play('splat');
 }
 // A ring of bone shards around the player.
 function fireRing(p, n) {
@@ -1261,6 +1253,7 @@ function hurtPlayer(dmg) {
   p.inv = s.invuln;
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
+  if (s.purge) purge(p, s.purge); // Purge: you throw it all back up
   if (s.hurtBrood) { for (let i = 0; i < s.hurtBrood; i++) spawnAlly('maggot', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
   if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out

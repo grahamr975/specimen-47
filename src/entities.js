@@ -68,6 +68,7 @@ function updateBullets(dt) {
     if (b.venom && (b.dripT = (b.dripT || 0) - dt) <= 0) { b.dripT = 0.08; spawnPuddle(b.x, b.y, 4, 1.2, 'player'); }
     // Spore Fire: bile flame sets off any spore cloud it touches.
     if (b.flame && game.clouds.length && igniteCloudAt(b.x, b.y)) { b.dead = true; continue; }
+    if (b.mucus && Math.random() < 0.6) addSlime(b.x + rand(-1, 1), b.y + 2); // Mucus: a sticky smear
 
     if (b.kind === 'lob') {
       // Your spore mortar: flies over everything, bursts where it lands.
@@ -76,7 +77,8 @@ function updateBullets(dt) {
         for (const e of enemiesNear(b.x, b.y, 14)) damageEnemy(e, b.dmg, e.x - b.x, e.y - b.y, true);
         for (const c of corpsesNear(b.x, b.y, 14)) damageCorpse(c, b.dmg);
         strikeSeal(b.x, b.y, 14);
-        if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Bile Mortar, Toad Gullet
+        if (b.lobAcid) spawnPuddle(b.x, b.y, b.lobAcid, 3, 'player'); // Toad Gullet
+        if (b.linger) game.shells.push({ x: b.x, y: b.y, t: b.linger, next: 0.3 }); // Rot Shells: it keeps coughing spores
         burst(b.x, b.y, '#7a8a52', 8, 60);
         if (b.bounce > 0) { // Bullfrog: it bounces on, and bursts again
           const fl = Math.max(0.25, (b.maxLife || 0.6) * 0.5);
@@ -283,7 +285,7 @@ function updatePuddles(dt) {
       if (p.tick <= 0) {
         p.tick = 0.3;
         for (const e of game.enemies) {
-          if (e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < p.r + e.r * 0.5) damageEnemy(e, 0.5, 0, 0, true);
+          if (e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < p.r + e.r * 0.5) { damageEnemy(e, 0.5, 0, 0, true); if (!e.dead) inflict(e, 'corrode', corrodeOpts(game.player.stats)); } // your bile corrodes
         }
       }
     } else {

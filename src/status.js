@@ -18,6 +18,10 @@
 // An active status is { t: seconds left, ...magnitudes } in target.status[id].
 // Applying one again keeps the larger of each value (it never weakens it).
 
+// Fungal's verb: what your bile and gas do to whatever stands in them.
+const CORRODE_MUL = 0.25, CORRODE_DPS = 0.6;
+function corrodeOpts(s) { return { t: 1.2, mul: s.corrodeMul || CORRODE_MUL, dps: (s.corrodeDps || CORRODE_DPS) * s.damage }; }
+
 const STATUS = {
   bleed: { // ticks damage and drips; a bled-out kill can feed you (Leech Spitter)
     tick(e, st, dt) {
@@ -63,7 +67,10 @@ const STATUS = {
       }
     },
   },
-  corrode: { dmgTaken: () => 1.5 }, // Corrode: eaten by your gas
+  corrode: { // Corroded: eaten by your bile (or gas, with Corrode): takes more damage from everything, and burns a little
+    dmgTaken: st => 1 + (st.mul || CORRODE_MUL),
+    tick(e, st, dt) { damageEnemy(e, (st.dps || CORRODE_DPS) * dt, 0, 0, true); },
+  },
   pollen: { // Bloom: dusted with pollen
     dmgTaken: (st, ps) => ps.pollen ? 1 + (ps.pollenMul || 0.25) : 1,
     draw(ctx, e) {

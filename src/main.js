@@ -12,7 +12,7 @@ const game = {
   time: 0, depth: 1, kills: 0, overT: 0,
   floor: null, room: null, player: null,
   enemies: [], bullets: [], puddles: [], particles: [], texts: [],
-  fx: [], pendingEvolutions: [], allies: [], clouds: [], decoy: null, webs: [], actShots: [],
+  fx: [], pendingEvolutions: [], allies: [], clouds: [], shells: [], decoy: null, webs: [], actShots: [],
   telegraphs: [], bombs: [], bossName: null, bossMax: 1, whips: [],
   shake: 0, fade: 0, banner: null, menu: null, paused: false,
 };
@@ -55,7 +55,7 @@ function enterRoom(room, side) {
   room.visited = true;
   for (const d in room.doors) room.doors[d].seen = true;
   game.enemies = []; game.bullets = []; game.puddles = []; game.particles = []; game.texts = []; game.fx = [];
-  game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.decoy = null; game.webs = []; game.actShots = [];
+  game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.shells = []; game.decoy = null; game.webs = []; game.actShots = [];
   game.telegraphs = []; game.bombs = []; game.bossName = null;
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
   game.player.tongue = null; game.player.grappleShot = null; game.whips = [];

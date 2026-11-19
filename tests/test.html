@@ -904,6 +904,28 @@ try {
     p.sizeShown = p.size; p.x = 160; p.y = 96; render();
     check('a misshapen body draws without errors', true);
   }
+  { // 0j1e) Fungal: your bile corrodes (more damage taken, and a small burn); Rot Shells, Purge, Mucus.
+    newRun(); combatRoom(); let p = game.player; game.enemies = []; game.puddles = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); p.x = 60; p.y = 96;
+    const e = dummy(60, 99); e.speed = 0; spawnPuddle(e.x, e.y, 10, 3, 'player');
+    for (let i = 0; i < 30; i++) { p.inv = 1; update(1 / 60); Input.endFrame(); }
+    const st = e.status && e.status.corrode;
+    check(`standing in your bile corrodes (mul ${st && st.mul}, dps ${st && st.dps.toFixed(2)})`, st && st.t > 0 && st.mul === CORRODE_MUL && st.dps > 0);
+    const h0 = e.hp; game.puddles = []; for (let i = 0; i < 30; i++) { p.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`...and the corrosion burns on its own (${(h0 - e.hp).toFixed(2)} in 0.5s)`, h0 - e.hp > 0.1);
+    grow(p, 'corrode'); check('Corrode: gas corrodes too, at +50%', p.stats.gasCorrode && p.stats.corrodeMul === 0.5);
+    // Rot Shells: a landed shell keeps coughing clouds.
+    newRun(); combatRoom(); p = game.player; game.clouds = []; game.shells = []; grow(p, 'bilemortar');
+    spawnBullet({ x: 100, y: 96, vx: 0, vy: 0, r: 2, kind: 'lob', life: 0.01, dmg: 1, linger: p.stats.lobLinger });
+    for (let i = 0; i < 90; i++) { p.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`rot shells keep coughing spore clouds (${game.clouds.length} clouds)`, game.clouds.length >= 2);
+    // Purge: hurt, and a ring of bile shoves them back.
+    newRun(); combatRoom(); p = game.player; game.enemies = []; game.puddles = []; grow(p, 'vomit'); p.x = 100; p.y = 96;
+    const z = dummy(10, 99); z.speed = 0; p.inv = 0; hurtPlayer(1);
+    check(`purge: hurt, you vomit a ring of bile (${game.puddles.filter(d => d.team === 'player').length} pools) and shove them (${Math.round(z.kx)})`, game.puddles.filter(d => d.team === 'player').length >= 6 && z.kx > 50);
+    // Mucus: sneezes leave slime.
+    newRun(); combatRoom(); p = game.player; game.room.slime = []; grow(p, 'mucus'); p.aimX = 1; p.aimY = 0; fireFor(20);
+    check(`mucus: sneezes leave a sticky smear (${game.room.slime.length})`, game.room.slime.length > 3);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

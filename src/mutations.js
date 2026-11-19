@@ -251,9 +251,10 @@ const MUTATIONS = {
     apply(s) { s.cloudDps = 1.2; s.cloudMul = 1.4; },
   },
   bilemortar: {
-    name: 'Bile Mortar', from: 'sporefire', rarity: 'rare', icon: ['bile', 'spike'],
-    desc: 'Mortar shells burst into wide pools of burning bile.',
-    apply(s) { s.lobAcid = 16; },
+    name: 'Rot Shells', from: 'sporefire', rarity: 'rare', icon: ['bile', 'spike'],
+    desc: 'Mortar shells burrow in where they land and keep coughing up spore clouds for a few seconds.',
+    short: 'Mortar shells keep coughing spore clouds.',
+    apply(s) { s.lobLinger = 3; },
   },
   acidmaw: {
     name: 'Acid Maw', from: 'bile', rarity: 'rare', overlay: ['mandibles'], icon: ['mandibles', 'bile'],
@@ -262,9 +263,10 @@ const MUTATIONS = {
     apply(s, l) { MUTATIONS.mandibles.apply(s, l); onHit(s, 'bite', 'acidMark', { t: Infinity }); },
   },
   vomit: {
-    name: 'Vomit Stream', from: 'acidmaw', rarity: 'uncommon', icon: ['bile', 'hemophage'],
-    desc: 'A short-range gush of bile that shoves enemies back.',
-    apply(s, l) { s.vomit = 6 + 2 * l; s.vomitDmg += 0.5 + 0.2 * l; s.vomitDelay = Math.min(s.vomitDelay, 0.45); },
+    name: 'Purge', from: 'acidmaw', rarity: 'uncommon', icon: ['bile', 'hemophage'],
+    desc: 'When you are hurt, you vomit a ring of burning bile around you that shoves everything back.',
+    short: 'Hurt: vomit a ring of bile that shoves them back.',
+    apply(s, l) { s.purge = 6 + 2 * l; },
   },
   meltbite: {
     name: 'Melting Bite', from: 'acidmaw', rarity: 'rare', icon: ['mandibles', 'toxic'],
@@ -462,9 +464,9 @@ const MUTATIONS = {
   },
   corrode: {
     name: 'Corrode', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'bile'],
-    desc: 'Anything in your gas takes 50% more damage from everything.',
-    short: 'Enemies in your gas take 50% more damage.',
-    apply(s) { onHit(s, 'gas', 'corrode', { t: 0.3 }); },
+    desc: 'Your gas corrodes too, and everything Corroded takes +50% damage (instead of +25%) and burns twice as fast.',
+    short: 'Gas corrodes. Corroded takes +50%, burns more.',
+    apply(s) { s.gasCorrode = true; s.corrodeMul = 0.5; s.corrodeDps = CORRODE_DPS * 2; },
   },
   choke: {
     name: 'Choke', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'twitch'],
@@ -1497,8 +1499,9 @@ const MUTATIONS = {
   },
   mucus: {
     name: 'Mucus', from: 'sneezefit', rarity: 'rare', icon: ['membrane', 'bile'],
-    desc: 'Your sneezes are thick with burning mucus.',
-    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) { g.acid = 6; g.acidChance = 0.3; } },
+    desc: 'Your sneezes are thick with mucus: they leave a sticky smear on the floor that slows whatever crawls through it (it is slime, so it works with Pseudopods).',
+    short: 'Sneezes leave sticky mucus that slows.',
+    apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.mucus = true; },
   },
 
   leechspit: {
@@ -1697,9 +1700,9 @@ const HINTS = {
   bile: 'Your stomach turns over and stays turned. Your throat blisters from the inside.',
   sporefire: 'Your lungs grow a soft grey fur. When you breathe out, it catches.',
   rotbloom: 'The spores in your chest start eating. You can feel them chewing.',
-  bilemortar: 'Something heavy settles in your gut, round and hot, waiting to be coughed up.',
+  bilemortar: 'Something burrows out of the shells after they land. It coughs, and keeps coughing.',
   acidmaw: 'Your pincers grow back wet. They hiss when they close.',
-  vomit: 'Your gut clenches like a fist and does not unclench.',
+  vomit: 'Your stomach learns to clench at pain. It wants to throw everything back up, all at once.',
   meltbite: 'Your teeth go soft and acidic. They dissolve a little of everything they touch.',
   mandibles: 'Your jaw splits at the hinge. Two hooked pincers push out through the gums, clicking.',
   feral: 'Your spine bunches like a cat about to drop. The urge to leap does not go away.',
@@ -1858,7 +1861,7 @@ const HINTS = {
   histamine: 'Your sinuses swell shut. What you breathe out is thick.',
   sneezefit: 'You cannot stop sneezing. Your eyes stream.',
   pollenstorm: 'Pollen gathers in your nose, gold and choking.',
-  mucus: 'Your throat coats itself in something thick and hot.',
+  mucus: 'Your sinuses thicken with something slick and stringy. It hangs from your face in ropes.',
   leechspit: 'Something wriggles in your throat, hungry. Then another.',
   leechswarm: 'They breed in your throat. You can feel them crawling.',
   fatleech: 'The leeches in your throat swell fat and dark.',

@@ -150,6 +150,8 @@ function updateClouds(dt) {
     }
   }
   game.clouds = game.clouds.filter(c => c.life > 0);
+  for (const sh of game.shells || []) { sh.t -= dt; if ((sh.next -= dt) <= 0 && sh.t > 0) { sh.next = 0.8; spawnCloud(sh.x + rand(-4, 4), sh.y + rand(-4, 4), 12); } } // Rot Shells
+  if (game.shells) game.shells = game.shells.filter(sh => sh.t > 0);
 }
 
 // Spore Fire: a bile flame touching a spore cloud sets it off.
@@ -544,7 +546,8 @@ function updateMiasma(p, dt) {
     e.gasT = (e.gasT || 0) + dt;
     const ramp = s.gasRamp ? 1 + Math.min(3, e.gasT * 0.6) : 1; // Caustic Lungs
     damageEnemy(e, s.miasma.dps * ramp * dt, 0, 0, true);
-    applyHitEffects(e, 'gas'); // Hide, Corrode, Choke
+    applyHitEffects(e, 'gas'); // Hide, Choke
+    if (s.gasCorrode && !e.dead) inflict(e, 'corrode', corrodeOpts(s)); // Corrode: your gas corrodes too
     if (s.toxicBloom) pollinate(e, s); // Toxic Bloom: the gas carries pollen
   }
   strikeSeal(p.x, p.y, r); // the gas eats through hazmat seals (one hit at a time)
