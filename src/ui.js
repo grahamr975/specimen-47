@@ -522,36 +522,34 @@ function drawWhisper(ctx) {
   const w = game.whisper;
   if (!w) return;
   const age = WHISPER_TIME - w.t;
-  const fade = Math.min(1, w.t / 0.8, age / 0.15);
-  const head = w.name ? 11 : 0, hgt = head + w.lines.length * 8 + 8;
-  const y = ROOM_Y + 18;
-  // The first instant: a pulse of red over everything, like a heartbeat.
-  if (w.name && age < 0.25) { ctx.globalAlpha = 0.18 * (1 - age / 0.25); ctx.fillStyle = '#c01020'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
-  ctx.globalAlpha = 0.82 * fade;
-  ctx.fillStyle = '#080304'; ctx.fillRect(14, y - 5, VIEW_W - 28, hgt);
-  ctx.fillStyle = '#3a0a10'; ctx.fillRect(14, y - 5, VIEW_W - 28, 1); ctx.fillRect(14, y - 6 + hgt, VIEW_W - 28, 1);
-  for (let k = 0; k < 9; k++) { // the band bleeds a little
-    const dx = 20 + Math.floor(hash2(k, 3, 11) * (VIEW_W - 40)), len = 1 + Math.floor(Math.min(age * 3, 1) * hash2(k, 5, 2) * 5);
-    ctx.fillRect(dx, y - 5 + hgt, 1, len);
-  }
+  let fade = Math.min(1, w.t / 0.8, age / 0.15);
+  if (hash2(Math.floor(game.time * 12), 7, 3) < 0.04) fade *= 0.35; // it flickers, now and then
+  const y = ROOM_Y + 12, head = w.name ? 12 : 0;
+  // The first instant: a faint pulse of red over everything, like a heartbeat.
+  if (w.name && age < 0.25) { ctx.globalAlpha = 0.14 * (1 - age / 0.25); ctx.fillStyle = '#c01020'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
   ctx.globalAlpha = fade;
-  if (w.name) {
-    const nw = textWidth(w.name);
-    ctx.fillStyle = w.color; ctx.fillRect(VIEW_W / 2 - nw / 2 - 12, y + 2, 6, 1); ctx.fillRect(VIEW_W / 2 + nw / 2 + 6, y + 2, 6, 1);
-    drawText(ctx, w.name, VIEW_W / 2, y, w.color, 1, 'center');
-  }
+  // Crooked letters: each sits a little off its line, drifts slowly, and some drip.
+  const scrawl = (line, cx, ly, color, seed, shown = line.length, raw = 0) => {
+    let x = Math.round(cx - textWidth(line) / 2);
+    for (let k = 0; k < shown; k++) {
+      const ch = line[k], h = hash2(k, seed, 13);
+      const settled = k < shown - raw;
+      const jy = Math.round((h - 0.5) * 2 + Math.sin(game.time * 1.3 + k * 0.7 + seed) * 0.6) + (settled ? 0 : Math.round((Math.random() - 0.5) * 3));
+      const jx = settled ? 0 : Math.round((Math.random() - 0.5) * 2);
+      drawText(ctx, ch, x + jx, ly + jy, settled ? color : '#ff3a40', 1, 'left', '#0a0204');
+      if (settled && ch !== ' ' && h > 0.9) { // a drip runs off this letter
+        const len = Math.min(5, Math.floor((age - k / WHISPER_CPS) * 3 * h)) ;
+        ctx.fillStyle = color; if (len > 0) ctx.fillRect(x + 1, ly + jy + 5, 1, len);
+      }
+      x += textWidth(ch + 'X') - textWidth('X');
+    }
+  };
+  if (w.name) scrawl('- ' + w.name + ' -', VIEW_W / 2, y, '#7a1018', 99);
   // Type it out across the lines (laid out in full first, so nothing reflows).
   let left = Math.floor(Math.max(0, age - 0.3) * WHISPER_CPS);
   w.lines.forEach((line, i) => {
-    const shown = line.slice(0, Math.max(0, left)); left -= line.length;
-    if (!shown) return;
-    const x0 = Math.round(VIEW_W / 2 - textWidth(line) / 2), ly = y + head + i * 8;
-    const settled = left >= 0 ? shown.length : Math.max(0, shown.length - 3);
-    drawText(ctx, shown.slice(0, settled), x0, ly, '#e0c4bc', 1, 'left');
-    for (let k = settled; k < shown.length; k++) { // still raw
-      const jx = Math.round((Math.random() - 0.5) * 2), jy = Math.round((Math.random() - 0.5) * 2);
-      drawText(ctx, shown[k], x0 + textWidth(shown.slice(0, k) + 'X') - textWidth('X') + jx, ly + jy, '#e02838', 1, 'left');
-    }
+    const shown = Math.min(line.length, Math.max(0, left)); left -= line.length;
+    if (shown) scrawl(line, VIEW_W / 2, y + head + i * 9, '#b8202c', i * 17 + 3, shown, left >= 0 ? 0 : 3);
   });
   ctx.globalAlpha = 1;
 }
