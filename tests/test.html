@@ -653,9 +653,9 @@ try {
         catch (err) { errs.push(type + ': ' + err.message); }
       }
       check(`every enemy acts for 2s and dies without errors (${errs.join('; ') || 'all good'})`, !errs.length); }
-    { arena(); const sp = spawnEnemy('splitter', 200, 96); sp.spawnT = 0; damageEnemy(sp, 999, 0, 0, true); const minis = game.enemies.filter(o => o.type === 'mini' && !o.dead);
+    { arena(); const sp = spawnEnemy('splitter', 200, 96); sp.spawnT = 0; damageEnemy(sp, 999, 0, 0, true); const early = game.enemies.filter(o => o.type === 'mini').length; updateDeathFuses(DEATH_FUSE + 0.01); const minis = game.enemies.filter(o => o.type === 'mini' && !o.dead);
       minis.forEach(m => damageEnemy(m, 999, 0, 0, true));
-      check(`splitters split in two, and their halves don't split again (${minis.length} -> ${game.enemies.filter(o => o.type === 'mini' && !o.dead).length})`, minis.length === 2 && !game.enemies.some(o => o.type === 'mini' && !o.dead)); }
+      check(`splitters split in two, and their halves don't split again, after a warning (${early} at once, ${minis.length} -> ${game.enemies.filter(o => o.type === 'mini' && !o.dead).length})`, early === 0 && minis.length === 2 && !game.enemies.some(o => o.type === 'mini' && !o.dead)); }
   }
   { // 0zi) Devoured traits evolve once, fully grown.
     const arena = () => { newRun(); combatRoom(); const z = game.player; game.enemies = []; game.bullets = []; game.allies = []; game.puddles = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 120; z.y = 96; z.inv = 99; z.quirk = null; return z; };
@@ -717,8 +717,8 @@ try {
     const run = (n, keepHp = true) => { for (let i = 0; i < n; i++) { if (keepHp) game.player.hp = game.player.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } };
     for (let d = 2; d <= 5; d++) check(`floor ${d} (${floorDef(d).name}) has its own enemies, hazard and color`, floorDef(d).pool.some(k => !['rat', 'drone', 'urchin', 'splitter', 'spitter'].includes(k)) && floorDef(d).hazard && floorDef(d).tint);
     // Cryo Wing
-    let q = at(2), e = foe('frostbitten', 40, 0, 1); damageEnemy(e, 999, 0, 0, true);
-    check(`frostbitten shatter into shards when they die (${game.bullets.filter(b => b.team === 'enemy' && b.chill).length})`, game.bullets.filter(b => b.team === 'enemy' && b.chill).length >= 8);
+    let q = at(2), e = foe('frostbitten', 40, 0, 1); damageEnemy(e, 999, 0, 0, true); const shardsNow = game.bullets.filter(b => b.team === 'enemy' && b.chill).length; updateDeathFuses(DEATH_FUSE + 0.01);
+    check(`frostbitten shatter into shards after a warning when they die (${shardsNow} at once, ${game.bullets.filter(b => b.team === 'enemy' && b.chill).length})`, game.bullets.filter(b => b.team === 'enemy' && b.chill).length >= 8 && shardsNow === 0);
     q = at(2); e = foe('cryocrawler', 40); q.inv = 0; run(120, false); q.hp = q.maxHp;
     check(`cryo crawlers spray frost that chills you (chill ${(statusT(q, 'chill') || 0).toFixed(1)}s, or it was dodged)`, statusT(q, 'chill') > 0 || game.bullets.some(b => b.chill) || true);
     q = at(2); q.inv = 0; game.bullets = []; spawnBullet({ x: q.x + 3, y: q.y, vx: 0, vy: 0, r: 2, team: 'enemy', kind: 'enemy', life: 1, chill: true }); run(1, false);

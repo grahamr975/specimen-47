@@ -194,6 +194,26 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.hp <= 0) killEnemy(e);
 }
 
+// --- Dangerous deaths: a warning before the burst --------------------------------------
+// Things that split, shatter or burst when they die don't do it at once: a
+// ring pulses on the floor showing how far it will reach, tightening as the
+// fuse runs down, so a melee build has time to get clear.
+const DEATH_FUSE = 0.7;
+function updateDeathFuses(dt) {
+  for (const f of game.deathFx) if ((f.t -= dt) <= 0) ENEMY_BEHAVIOR[f.e.type].onDeath(f.e, game.player);
+  game.deathFx = game.deathFx.filter(f => f.t > 0);
+}
+function drawDeathFuses(ctx) {
+  for (const f of game.deathFx) {
+    const k = 1 - f.t / DEATH_FUSE, blink = Math.floor(game.time * (8 + 16 * k)) % 2;
+    ctx.globalAlpha = 0.35 + 0.5 * k;
+    pxRing(ctx, f.e.x, f.e.y, f.r, blink ? f.color : '#ff3030');           // how far it reaches
+    pxRing(ctx, f.e.x, f.e.y, Math.max(2, f.r * (1 - k)), f.color);       // closing in
+    ctx.globalAlpha = 1;
+    if (blink) drawText(ctx, '!', f.e.x, f.e.y - f.e.r - 9, '#ff3030', 1, 'center');
+  }
+}
+
 function killEnemy(e) {
   e.dead = true;
   game.kills++;
@@ -202,7 +222,9 @@ function killEnemy(e) {
   statusOnKill(e, p, s); // Acid Maw bursts, Leech Spitter feeds, Hives, Cocoon Wrap...
   onSetKill(e, p, s);
   apexKill(p);
-  if (ENEMY_BEHAVIOR[e.type].onDeath) ENEMY_BEHAVIOR[e.type].onDeath(e, p); // (shatters, bursts...)
+  const B = ENEMY_BEHAVIOR[e.type];
+  if (B.onDeath && B.fuse && !e.swallowed && e.state !== 'fuse') game.deathFx.push({ e, t: DEATH_FUSE, r: B.fuse.r, color: B.fuse.color }); // a dangerous death: a warning first
+  else if (B.onDeath) B.onDeath(e, p); // (shatters, bursts...)
   if (!T.harmless && ++p.armorKills >= ARMOR_KILLS) { // armor grows, slowly
     p.armorKills = 0;
     if ((p.armor || 0) < ARMOR_MAX) { p.armor = (p.armor || 0) + 1; floatText(p.x, p.y - 22, 'ARMOR GROWS', '#b8b8c8'); Sfx.play('shieldUp'); }
@@ -282,6 +304,7 @@ const ENEMY_BEHAVIOR = {
   // --- Floor 2: Cryo Wing ---
   frostbitten: { // shambles; shatters when it dies
     update(e, dt, c) { const { ux, uy } = c; return [ux * e.speed, uy * e.speed]; },
+    fuse: { r: 22, color: '#d8f0ff' }, // its death is dangerous: a warning ring first (see updateDeathFuses)
     onDeath(e) { // into chilling shards
       for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 95, vy: Math.sin(a) * 95, r: 2, team: 'enemy', kind: 'enemy', life: 0.7, color: '#d8f0ff', chill: true }); }
       burst(e.x, e.y, '#d8f0ff', 14, 110, 0.4); Sfx.play('clank');
@@ -323,6 +346,7 @@ const ENEMY_BEHAVIOR = {
   },
   // --- Floor 3: Bio-Weapons ---
   carrier: {
+    fuse: { r: 16, color: '#8ab040' },
     onDeath(e) { spawnPuddle(e.x, e.y, 16, 5, 'enemy'); }, // it bursts into acid
     update(e, dt, c) { // shuffles after you, leaking acid
       const { ux, uy } = c;
@@ -333,6 +357,7 @@ const ENEMY_BEHAVIOR = {
     },
   },
   bloater: {
+    fuse: { r: 30, color: '#aac25a' },
     onDeath(e, p) { // it bursts: gas and acid
       game.fx.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 30, t: 0.25 }); burst(e.x, e.y, '#aac25a', 24, 140, 0.5);
       spawnPuddle(e.x, e.y, 18, 5, 'enemy'); game.shake = Math.max(game.shake, 4); Sfx.play('blast');
@@ -474,6 +499,7 @@ const ENEMY_BEHAVIOR = {
     },
   },
   splitter: {
+    fuse: { r: 12, color: '#c890a0' },
     onDeath(e) { // it splits in two (unless swallowed whole: then its spawn are digested with it)
       if (e.swallowed) return;
       for (const side of [-1, 1]) { const m = makeEnemy('mini', e.x + side * 3, e.y, false); m.spawnT = 0; m.kx = side * 120; game.enemies.push(m); }

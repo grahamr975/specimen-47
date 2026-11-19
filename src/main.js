@@ -12,7 +12,7 @@ const game = {
   time: 0, depth: 1, kills: 0, overT: 0,
   floor: null, room: null, player: null,
   enemies: [], bullets: [], puddles: [], particles: [], texts: [],
-  fx: [], pendingEvolutions: [], allies: [], clouds: [], shells: [], decoy: null, webs: [], actShots: [],
+  fx: [], pendingEvolutions: [], allies: [], clouds: [], shells: [], deathFx: [], decoy: null, webs: [], actShots: [],
   telegraphs: [], bombs: [], bossName: null, bossMax: 1, whips: [],
   shake: 0, fade: 0, banner: null, menu: null, paused: false,
 };
@@ -54,7 +54,7 @@ function enterRoom(room, side) {
   game.room = room;
   room.visited = true;
   for (const d in room.doors) room.doors[d].seen = true;
-  game.enemies = []; game.bullets = []; game.puddles = []; game.particles = []; game.texts = []; game.fx = [];
+  game.enemies = []; game.bullets = []; game.puddles = []; game.deathFx = []; game.particles = []; game.texts = []; game.fx = [];
   game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.shells = []; game.decoy = null; game.webs = []; game.actShots = [];
   game.telegraphs = []; game.bombs = []; game.bossName = null;
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
@@ -226,6 +226,7 @@ function update(dt) {
   updateEnemies(wdt);
   updateBullets(wdt);
   updatePuddles(dt);
+  updateDeathFuses(dt);
   updateHazards(dt);
   updatePickups(dt);
   updateCorpses(dt);
@@ -366,6 +367,7 @@ function render() {
   drawPuddleGlow(ctx);
   drawHazardGlow(ctx);
   drawEnemyGlow(ctx);
+  drawDeathFuses(ctx);
   drawBossFx(ctx);
   if (game.state === 'play') drawPlayerGlow(ctx);
   drawFx(ctx);
