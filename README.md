@@ -116,6 +116,8 @@ It uses headless Microsoft Edge, takes a minute or two, and exits with code 1 if
 
 The project is a git repository. Commit after each working change (`git add -A`, then `git commit -m "what changed"`), so any mistake can be undone with `git restore <file>` or by checking out an earlier commit.
 
+The version and last-updated date shown in the corner of the title screen are `GAME_VERSION` and `GAME_UPDATED` at the top of the title-screen code in `src/ui.js`. Bump them when you put out a new build.
+
 ## Sharing
 
 - **itch.io**: zip the folder, create a new project with kind "HTML", upload the zip, and tick "This file will be played in the browser".

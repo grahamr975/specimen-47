@@ -613,6 +613,8 @@ function drawCrosshair(ctx) {
 // the alarm comes on, and it starts over. The logo glitches now and then, a heart
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
+// The build shown in the corner of the title screen. Bump both when you put out a new version.
+const GAME_VERSION = '0.1.0', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [
@@ -785,6 +787,7 @@ function drawTitle(ctx) {
     drawText(ctx, v, cx + 5, py0 + 5 + i * 9, '#c8bca8', 1, 'left', null);
   });
   drawText(ctx, 'CONSUME. EVOLVE. ESCAPE.', cx, VIEW_H - 9, '#4a4044', 1, 'center', null);
+  drawText(ctx, 'V' + GAME_VERSION + ' - ' + GAME_UPDATED, VIEW_W - 4, VIEW_H - 9, '#3e3638', 1, 'right', null);
 
   // The lab's lights: an alarm wash once it's breaking out, and a fluorescent flicker now and then.
   if (alarm) { ctx.fillStyle = `rgba(200,20,30,${0.05 + 0.05 * Math.sin(t * 8)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
