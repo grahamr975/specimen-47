@@ -239,7 +239,8 @@ function updateClouds(dt) {
   for (const c of game.clouds) {
     c.life -= dt;
     for (const e of game.enemies) {
-      if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
+      if (!e.dead && e.spawnT <= 0 && e.cloudAt !== game.time && Math.hypot(e.x - c.x, e.y - c.y) < c.r) {
+        e.cloudAt = game.time; // overlapping clouds don't stack: one cloud's worth a frame
         if (!hasStatus(e, 'blind')) floatText(e.x, e.y - 10, '?', '#9aae50');
         inflict(e, 'blind', { t: 2 });
         if (s.cloudCorrode || c.corrode) { const o = corrodeOpts(s); if (c.hard) o.mul = Math.max(o.mul, 0.45); inflict(e, 'corrode', o); } // Fungal set, final form, Spore Vents (Rot Vents: harder)
@@ -260,10 +261,10 @@ function igniteCloudAt(x, y) {
   const c = game.clouds.find(c => Math.hypot(c.x - x, c.y - y) < c.r);
   if (!c) return false;
   c.life = 0;
-  const dmg = 4 * game.player.stats.damage;
+  const dmg = 3.2 * game.player.stats.damage; // (was 4: Spore Lungs led the simulator by a wide margin)
   game.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, max: c.r + 10, t: 0.25 });
   for (const e of enemiesNear(c.x, c.y, c.r + 10)) damageEnemy(e, dmg, e.x - c.x, e.y - c.y, true);
-  for (let i = 0; i < 3; i++) spawnPuddle(c.x + rand(-8, 8), c.y + rand(-8, 8), 10, 2.5, 'player');
+  for (let i = 0; i < 2; i++) spawnPuddle(c.x + rand(-8, 8), c.y + rand(-8, 8), 10, 2.5, 'player'); // (was 3)
   burst(c.x, c.y, '#e8a020', 24, 140, 0.5);
   burst(c.x, c.y, '#b0c040', 14, 90, 0.4);
   game.shake = Math.max(game.shake, 5);

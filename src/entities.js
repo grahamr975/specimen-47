@@ -190,7 +190,7 @@ function onPlayerBulletHit(b, enemy) {
     if (s.darkStun && Math.hypot(enemy.x - p.x, enemy.y - p.y) > 45) inflict(enemy, 'stun', { t: s.darkStun }); // Abyss Stare
     applyHitEffects(enemy, 'any'); // Brain Worm
   }
-  if (b.barb && !enemy.dead) { enemy.barbs = (enemy.barbs || 0) + 1; enemy.barbDmg = b.barb; enemy.barbT = 0.8; } // a barb sticks
+  if (b.barb && !enemy.dead) { enemy.barbs = Math.min(BARB_MAX, (enemy.barbs || 0) + 1); enemy.barbDmg = b.barb; enemy.barbT = 0.8; } // a barb sticks
   if (b.blind && !enemy.dead) inflict(enemy, 'blind', { t: b.blind });                              // Spore Sneeze
   if (b.mirrorStun && !enemy.dead) inflict(enemy, 'stun', { t: b.mirrorStun }); // Blinding Lens
   if (b.bleed) { inflict(enemy, 'bleed', { t: 3, dps: b.bleed }); }
@@ -274,6 +274,8 @@ function drawBullets(ctx) {
 }
 
 // --- Acid puddles ---------------------------------------------------------------
+const BARB_MAX = 6; // barbs stuck in one enemy (they tear out together)
+
 function spawnPuddle(x, y, r, life, team) {
   game.puddles.push({ x, y, r, life, maxLife: life, team, tick: 0 });
 }
@@ -286,7 +288,7 @@ function updatePuddles(dt) {
       if (p.tick <= 0) {
         p.tick = 0.3;
         for (const e of game.enemies) {
-          if (e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < p.r + e.r * 0.5) { damageEnemy(e, 0.5, 0, 0, true); if (!e.dead) inflict(e, 'corrode', corrodeOpts(game.player.stats)); } // your bile corrodes
+          if (e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < p.r + e.r * 0.5 && game.time - (e.poolAt ?? -9) >= 0.29) { e.poolAt = game.time; damageEnemy(e, 0.5, 0, 0, true); if (!e.dead) inflict(e, 'corrode', corrodeOpts(game.player.stats)); } // your bile corrodes
         }
       }
     } else {

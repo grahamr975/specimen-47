@@ -142,9 +142,13 @@ function statusMoveMul(t) {
   return m;
 }
 
+// Stacking caps: every "takes more damage" status multiplies, but together they top out here
+// (mark x corroded x pollen x bleed x blind x stun used to reach x8 and more).
+const STATUS_DMG_CAP = 2.5;
 function statusDamageMul(t, ps) {
   let m = 1;
   if (t.status) for (const id in t.status) { const st = t.status[id], f = STATUS[id].dmgTaken; if (st.t > 0 && f) m *= f(st, ps || {}, t); }
+  m = Math.min(m, STATUS_DMG_CAP);
   return m;
 }
 

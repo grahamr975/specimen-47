@@ -213,7 +213,7 @@ try {
     // Spore Fire: flame touching a cloud ignites it.
     game.clouds = [{ x: p.x + 30, y: p.y, r: 20, life: 3 }]; game.enemies = []; const rat = dummy(32, 99);
     for (let i = 0; i < 40 && game.clouds.length; i++) fireFor(1);
-    check(`bile flame ignites the spore cloud (rat took ${(99 - rat.hp).toFixed(1)})`, !game.clouds.length && rat.hp < 99 - 3);
+    check(`bile flame ignites the spore cloud (rat took ${(99 - rat.hp).toFixed(1)})`, !game.clouds.length && rat.hp < 99 - 2); // (ignition was trimmed 4x -> 3.2x)
     // Bone Shotgun: charge then blast.
     newRun(); combatRoom(); p = game.player; calm();
     grow(p, 'shotgun');
@@ -1076,6 +1076,18 @@ try {
     e.muts = null; Math.random = (() => { let k = 0; return () => [0.9, 0, 0.5, 0.3][k++ % 4]; })(); mutateEnemy(e); Math.random = realRandom0;
     check(`mutations change the creature (${e.muts.join('+')}: hp ${base.hp.toFixed(1)} -> ${e.maxHp.toFixed(1)})`, e.muts.length >= 2 && (e.maxHp > base.hp || e.armorMul || e.rateMul || e.speed !== makeEnemy('rat', 0, 0).speed));
     game.depth = 1; render(); check('mutated enemies draw without errors', true);
+  }
+  { // 0j1s) Stacking caps: damage-taken statuses top out together; barbs, pools and clouds don't pile up forever.
+    newRun(); combatRoom(); game.enemies = []; let q = game.player; q.stats.anticoag = 0.5; q.stats.allergen = 0.5; q.stats.stunBreak = true; q.stats.pollen = true;
+    const e = dummy(60, 999); e.speed = 0;
+    for (const [id, o] of [['mark', { t: 5, mul: 0.85 }], ['corrode', { t: 5, mul: 0.5, dps: 0 }], ['pollen', { t: 5 }], ['bleed', { t: 5, dps: 0 }], ['blind', { t: 5 }], ['stun', { t: 5 }]]) inflict(e, id, o);
+    check(`every "takes more" status together tops out at x${STATUS_DMG_CAP} (got x${statusDamageMul(e, q.stats).toFixed(2)})`, statusDamageMul(e, q.stats) === STATUS_DMG_CAP);
+    for (let i = 0; i < 20; i++) spawnBullet({ x: e.x - 4, y: e.y, vx: 50, vy: 0, r: 2, dmg: 0.01, life: 0.2, kind: 'shot', barb: 1 });
+    for (let i = 0; i < 4; i++) { update(1 / 60); Input.endFrame(); }
+    check(`barbs stuck in one enemy are capped (${e.barbs || 0} of ${BARB_MAX})`, (e.barbs || 0) <= BARB_MAX);
+    const z = dummy(-40, 999); z.speed = 0; game.puddles = []; for (let i = 0; i < 6; i++) spawnPuddle(z.x, z.y, 12, 3, 'player');
+    const h0 = z.hp; for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    check(`six overlapping pools burn no harder than one (${(h0 - z.hp).toFixed(1)} in 1s)`, h0 - z.hp < 3);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
