@@ -303,7 +303,7 @@ function visceraSprite(kind, pal) {
 function visceraBurst(x, y, fluid, r = 5, type) {
   if (!GORE) return;
   const bio = VISCERA_BIO[VISCERA_OF[type] || 'flesh'];
-  const scale = clamp(0.7 + (r - 4) * 0.15, 0.7, 1.6), n = Math.round((GORE > 1 ? 3 + r * 0.6 : 2 + r * 0.2));
+  const scale = clamp(0.7 + (r - 4) * 0.15, 0.7, 1.6), n = GORE > 1 ? Math.max(2, Math.round(1 + (r - 3) * 1.1)) : Math.max(1, Math.round((r - 3) * 0.5)); // (a rat: 3 pieces; a chimera: 7)
   for (let i = 0; i < n; i++) {
     const a = rand(0, Math.PI * 2), v = rand(20, 55 + r * 3) * (GORE > 1 ? 1 : 0.4); // (a heap around the body, not across the room)
     game.limbs.push({

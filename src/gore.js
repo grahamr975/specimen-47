@@ -133,12 +133,15 @@ function chunkStep(p) {
 }
 
 // Overkill: the body bursts.
+// How much mess a body makes, by its size: a grub (r 4) about half a rat's worth less, a hulk more.
+function goreScale(e) { return clamp(Math.pow((e.r || 6) / 7, 1.5), 0.3, 2); }
+
 function goreExplode(e) {
-  const T = ENEMY_TYPES[e.type];
-  bloodSpray(e.x, e.y, 0, 0, 40, T.fluid, 190);
-  gibs(e.x, e.y, 8, T.gib, T.fluid);
-  for (let i = 0; i < 4; i++) severChunk(e, 0, 0, 230);
-  for (let i = 0; i < 6; i++) { const a = rand(0, Math.PI * 2), r = rand(6, 16); stain(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r * 0.7, rand(1, 2.5), T.fluid); }
+  const T = ENEMY_TYPES[e.type], gs = goreScale(e);
+  bloodSpray(e.x, e.y, 0, 0, Math.round(40 * gs), T.fluid, 190 * Math.min(1, 0.5 + gs * 0.5));
+  gibs(e.x, e.y, Math.max(1, Math.round(8 * gs)), T.gib, T.fluid);
+  for (let i = 0; i < Math.round(4 * gs); i++) severChunk(e, 0, 0, 230);
+  for (let i = 0; i < Math.round(6 * gs); i++) { const a = rand(0, Math.PI * 2), r = rand(6, 16) * Math.min(1, gs + 0.3); stain(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r * 0.7, rand(1, 2.5), T.fluid); }
   game.shake = Math.max(game.shake, 3);
   hitstop(0.04);
   Sfx.play('splat');

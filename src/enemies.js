@@ -316,7 +316,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   e.lastHeavy = heavy;
   if (vx || vy) {
     knock(e, vx, vy, force !== undefined ? force : dmg * KNOCK_PER_DMG);
-    bloodSpray(e.x, e.y, vx, vy, 6 + Math.round(16 * Math.min(1, heavy * 2)), T.fluid, 110 + 60 * Math.min(1, heavy)); // spurts out the far side, harder hits spurt more
+    bloodSpray(e.x, e.y, vx, vy, Math.max(2, Math.round((6 + 16 * Math.min(1, heavy * 2)) * goreScale(e))), T.fluid, 110 + 60 * Math.min(1, heavy)); // spurts out the far side, harder hits spurt more
   }
   if (heavy >= 0.3 && !T.boss && !trySever(e, vx, vy, 0.35 + heavy * 0.4)) severChunk(e, vx, vy); // a heavy hit tears a part (or a piece) off
   if (e.hp > 0) severOnHurt(e, vx, vy); // badly hurt: it may lose a limb (dismember.js)
@@ -376,8 +376,9 @@ function killEnemy(e) {
     const n = Math.round((T.dna || 0) * s.dnaMul);
     if (n) gainDna(n);
   } else {
-  bloodSpray(e.x, e.y, 0, 0, e.elite ? 40 : 22, T.fluid, 130);
-  gibs(e.x, e.y, e.elite ? 10 : randInt(3, 6), T.gib, T.fluid);
+  const gs = goreScale(e); // (a grub makes a small mess, a hulk a big one)
+  bloodSpray(e.x, e.y, 0, 0, Math.round((e.elite ? 40 : 22) * gs), T.fluid, 130);
+  gibs(e.x, e.y, Math.max(1, Math.round((e.elite ? 10 : randInt(3, 6)) * gs)), T.gib, T.fluid);
   // Overkill (lots of damage to spare, or one huge hit) bursts the body.
   if (!T.robot && !T.boss && (-e.hp >= e.maxHp * 0.6 || (e.lastHeavy || 0) >= 1.5)) { severAll(e); goreExplode(e); }
   if (T.robot) {
@@ -389,7 +390,7 @@ function killEnemy(e) {
   } else {
     // Torn apart: just a smear, nothing worth harvesting.
     stain(e.x, e.y + 1, e.r + 2, T.fluid);
-    gibs(e.x, e.y, 3, T.gib, T.fluid);
+    gibs(e.x, e.y, Math.max(1, Math.round(3 * gs)), T.gib, T.fluid);
   }
   }
   Sfx.play('kill');

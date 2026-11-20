@@ -1239,7 +1239,7 @@ try {
     const e = dummy(-40, 5); spawnCorpse(e, 'rat'); const c = game.room.corpses[0];
     devourCorpse(q, c);
     const v = game.limbs.filter(l => l.inert);
-    check(`devouring a corpse bursts it into viscera (${v.length} pieces of gut, bone and organ)`, v.length >= 5);
+    check(`devouring a corpse bursts it into viscera (${v.length} pieces of gut, bone and organ)`, v.length >= 3);
     for (const l of v) { l.t = 1; l.x = q.x; l.y = q.y; } const eaten = game.limbsEaten || 0; update(1 / 60); Input.endFrame();
     check('...which is just mess: walking through it eats nothing', (game.limbsEaten || 0) === eaten);
     for (let i = 0; i < 120; i++) { update(1 / 60); render(); Input.endFrame(); }
