@@ -123,7 +123,7 @@ class Painter {
   }
 
   // The sprite with some parts gone, raw stumps where they were torn from.
-  compose(missing = []) {
+  compose(missing = [], metal = false) { // metal: torn plating and a hot spark instead of meat and bone
     const Q = new Painter(this.w, this.h, this.seed), W = this.w;
     const gone = new Uint8Array(this.w * this.h), raw = new Uint8Array(this.w * this.h);
     for (let i = 0; i < this.stack.length; i++) {
@@ -154,19 +154,19 @@ class Painter {
           if (nx >= 0 && ny >= 0 && nx < W && ny < this.h && gone[ny * W + nx]) edge = true;
         }
         if (edge || raw[i]) {
-          Q.col[i] = edge ? RAMPS.blood[2 + ((x + y) & 1)] : RAMPS.muscle[1 + (hash2(x, y, 9) * 3 | 0)];
+          Q.col[i] = metal ? RAMPS.metal[(x + y) & 1] : edge ? RAMPS.blood[2 + ((x + y) & 1)] : RAMPS.muscle[1 + (hash2(x, y, 9) * 3 | 0)];
           Q.dark[i] = RAMPS.blood[0];
           bone.forEach(([bx, by], j) => { const d = (x + 0.5 - bx) ** 2 + (y + 0.5 - by) ** 2; if (d < best[j][0]) best[j] = [d, i]; });
         }
       }
-      for (const [, i] of best) if (i >= 0) Q.col[i] = '#e8e0c8'; // a bone end in each stump
+      for (const [, i] of best) if (i >= 0) Q.col[i] = metal ? '#ffb040' : '#e8e0c8'; // a bone end (or a live wire) in each stump
     }
     return Q.outline().toCanvas();
   }
 
   // One part on its own, whole (including bits the body was painted over), outlined,
   // with a raw red end where it joined. Returns { img, cx, cy } (center, sprite coords).
-  partSprite(name) {
+  partSprite(name, metal = false) {
     const Q = new Painter(this.w, this.h, this.seed);
     for (let i = 0; i < this.stack.length; i++) {
       const s = this.stack[i]; if (!s) continue;
@@ -184,7 +184,7 @@ class Painter {
         if (Q.col[j] === null && this.stack[j]) { joint.push(i); break; }
       }
     }
-    for (const i of joint) { Q.col[i] = RAMPS.blood[2 + (i & 1)]; Q.dark[i] = RAMPS.blood[0]; }
+    for (const i of joint) { Q.col[i] = metal ? (i & 1 ? '#ffb040' : RAMPS.metal[0]) : RAMPS.blood[2 + (i & 1)]; Q.dark[i] = metal ? RAMPS.metal[0] : RAMPS.blood[0]; }
     const [cx, cy] = this.partCenter(name);
     return { img: Q.outline().toCanvas(), cx, cy };
   }

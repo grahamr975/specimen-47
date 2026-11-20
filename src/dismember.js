@@ -71,8 +71,11 @@ function loseLimb(e, kind) {
   else if (kind === 'head') {
     e.headless = true;
     inflict(e, 'blind', { t: 99 });
-    inflict(e, 'bleed', { t: 99, dps: e.maxHp / 6 }); // it won't last long
-  }
+    if (!ENEMY_TYPES[e.type].robot) inflict(e, 'bleed', { t: 99, dps: e.maxHp / 6 }); // it won't last long (a machine just can't see)
+  } else if (kind === 'fin') e.speed *= 0.8;       // it flies crooked
+  else if (kind === 'plate') e.plateLost = true;   // the Enforcer's riot plate: hits from the front land now
+  else if (kind === 'organ') e.rateMul = (e.rateMul || 1) * 0.8; // the frost gland: less to spit
+  else if (kind === 'growth') e.contactDmg = Math.max(1, (e.contactDmg || 1) - 0.5); // spines gone: it hurts less to touch
 }
 
 // Called as an enemy takes a (non-tiny) hit: dropping past a threshold can cost it a part.

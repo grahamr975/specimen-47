@@ -387,9 +387,9 @@ function paintDrone(frame) {
   const P = new Painter(20, 20, 23);
   P.tube([[10, 7], [10, 3.5]], 0.8, 0.8, R.metal);
   if (frame) P.scratch([[6, 3], [14, 3]], '#5e5e66'); else { for (let x = 2; x <= 18; x++) P.set(x, 3, x % 2 ? '#6a6a72' : '#3e3e46', R.metal); }
-  P.tube([[7, 15], [6, 18.5]], 0.6, 0.5, R.metal).tube([[13, 15], [14, 18.5]], 0.6, 0.5, R.metal);
-  P.blob(4, 12, 2, 2.6, R.metal).blob(16, 12, 2, 2.6, R.metal);
-  P.blob(10, 11, 6.5, 5, R.metal, { spec: 1, noise: 0.1 });
+  P.part('strutL').tube([[7, 15], [6, 18.5]], 0.6, 0.5, R.metal); P.part('strutR').tube([[13, 15], [14, 18.5]], 0.6, 0.5, R.metal);
+  P.part('podL').blob(4, 12, 2, 2.6, R.metal); P.part('podR').blob(16, 12, 2, 2.6, R.metal);
+  P.part(null).blob(10, 11, 6.5, 5, R.metal, { spec: 1, noise: 0.1 });
   for (let k = 0; k < 7; k++) P.scratch([[5 + hash2(k, 1, 23) * 10, 8 + hash2(k, 2, 23) * 6], [6 + hash2(k, 1, 23) * 10, 8 + hash2(k, 2, 23) * 6]], '#552a16'); // rust
   P.blob(10, 12.6, 3, 2.9, R.metal, { shift: -0.3 });
   P.blob(10, 12.6, 2, 2, R.glow, { spec: 1, specColor: '#ffe0d0' });
@@ -1026,7 +1026,7 @@ function paintScavenger() {
   const P = new Painter(14, 9, 53);
   P.blob(6, 5, 5, 2.4, GRUB, { spec: 1 });
   for (const x of [3, 5, 7]) P.scratch([[x, 3], [x, 7]], '#3a3428');
-  P.blob(11, 5, 1.6, 1.5, R.chitin, { spec: 1 });
+  P.part('head').blob(11, 5, 1.6, 1.5, R.chitin, { spec: 1 });
   P.tube([[12, 4.5], [13.5, 4]], 0.4, 0.3, R.chitin).tube([[12, 5.5], [13.5, 6.2]], 0.4, 0.3, R.chitin);
   return P.outline().toCanvas();
 }
@@ -1038,7 +1038,7 @@ function paintScavengerFat(glow) {
   P.blob(7, 7, 6.6, 5, GRUB, { spec: 1, shift: 0.15 });
   for (const [x, y, r] of [[5, 6, 1.4], [8.5, 8, 1.2], [6.5, 9.5, 0.9], [9, 5, 0.8]]) P.blob(x, y, r, r, R.pink, { spec: 1, shift: glow ? 0.35 : 0 });
   P.vein(3, 7, 4, '#6a2a44', 0.3).vein(10, 9, 3, '#6a2a44', -1.5);
-  P.blob(14, 7, 1.6, 1.5, R.chitin, { spec: 1 });
+  P.part('head').blob(14, 7, 1.6, 1.5, R.chitin, { spec: 1 });
   P.tube([[15, 6.5], [16.5, 6]], 0.4, 0.3, R.chitin).tube([[15, 7.5], [16.5, 8.2]], 0.4, 0.3, R.chitin);
   return P.outline().toCanvas();
 }
@@ -1135,10 +1135,10 @@ function paintFrostbitten(frame) { // a hunched, half-frozen corpse with ice on 
 }
 function paintCryoCrawler(frame) { // a pale, skittering thing with a swollen frost gland
   const P = new Painter(22, 16, 63), lf = frame ? 1.5 : 0;
-  for (const [hx, fx] of [[8, 3], [10, 6], [12, 16], [14, 19]]) P.tube([[hx, 9], [fx + (hx < 11 ? -lf : lf), 14 - (hx % 4 ? lf : 0)]], 0.6, 0.4, FROZEN);
-  P.blob(11, 8.6, 5, 3.4, FROZEN, { spec: 1, noise: 0.15 });
-  P.blob(7, 7.4, 3, 2.6, ICE, { spec: 1, specColor: '#ffffff' }); // the frost gland
-  P.blob(15.6, 8.4, 2.2, 1.8, FROZEN, { spec: 1 });
+  for (const [i, [hx, fx]] of [[8, 3], [10, 6], [12, 16], [14, 19]].entries()) P.part('leg' + 'ABCD'[i]).tube([[hx, 9], [fx + (hx < 11 ? -lf : lf), 14 - (hx % 4 ? lf : 0)]], 0.6, 0.4, FROZEN);
+  P.part(null).blob(11, 8.6, 5, 3.4, FROZEN, { spec: 1, noise: 0.15 });
+  P.part('gland').blob(7, 7.4, 3, 2.6, ICE, { spec: 1, specColor: '#ffffff' }); // the frost gland
+  P.part('head').blob(15.6, 8.4, 2.2, 1.8, FROZEN, { spec: 1 });
   P.dot(17, 8, '#a0e0ff').dot(16.4, 7.6, '#a0e0ff');
   return P.outline().toCanvas();
 }
@@ -1153,11 +1153,13 @@ function paintJar() { // a cryo jar, something dark curled inside
 }
 function paintThawed(frame) { // what came out of the jar: long-limbed and wet
   const P = new Painter(22, 20, 67), lf = frame ? 1 : 0;
-  P.tube([[7, 12], [3, 17 + lf]], 0.9, 0.6, FROZEN).tube([[10, 13], [8, 18 - lf]], 0.9, 0.6, FROZEN).tube([[13, 13], [15, 18 + lf]], 0.9, 0.6, FROZEN).tube([[15, 12], [20, 16 - lf]], 0.9, 0.6, FROZEN);
-  P.blob(11, 10, 6, 3.6, FROZEN, { spec: 1, noise: 0.2 });
-  P.blob(17, 8, 2.8, 2.6, FROZEN, { spec: 1 });
+  P.part('legA').tube([[7, 12], [3, 17 + lf]], 0.9, 0.6, FROZEN); P.part('legB').tube([[10, 13], [8, 18 - lf]], 0.9, 0.6, FROZEN);
+  P.part('legC').tube([[13, 13], [15, 18 + lf]], 0.9, 0.6, FROZEN); P.part('legD').tube([[15, 12], [20, 16 - lf]], 0.9, 0.6, FROZEN);
+  P.part(null).blob(11, 10, 6, 3.6, FROZEN, { spec: 1, noise: 0.2 });
+  P.part('head').blob(17, 8, 2.8, 2.6, FROZEN, { spec: 1 });
   P.scratch([[16.5, 9.5], [19.5, 9.5]], '#200810');
   P.dot(18, 7.4, '#a0e0ff').dot(17, 7.2, '#a0e0ff');
+  P.part(null);
   for (let k = 0; k < 3; k++) P.dot(8 + k * 3, 7.5, '#d8f0ff');
   return P.outline().toCanvas();
 }
@@ -1186,17 +1188,17 @@ function paintGunPolyp(frame) { // a rooted, fleshy turret with a barrel and one
   const P = new Painter(20, 20, 75);
   P.blob(10, 16, 7, 3, R.flesh, { shift: -0.25, noise: 0.2 });
   P.blob(10, 11, 5, 5, R.muscle, { spec: 1, noise: 0.15 });
-  P.tube([[12, 9], [17, 7 - (frame ? 1 : 0)]], 1.6, 1.3, R.cyst, { spec: 1 });
+  P.part('barrel').tube([[12, 9], [17, 7 - (frame ? 1 : 0)]], 1.6, 1.3, R.cyst, { spec: 1 });
   P.blob(17.4, 6.6, 1.3, 1.3, R.socket, { noise: 0 });
-  P.blob(8, 9.5, 1.8, 1.8, R.sclera, { spec: 1 }); P.dot(8.4, 9.5, '#200608');
+  P.part('eye').blob(8, 9.5, 1.8, 1.8, R.sclera, { spec: 1 }); P.dot(8.4, 9.5, '#200608');
   return P.outline().toCanvas();
 }
 
 // --- Gene Bank -------------------------------------------------------------------------------
 function paintMimic(frame) { // what looked like a corpse: all teeth
   const P = new Painter(22, 18, 81), lf = frame ? 1 : 0;
-  P.tube([[7, 11], [4, 15 + lf]], 0.8, 0.6, R.fur).tube([[14, 11], [17, 15 - lf]], 0.8, 0.6, R.fur);
-  P.blob(11, 9, 6.6, 4.4, R.fur, { noise: 0.3 });
+  P.part('legL').tube([[7, 11], [4, 15 + lf]], 0.8, 0.6, R.fur); P.part('legR').tube([[14, 11], [17, 15 - lf]], 0.8, 0.6, R.fur);
+  P.part(null).blob(11, 9, 6.6, 4.4, R.fur, { noise: 0.3 });
   P.blob(11, 9.4, 4.4, 2.6, R.socket, { noise: 0 }); // a gaping maw down its whole body
   for (let x = 7.5; x <= 14.5; x += 1.5) { P.dot(x, 7.6, '#e8e0c8'); P.dot(x + 0.7, 11, '#e8e0c8'); }
   P.dot(16.5, 7, '#e01828');
@@ -1204,53 +1206,53 @@ function paintMimic(frame) { // what looked like a corpse: all teeth
 }
 function paintChimera(frame) { // toad body, urchin spines, a rat's tail: stitched together
   const P = new Painter(26, 22, 83), lf = frame ? 1 : 0;
-  P.tube([[5, 14], [2, 16], [1, 19]], 1, 0.4, R.pink);
-  for (let k = 0; k < 6; k++) { const a = -Math.PI * 0.85 + k * 0.32; P.tube([[12 + Math.cos(a) * 4, 10 + Math.sin(a) * 4], [12 + Math.cos(a) * 9, 10 + Math.sin(a) * 8]], 1.1, 0.3, R.bone); }
-  P.tube([[9, 15], [8 - lf, 20]], 1.5, 1.2, R.toad).tube([[16, 15], [17 + lf, 20]], 1.5, 1.2, R.toad);
-  P.blob(12.5, 12, 7.5, 5.5, R.toad, { spec: 1, noise: 0.2 });
-  P.blob(19.5, 10.5, 3.6, 3, R.fur, { noise: 0.25 });
-  P.scratch([[8, 9], [8, 15]], '#c4b898').scratch([[16, 9], [16, 15]], '#c4b898'); // stitches
+  P.part('tail').tube([[5, 14], [2, 16], [1, 19]], 1, 0.4, R.pink);
+  P.part('spines'); for (let k = 0; k < 6; k++) { const a = -Math.PI * 0.85 + k * 0.32; P.tube([[12 + Math.cos(a) * 4, 10 + Math.sin(a) * 4], [12 + Math.cos(a) * 9, 10 + Math.sin(a) * 8]], 1.1, 0.3, R.bone); }
+  P.part('legL').tube([[9, 15], [8 - lf, 20]], 1.5, 1.2, R.toad); P.part('legR').tube([[16, 15], [17 + lf, 20]], 1.5, 1.2, R.toad);
+  P.part(null).blob(12.5, 12, 7.5, 5.5, R.toad, { spec: 1, noise: 0.2 });
+  P.part('head').blob(19.5, 10.5, 3.6, 3, R.fur, { noise: 0.25 });
+  P.part(null).scratch([[8, 9], [8, 15]], '#c4b898').scratch([[16, 9], [16, 15]], '#c4b898'); // stitches
   for (const y of [10, 12, 14]) { P.dot(7, y, '#c4b898'); P.dot(9, y, '#c4b898'); P.dot(15, y, '#c4b898'); P.dot(17, y, '#c4b898'); }
-  P.dot(21, 9.6, '#e0c040').dot(20, 9.4, '#e01828');
+  P.part('head').dot(21, 9.6, '#e0c040').dot(20, 9.4, '#e01828');
   return P.outline().toCanvas();
 }
 function paintClone(frame) { // a small, pale homunculus with a barcode tag
   const P = new Painter(14, 16, 85), lf = frame ? 1 : 0;
-  P.tube([[5.5, 11], [5 - lf, 15]], 0.8, 0.6, R.pink).tube([[8.5, 11], [9 + lf, 15]], 0.8, 0.6, R.pink);
-  P.blob(7, 8.6, 3.4, 3.6, R.pink, { spec: 1 });
-  P.blob(7, 4, 2.6, 2.4, R.pink, { spec: 1 });
-  for (const x of [5, 6, 8]) P.scratch([[x, 8], [x, 10]], '#1a0c10');
-  P.dot(8, 3.6, '#1a0c10').dot(6, 3.6, '#1a0c10');
+  P.part('legL').tube([[5.5, 11], [5 - lf, 15]], 0.8, 0.6, R.pink); P.part('legR').tube([[8.5, 11], [9 + lf, 15]], 0.8, 0.6, R.pink);
+  P.part(null).blob(7, 8.6, 3.4, 3.6, R.pink, { spec: 1 });
+  P.part('head').blob(7, 4, 2.6, 2.4, R.pink, { spec: 1 });
+  P.part(null); for (const x of [5, 6, 8]) P.scratch([[x, 8], [x, 10]], '#1a0c10');
+  P.part('head').dot(8, 3.6, '#1a0c10').dot(6, 3.6, '#1a0c10');
   return P.outline().toCanvas();
 }
 
 // --- Director's Wing -------------------------------------------------------------------------
 function paintEnforcer(frame) { // armored security unit with a riot plate in front
   const P = new Painter(22, 22, 91), lf = frame ? 1 : 0;
-  P.tube([[8, 16], [7 - lf, 21]], 1.4, 1.2, R.metal).tube([[13, 16], [14 + lf, 21]], 1.4, 1.2, R.metal);
-  P.blob(10.5, 11.5, 5.4, 6, R.metal, { spec: 1, noise: 0.08 });
-  P.blob(10.5, 5, 3, 2.6, R.metal, { spec: 1 });
+  P.part('legL').tube([[8, 16], [7 - lf, 21]], 1.4, 1.2, R.metal); P.part('legR').tube([[13, 16], [14 + lf, 21]], 1.4, 1.2, R.metal);
+  P.part(null).blob(10.5, 11.5, 5.4, 6, R.metal, { spec: 1, noise: 0.08 });
+  P.part('head').blob(10.5, 5, 3, 2.6, R.metal, { spec: 1 });
   P.scratch([[9, 5], [13, 5]], '#ff3030');
-  P.rect(16, 6, 19, 18, R.metal, 0.7, { noise: 0.05 }); // the riot plate
+  P.part('plate').rect(16, 6, 19, 18, R.metal, 0.7, { noise: 0.05 }); // the riot plate
   P.scratch([[17.5, 7], [17.5, 17]], '#ffd070');
   return P.outline().toCanvas();
 }
 function paintHunter(frame) { // a sleek attack drone with blade fins
   const P = new Painter(22, 16, 93);
-  P.tube([[3, 8], [8, 6]], 0.8, 0.3, R.metal).tube([[3, 9], [8, 11]], 0.8, 0.3, R.metal); // blade fins
-  P.blob(12, 8.4, 6.5, 3.2, R.metal, { spec: 1, noise: 0.06 });
+  P.part('finT').tube([[3, 8], [8, 6]], 0.8, 0.3, R.metal); P.part('finB').tube([[3, 9], [8, 11]], 0.8, 0.3, R.metal); // blade fins
+  P.part(null).blob(12, 8.4, 6.5, 3.2, R.metal, { spec: 1, noise: 0.06 });
   P.blob(17, 8.4, 2, 1.8, R.glow, { spec: 1, specColor: '#ffe0d0' });
   if (frame) P.scratch([[2, 8.4], [5, 8.4]], '#ff8040');
   return P.outline().toCanvas();
 }
 function paintHandler(frame) { // a containment worker in a hazmat suit, net launcher in hand
   const P = new Painter(20, 22, 95), lf = frame ? 1 : 0;
-  P.tube([[8, 15], [7 - lf, 21]], 1.4, 1.2, HAZMAT).tube([[12, 15], [13 + lf, 21]], 1.4, 1.2, HAZMAT);
-  P.blob(10, 11, 4.8, 5.4, HAZMAT, { spec: 1, noise: 0.08 });
-  P.blob(10, 4.6, 3.2, 3, HAZMAT, { spec: 1 });
+  P.part('legL').tube([[8, 15], [7 - lf, 21]], 1.4, 1.2, HAZMAT); P.part('legR').tube([[12, 15], [13 + lf, 21]], 1.4, 1.2, HAZMAT);
+  P.part(null).blob(10, 11, 4.8, 5.4, HAZMAT, { spec: 1, noise: 0.08 });
+  P.part('head').blob(10, 4.6, 3.2, 3, HAZMAT, { spec: 1 });
   P.blob(11, 4.6, 2, 1.5, R.murk, { spec: 1, specColor: '#a0e0ff' }); // the visor
-  P.tube([[13, 10], [18, 9]], 1.1, 1, R.metal); P.dot(18.5, 9, '#e8e0c8');
-  P.scratch([[6, 9], [14, 9]], '#1a1608');
+  P.part('arm').tube([[13, 10], [18, 9]], 1.1, 1, R.metal); P.dot(18.5, 9, '#e8e0c8');
+  P.part(null).scratch([[6, 9], [14, 9]], '#1a1608');
   return P.outline().toCanvas();
 }
 
@@ -1311,6 +1313,17 @@ const ANATOMY = {
   spitter:     { hindL: 'leg', hindR: 'leg', footL: 'leg', footR: 'leg', head: 'head' },
   frostbitten: { legL: 'leg', legR: 'leg', arm: 'arm', head: 'head' },
   carrier:     { legL: 'leg', legR: 'leg', head: 'head' },
+  drone:       { podL: 'arm', podR: 'arm', strutL: 'scrap', strutR: 'scrap' },
+  scavenger:   { head: 'head' },
+  cryocrawler: { legA: 'leg', legB: 'leg', legC: 'leg', legD: 'leg', gland: 'organ', head: 'head' },
+  jarthing:    { legA: 'leg', legB: 'leg', legC: 'leg', legD: 'leg', head: 'head' },
+  gunpolyp:    { barrel: 'arm', eye: 'head' },
+  mimic:       { legL: 'leg', legR: 'leg' },
+  chimera:     { tail: 'tail', spines: 'growth', legL: 'leg', legR: 'leg', head: 'head' },
+  clone:       { legL: 'leg', legR: 'leg', head: 'head' },
+  enforcer:    { legL: 'leg', legR: 'leg', plate: 'plate', head: 'head' },
+  hunter:      { finT: 'fin', finB: 'fin' },
+  handler:     { legL: 'leg', legR: 'leg', arm: 'arm', head: 'head' },
 };
 SPR.anat = {}; // sprite name -> its Painter (kept for its layers)
 const ANAT_CACHE = new Map();
@@ -1326,17 +1339,20 @@ function anatSprite(name, missing, variant = '') {
     if (variant) {
       const img = anatSprite(name, missing);
       c = variant === '_flash' ? silhouette(img, '#f4e8dc') : variant === '_elite' ? silhouette(img, PAL.red) : darkened(img);
-    } else c = left ? flipH(anatSprite(base, missing)) : P.compose(missing);
+    } else c = left ? flipH(anatSprite(base, missing)) : P.compose(missing, isMetal(base));
     ANAT_CACHE.set(key, c);
   }
   return c;
 }
 
+// Machines tear like machines. (Sprite names: the type, maybe with a frame number.)
+const isMetal = name => { const T = typeof ENEMY_TYPES !== 'undefined' && (ENEMY_TYPES[name] || ENEMY_TYPES[name.replace(/2$/, '')]); return !!(T && T.robot); };
+
 // A torn-off part on its own: { img, cx, cy } (cx, cy: where it sat, from the sprite's top-left).
 function limbSprite(name, part) {
   const key = name + '#' + part;
   let s = ANAT_CACHE.get(key);
-  if (!s && SPR.anat[name]) ANAT_CACHE.set(key, s = SPR.anat[name].partSprite(part));
+  if (!s && SPR.anat[name]) ANAT_CACHE.set(key, s = SPR.anat[name].partSprite(part, isMetal(name)));
   return s;
 }
 

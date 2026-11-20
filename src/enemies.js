@@ -571,7 +571,7 @@ const ENEMY_BEHAVIOR = {
   // --- Floor 5: Director's Wing ---
   enforcer: {
     onHurt(e, dmg, vx, vy) { // a hit on its riot plate barely lands (only its back is soft)
-      if (!(vx || vy) || e.fx === undefined || (vx * e.fx + vy * e.fy) / (Math.hypot(vx, vy) || 1) >= -0.35) return dmg;
+      if (e.plateLost || !(vx || vy) || e.fx === undefined || (vx * e.fx + vy * e.fy) / (Math.hypot(vx, vy) || 1) >= -0.35) return dmg;
       if (!(e.clankT > game.time)) { e.clankT = game.time + 0.15; burst(e.x + e.fx * 6, e.y + e.fy * 6, '#ffd070', 4, 80, 0.2); Sfx.play('clank'); }
       return dmg * 0.25;
     },

@@ -1110,7 +1110,7 @@ try {
       for (const part in ANATOMY[type]) {
         if (!P.parts.includes(part) || !opaque(limbSprite(name, part).img)) noPart.push(name + '.' + part);
         const m = anatSprite(name, [part]), d = px(m); let red = false;
-        for (let i = 0; i < d.length; i += 4) if (d[i + 3] && d[i] > 120 && d[i + 1] < 60) red = true;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] && ((d[i] > 120 && d[i + 1] < 60) || (d[i] === 232 && d[i + 1] === 224 && d[i + 2] === 200) || (d[i] === 255 && d[i + 1] === 176))) red = true; // raw meat, the bone end, or a machine's live wire
         if (!(opaque(m) <= opaque(SPR[name])) || !red) noStump.push(name + '.' + part);
       }
     }
