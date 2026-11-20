@@ -323,6 +323,16 @@ function drawSealCue(ctx, dir, seal, fighting) {
   }
 }
 
+// A little pixel skull, centered on (x, y): marks the way to the boss's lair.
+const SKULL_MARK = ['..XXX..', '.XXXXX.', 'XXXXXXX', 'X..X..X', 'X..X..X', 'XXX.XXX', '.XXXXX.', '.X.X.X.'];
+function drawSkullMark(ctx, x, y, col) {
+  const x0 = Math.round(x) - 3, y0 = Math.round(y) - 4;
+  for (const [dx, dy, c] of [[1, 1, '#160507'], [0, 0, col]]) {
+    ctx.fillStyle = c;
+    SKULL_MARK.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === 'X') ctx.fillRect(x0 + i + dx, y0 + j + dy, 1, 1); });
+  }
+}
+
 function drawDoors(ctx) {
   const room = game.room;
   for (const name in room.doors) {
@@ -347,10 +357,9 @@ function drawDoors(ctx) {
     const lair = isLairDoor(room, name);
     ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + (lair ? (room.locked ? 'bossLocked' : 'bossOpen') : (room.locked ? 'locked' : 'open'))], tx * TILE, ty * TILE);
     if (lair) { // a pulsing label just inside the door
-      const label = floorDef(game.depth).boss ? 'BOSS' : 'WARDEN';
       const c = doorCenter(name), lx = clamp(c.x, TILE + 14, ROOM_PX_W - TILE - 14), ly = clamp(c.y, TILE + 5, ROOM_PX_H - TILE - 7);
       const col = Math.floor(game.time * 2.5) % 2 ? '#e05050' : '#8a1420';
-      drawText(ctx, label, lx, ly - 3, col, 1, 'center');
+      drawSkullMark(ctx, lx, ly, col);
     }
   }
 }

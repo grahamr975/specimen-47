@@ -458,8 +458,7 @@ function drawMutationList(ctx) {
       if (cellOpen[i]) drawText(ctx, 'FREE', x + w / 2, top + 13, '#4a3e3e', 1, 'center', null);
       else {
         const soon = loc === next && !nextShown; if (soon) nextShown = true;
-        if (soon) { drawText(ctx, 'NEXT', x + w / 2, top + 10, '#6a4a52', 1, 'center', null); drawText(ctx, 'BOSS', x + w / 2, top + 17, '#6a4a52', 1, 'center', null); }
-        else drawText(ctx, 'LOCKED', x + w / 2, top + 13, '#2a2424', 1, 'center', null);
+        drawText(ctx, 'LOCKED', x + w / 2, top + 13, soon ? '#4a3a3e' : '#2a2424', 1, 'center', null); // (the next to open, a shade brighter)
       }
       return;
     }
