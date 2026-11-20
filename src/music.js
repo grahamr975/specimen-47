@@ -1,6 +1,8 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// Procedural music: a little sequencer and synth, all Web Audio, no files.
+// Procedural music: a little sequencer and synth, all Web Audio, no files. Horror
+// first: slow-ish tempos, phrygian and diminished keys, a grinding drone under
+// everything, notes that slip a semitone wrong, and distant screeches.
 //
 // Every floor has its own track and every boss its own song (SONGS below).
 // A song is data: tempo, key and scale, a chord per bar, a bass pattern, drum
@@ -25,101 +27,103 @@ const SCALES = {
 };
 
 // Drum patterns, one bar of 16ths. k kick, s snare, h hat, o open hat, c metal clank, t tom.
+// Sparse and heavy: industrial thuds and metal, not a dance beat.
 const DRUMS = {
-  drive:   { k: 'x.......x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
-  four:    { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.', o: '..x...x...x...x.' },
-  half:    { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', t: '............x.x.' },
-  frantic: { k: 'x.x.x.x.x.x.x.x.', s: '....x..x....x.x.', h: 'xxxxxxxxxxxxxxxx' },
-  march:   { k: 'x...x...x...x...', s: '..x.x.x...xxx.x.', h: 'x.x.x.x.x.x.x.x.' },
-  factory: { k: 'x..x..x...x..x..', s: '....x.......x...', h: 'x.xxx.xxx.xxx.xx', c: '..x.....x.....x.' },
-  heart:   { k: 'x..x........x..x', s: '........x.......', h: '..x...x...x...x.' },
-  // explore: just a pulse
-  pulse:   { k: 'x.......x.......', h: '..x...x...x...x.' },
-  tick:    { h: 'x.x.x.x.x.x.x.x.' },
-  sparse:  { k: 'x...............', h: '....x.......x...' },
+  creep:   { k: 'x.....x...x.....', s: '........x.......', c: '...........x....', h: '....x.......x...' },
+  doom:    { k: 'x.......x.......', s: '........x.......', t: '......x.....x.x.', c: '..............x.' },
+  factory: { k: 'x..x..x...x..x..', s: '....x.......x...', c: '..x...x...x...x.' },
+  dirge:   { k: 'x...x...x...x...', s: '..........x.x...', t: '..x.............', h: 'x.......x.......' },
+  heart:   { k: 'x..x........x..x', s: '........x.......', c: '......x.........' },
+  frantic: { k: 'x.x.x..xx.x.x..x', s: '....x..x....x.xx', c: '..x...x...x...x.', h: 'x.x.x.x.x.x.x.x.' },
+  stagger: { k: 'x....x....x..x..', s: '....x.....x.....', c: '.x.....x.....x..', t: '..............xx' },
+  // exploring: just a pulse under the dread
+  pulse:   { k: 'x.......x.......' },
+  tick:    { c: '....x.......x...' },
+  sparse:  { k: 'x...............' },
 };
 
 // Bass patterns, one bar: 1 chord root, 3 third, 5 fifth, 8 octave, 7 seventh, b the scale step below, . rest.
 const BASS = {
-  eighths: '1.1.1.1.1.1.1.1.',
-  gallop:  '1.18.11.1.18.15.',
-  pump:    '1..1..1.1..1..8.',
-  hold:    '1.......5.......',
-  frantic: '1181118111811181',
-  walk:    '1.1.3.3.5.5.8.5.',
-  stomp:   '1...1...b...1.8.',
   heart:   '1..1........1..1',
+  creep:   '1.....1.....b...',
+  doom:    '1.......1...b...',
+  pump:    '1..1..1.1..1..b.',
+  stomp:   '1...1...b...1.8.',
+  gallop:  '1.11.11.1.11.1b.',
+  frantic: '1181118111b11181',
+  hold:    '1...............',
 };
 
 // A lead melody: one string per bar, 16 tokens: a scale degree (0 = tonic, 7 = an
 // octave up in a 7-note scale, negatives go down), '.' rest, '-' hold the last note.
+// wrong: how often a note slips a semitone off. sting: chance per bar of a distant screech.
 const SONGS = {
   title: { // slow dread with a pulse under it
-    bpm: 84, root: 50, scale: 'phrygian', prog: [0, 1, 5, 6],
+    bpm: 72, root: 50, scale: 'phrygian', prog: [0, 1, 5, 1],
     drums: 'sparse', exDrums: 'sparse', bass: 'heart', exBass: 'heart', arp: null, pad: true,
-    lead: ['7 . . . 6 . . . 4 . . . 3 . . .', '8 . . . 7 . . . 5 . . . 4 . . .', '7 . . . 5 . . . 4 . . . 2 . . .', '6 . . . 5 . . . 4 . 1 . 0 . . .'],
-    leadInst: 'bell', alwaysLead: true,
+    lead: ['7 . . . 6 . . . 4 . . . 3 . . .', '8 . . . 7 . . . 5 . . . 4 . . .', '7 . . . 5 . . . 4 . . . 1 . . .', '8 . . . 7 . . . 4 . 1 . 0 . . .'],
+    leadInst: 'bell', alwaysLead: true, wrong: 0.15,
   },
-  floor0: { // PETRI LABS: sickly synth-pop gone wrong
-    bpm: 124, root: 52, scale: 'aeolian', prog: [0, 0, 5, 6],
-    drums: 'drive', exDrums: 'pulse', bass: 'gallop', exBass: 'eighths', arp: '0121', arpInst: 'pluck', pad: true,
-    lead: ['4 . 4 . 3 . 4 . 7 . - . 4 . 3 .', '2 . 2 . 0 . 2 . 3 . - . 2 . 1 .', '2 . 0 . 2 . 5 . 4 . - . 2 . 0 .', '1 . 1 . 3 . 6 . 5 . 4 . 3 . 1 .'],
-    leadInst: 'square', bassInst: 'saw',
+  floor0: { // PETRI LABS: a nursery music box over something breathing
+    bpm: 100, root: 52, scale: 'phrygian', prog: [0, 1, 0, 4],
+    drums: 'creep', exDrums: 'pulse', bass: 'creep', exBass: 'heart', arp: '0102', arpInst: 'bell', pad: true,
+    lead: ['4 - - - 5 - 4 - 1 - - - 0 - - -', '0 - - - 1 - 0 - -1 - - - . . . .', '4 - - - 5 - 7 - 8 - - - 7 - 5 -', '4 - - - 3 - 1 - 0 - - - . . . .'],
+    leadInst: 'warble', bassInst: 'fm', wrong: 0.12, sting: 0.12,
   },
-  floor1: { // CRYO WING: cold bells over a half-time stomp
-    bpm: 116, root: 50, scale: 'aeolian', prog: [0, 3, 5, 4],
-    drums: 'half', exDrums: 'tick', bass: 'pump', exBass: 'hold', arp: '0212', arpInst: 'bell', pad: true,
-    lead: ['7 . . . 4 . . . 5 . . . 2 . . .', '3 . . . 5 . . . 7 . . . 5 . . .', '2 . . . 0 . . . 2 . 4 . 5 . . .', '6 . . . 4 . . . 1 . . . 4 . . .'],
-    leadInst: 'glass', bassInst: 'square',
+  floor1: { // CRYO WING: a frozen choir, glass, a slow heavy step
+    bpm: 92, root: 50, scale: 'harmonic', prog: [0, 5, 3, 6],
+    drums: 'doom', exDrums: 'tick', bass: 'doom', exBass: 'hold', arp: '0212', arpInst: 'glass', pad: true,
+    lead: ['7 - - - - - - - 6 - - - 5 - - -', '4 - - - - - - - 3 - - - 1 - - -', '2 - - - - - - - 1 - - - 0 - - -', '6 - - - - - - - -1 - - - . . . .'],
+    leadInst: 'choir', bassInst: 'saw', wrong: 0.08, sting: 0.1,
   },
-  floor2: { // BIO-WEAPONS: industrial, distorted, clanking
-    bpm: 138, root: 45, scale: 'phrydom', prog: [0, 0, 1, 0],
-    drums: 'factory', exDrums: 'pulse', bass: 'frantic', exBass: 'pump', arp: null, pad: false, drive: true,
-    lead: ['0 0 1 0 . 0 1 0 4 . 3 . 1 . 0 .', '0 0 1 0 . 0 1 0 5 . 4 . 3 . 1 .', '1 1 2 1 . 1 2 1 5 . 4 . 2 . 1 .', '0 . 7 . 6 . 5 . 4 . 3 . 1 . 0 .'],
-    leadInst: 'saw', bassInst: 'saw',
+  floor2: { // BIO-WEAPONS: machinery, distortion, a low grinding riff
+    bpm: 112, root: 45, scale: 'phrydom', prog: [0, 0, 1, 0],
+    drums: 'factory', exDrums: 'tick', bass: 'stomp', exBass: 'creep', arp: null, pad: false, drive: true,
+    lead: ['0 . 0 1 0 . . . 0 . 0 1 4 . 3 .', '0 . 0 1 0 . . . 5 . 4 . 1 - - -', '1 . 1 2 1 . . . 1 . 1 2 5 . 4 .', '0 . -1 . 0 . 1 . 0 - - - . . . .'],
+    leadInst: 'saw', bassInst: 'saw', leadOct: -12, wrong: 0.06, sting: 0.15,
   },
-  floor3: { // GENE BANK: a crooked organ, arpeggios that won't sit still
-    bpm: 128, root: 54, scale: 'harmonic', prog: [0, 5, 3, 4],
-    drums: 'four', exDrums: 'tick', bass: 'walk', exBass: 'hold', arp: '0120', arpInst: 'organ', pad: true,
-    lead: ['0 . 2 4 7 . 4 2 0 . 2 4 6 . 4 .', '5 . 7 9 12 . 9 7 5 . 4 2 0 . . .', '3 . 5 7 10 . 7 5 3 . 2 0 -1 . . .', '4 . 6 8 11 . 8 6 4 . . . 6 . . .'],
-    leadInst: 'organ', bassInst: 'fm',
+  floor3: { // GENE BANK: a detuned organ in a diminished scale that never settles
+    bpm: 104, root: 54, scale: 'dim', prog: [0, 2, 4, 6],
+    drums: 'stagger', exDrums: 'tick', bass: 'pump', exBass: 'hold', arp: '0120', arpInst: 'organ', pad: true,
+    lead: ['0 - - 2 - - 4 - 6 - - 4 - - 2 -', '1 - - 3 - - 5 - 7 - - 5 - - 3 -', '0 - 4 - 8 - 4 - 1 - 5 - 9 - 5 -', '8 - - - 7 - - - 6 - - - 5 - - -'],
+    leadInst: 'organ', bassInst: 'fm', wrong: 0.1, sting: 0.12,
   },
-  floor4: { // DIRECTOR'S WING: a cold, military march
-    bpm: 146, root: 48, scale: 'harmonic', prog: [0, 0, 3, 4],
-    drums: 'march', exDrums: 'pulse', bass: 'eighths', exBass: 'pump', arp: '0102', arpInst: 'pluck', pad: true, drive: true,
-    lead: ['0 . . 0 2 . 4 . 7 . - . 6 . 4 .', '4 . . 4 5 . 4 . 2 . - . 1 . 2 .', '3 . . 3 5 . 7 . 10 . - . 9 . 7 .', '6 . - . 4 . - . 6 . 7 . 8 . 6 .'],
-    leadInst: 'saw', bassInst: 'saw',
+  floor4: { // DIRECTOR'S WING: a funeral march through clean white halls
+    bpm: 116, root: 48, scale: 'harmonic', prog: [0, 5, 1, 4],
+    drums: 'dirge', exDrums: 'pulse', bass: 'gallop', exBass: 'doom', arp: '0102', arpInst: 'glass', pad: true, drive: true,
+    lead: ['0 - - - 0 - 1 - 2 - - - 1 - 0 -', '6 - - - -1 - - - 0 - - - . . . .', '4 - - - 4 - 5 - 6 - - - 5 - 4 -', '1 - - - 2 - 1 - 0 - - - -1 - - -'],
+    leadInst: 'choir', lead2: 'saw', bassInst: 'saw', wrong: 0.06, sting: 0.1,
   },
   // --- Bosses ---
-  mother: { // a womb with a heartbeat: music box and pulsing flesh
-    bpm: 132, root: 47, scale: 'phrygian', prog: [0, 1, 0, 6], boss: true,
+  mother: { // a womb: heartbeat, a lullaby gone wrong, something singing inside
+    bpm: 108, root: 47, scale: 'phrygian', prog: [0, 1, 0, 6], boss: true,
     drums: 'heart', bass: 'heart', arp: '0122', arpInst: 'bell', pad: true,
-    lead: ['7 . 6 . 7 . 4 . 5 . 4 . 3 . 1 .', '1 . 2 . 3 . 1 . 0 . - . - . . .', '7 . 8 . 7 . 4 . 3 . 4 . 5 . 7 .', '6 . - . 5 . - . 3 . - . 1 . - .'],
-    leadInst: 'bell', bassInst: 'fm', lead2: 'square',
+    lead: ['7 - 8 - 7 - 4 - 5 - - - 4 - 1 -', '1 - 2 - 1 - 0 - 0 - - - . . . .', '7 - 8 - 10 - 8 - 7 - - - 5 - 4 -', '4 - 5 - 4 - 1 - 0 - - - . . . .'],
+    leadInst: 'bell', lead2: 'choir', bassInst: 'fm', wrong: 0.2, sting: 0.2,
   },
-  colossus: { // huge, slow, crushing
-    bpm: 96, root: 41, scale: 'aeolian', prog: [0, 5, 2, 6], boss: true,
-    drums: 'half', bass: 'stomp', arp: '0101', arpInst: 'glass', pad: true, drive: true,
-    lead: ['7 - - - - - 4 - 5 - - - 4 - 2 -', '5 - - - - - 4 - 2 - - - 0 - - -', '4 - - - - - 2 - 4 - - - 6 - 7 -', '8 - - - 7 - - - 6 - - - 4 - - -'],
-    leadInst: 'saw', bassInst: 'saw',
+  colossus: { // huge, slow, crushing: every step a landslide
+    bpm: 80, root: 41, scale: 'phrygian', prog: [0, 1, 0, 1], boss: true,
+    drums: 'doom', bass: 'stomp', arp: '0101', arpInst: 'glass', pad: true, drive: true,
+    lead: ['0 - - - - - - - 1 - - - - - - -', '0 - - - - - - - -2 - - - -1 - - -', '4 - - - - - - - 5 - - - 4 - - -', '1 - - - - - - - 0 - - - - - - -'],
+    leadInst: 'choir', lead2: 'saw', bassInst: 'saw', wrong: 0.05, sting: 0.25,
   },
-  biotank: { // SPECIMEN ZERO: frantic, unstable, screaming
-    bpm: 152, root: 43, scale: 'phrydom', prog: [0, 1, 0, 6], boss: true,
+  biotank: { // SPECIMEN ZERO: unstable, screaming, the fastest thing in the lab
+    bpm: 132, root: 43, scale: 'phrydom', prog: [0, 1, 0, 1], boss: true,
     drums: 'frantic', bass: 'frantic', arp: null, pad: false, drive: true,
-    lead: ['0 1 0 4 0 1 0 5 0 1 0 4 3 1 0 .', '0 1 0 4 0 1 0 5 7 . 5 . 4 . 1 .', '1 2 1 5 1 2 1 6 1 2 1 5 4 2 1 .', '7 6 5 4 3 1 0 -1 0 . 0 . 7 . . .'],
-    leadInst: 'scream', bassInst: 'saw',
+    lead: ['0 1 0 . 0 1 0 . 4 . 5 . 4 . 1 .', '0 1 0 . 0 1 0 . 7 - 6 - 5 - 4 -', '1 2 1 . 1 2 1 . 5 . 6 . 5 . 2 .', '0 . -1 . 0 . 1 . 0 - - - - - - -'],
+    leadInst: 'scream', bassInst: 'saw', wrong: 0.1, sting: 0.35,
   },
-  archive: { // every sample at once: glitchy, diminished, never resolving
-    bpm: 140, root: 51, scale: 'dim', prog: [0, 2, 4, 6], boss: true,
-    drums: 'factory', bass: 'gallop', arp: '0123', arpInst: 'glass', pad: true,
-    lead: ['0 2 4 6 8 6 4 2 1 3 5 7 9 7 5 3', '0 . 4 . 8 . 4 . 2 . 6 . 10 . 6 .', '8 7 6 5 4 3 2 1 0 . . . 4 . . .', '6 . 7 . 8 . 9 . 10 . 11 . 12 . . .'],
-    leadInst: 'organ', bassInst: 'fm',
+  archive: { // every sample at once: glitching arpeggios that never resolve
+    bpm: 116, root: 51, scale: 'dim', prog: [0, 2, 4, 6], boss: true,
+    drums: 'stagger', bass: 'pump', arp: '0123', arpInst: 'glass', pad: true,
+    lead: ['0 . 2 . 4 . 6 . 8 . 6 . 4 . 2 .', '1 . 3 . 5 . 7 . 9 . 7 . 5 . 3 .', '8 - - - 4 - - - 0 - - - 4 - - -', '7 - 6 - 5 - 4 - 3 - 2 - 1 - 0 -'],
+    leadInst: 'organ', bassInst: 'fm', wrong: 0.18, sting: 0.3,
   },
-  director: { // the man who made you: an organ, a march, everything at once
-    bpm: 158, root: 48, scale: 'harmonic', prog: [0, 5, 3, 4], boss: true,
-    drums: 'march', bass: 'gallop', arp: '0121', arpInst: 'organ', pad: true, drive: true,
-    lead: ['7 . 7 . 6 . 7 . 9 . 7 . 6 . 4 .', '5 . 5 . 4 . 5 . 7 . 5 . 4 . 2 .', '3 . 3 . 2 . 3 . 5 . 3 . 2 . 0 .', '6 . 4 . 6 . 7 . 8 . 9 . 10 . 11 .'],
-    leadInst: 'saw', bassInst: 'saw', lead2: 'organ',
+  director: { // the man who made you: a black mass of organ and choir over a march
+    bpm: 124, root: 48, scale: 'harmonic', prog: [0, 5, 1, 4], boss: true,
+    drums: 'dirge', bass: 'gallop', arp: '0121', arpInst: 'organ', pad: true, drive: true,
+    lead: ['7 - - - 6 - 7 - 8 - - - 7 - 6 -', '4 - - - 3 - 4 - 1 - - - 0 - - -', '7 - - - 6 - 7 - 9 - - - 8 - 7 -', '6 - - - 5 - 4 - 6 - - - 7 - - -'],
+    leadInst: 'choir', lead2: 'organ', bassInst: 'saw', wrong: 0.08, sting: 0.2,
   },
 };
 
@@ -231,13 +235,17 @@ const Music = {
     const S = this.song, bar = Math.floor(step / 16), i = step % 16;
     const deg = S.prog[bar % S.prog.length];
     const chord = [deg, deg + 2, deg + 4].map(d => this.note(S, d));
-    const B = this.bus;
+    const B = this.bus, slip = n => Math.random() < (S.wrong || 0) ? n + 1 : n; // a note a semitone wrong
+    // Under everything: a low drone on the root and the note a semitone above it, grinding.
+    if (i === 0 && bar % 2 === 0) this.drone(midiHz(S.root - 24), midiHz(S.root - 23), t, sd * 32, B.all);
     // Pad: a new chord every bar.
     if (S.pad && i === 0) for (const n of chord) this.pad(midiHz(n), t, sd * 16, B.all);
+    // Now and then, somewhere far off, something screeches.
+    if (i === 0 && Math.random() < (S.sting || 0)) this.screech(t + sd * randInt(2, 12), B.all);
     // Arpeggio: chord tones an octave up, every 8th (16ths in a fight).
     if (S.arp && (i % 2 === 0 || this.combatLevel > 0.5)) {
       const k = +S.arp[(i >> (this.combatLevel > 0.5 ? 0 : 1)) % S.arp.length];
-      this.voice(S.arpInst, midiHz((k < 3 ? chord[k] : chord[0] + 12) + 12), t, sd * 1.5, 0.028, B.all, true); // (3: the root an octave up)
+      this.voice(S.arpInst, midiHz(slip((k < 3 ? chord[k] : chord[0] + 12) + 12)), t, sd * 1.5, 0.02, B.all, true); // (3: the root an octave up)
     }
     // Bass: light while exploring, driving in a fight.
     const bassAt = (pat, bus, vol) => {
@@ -257,19 +265,20 @@ const Music = {
       const D = DRUMS[pat]; if (!D) return;
       if (D.k && D.k[i] === 'x') this.kick(t, 0.55 * vol, bus);
       if (D.s && D.s[i] === 'x') this.snare(t, 0.22 * vol, bus);
-      if (D.h && D.h[i] === 'x') this.hat(t, 0.05 * vol, 0.04, bus);
+      if (D.h && D.h[i] === 'x') this.hat(t, 0.03 * vol, 0.04, bus);
       if (D.o && D.o[i] === 'x') this.hat(t, 0.04 * vol, 0.18, bus);
       if (D.c && D.c[i] === 'x') this.clank(t, 0.16 * vol, bus);
       if (D.t && D.t[i] === 'x') this.tom(t, 0.3 * vol, bus);
     };
     if (S.exDrums) play(S.exDrums, B.calm, 0.8);
     play(S.drums, B.combat, 1);
-    if (bar % 8 === 7 && i >= 12) this.snare(t, 0.1 + (i - 12) * 0.04, B.combat); // a fill into the next phrase
-    // Lead.
+    if (bar % 8 === 7 && i >= 12 && i % 2 === 0) this.tom(t, 0.15 + (i - 12) * 0.04, B.combat); // a fill into the next phrase
+    // Lead: bells ring high; voices sit low and dark.
     const L = S.leadBars[bar % S.leadBars.length], tok = L[i];
     if (tok !== null && tok !== '-') {
       let len = 1; while (i + len < 16 && L[i + len] === '-') len++;
-      const f = midiHz(this.note(S, tok) + 12);
+      const high = S.leadInst === 'bell' || S.leadInst === 'glass';
+      const f = midiHz(slip(this.note(S, tok) + (high ? 12 : 0) + (S.leadOct || 0)));
       const bus = S.alwaysLead ? B.all : B.combat;
       this.voice(S.leadInst, f, t, sd * len * 0.95, 0.06, bus);
       if (S.lead2) this.voice(S.lead2, f / 2, t, sd * len * 0.95, 0.03, bus);
@@ -310,6 +319,28 @@ const Music = {
       if (!quiet) g.connect(this.delay);
       return;
     }
+    if (inst === 'warble') { // a worn tape: a soft triangle whose pitch drifts and sags
+      const g = this.env(t, dur, vol * 1.1, 0.04), lp = c.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1400;
+      const o = this.osc('triangle', f, t, dur, lp), o2 = this.osc('sine', f * 0.5, t, dur, lp);
+      const lfo = c.createOscillator(), lg = c.createGain();
+      lfo.frequency.value = 0.8 + Math.random() * 0.6; lg.gain.value = 22;
+      lfo.connect(lg); lg.connect(o.detune); lg.connect(o2.detune); lfo.start(t); lfo.stop(t + dur + 0.05);
+      o.frequency.setValueAtTime(f, t + dur * 0.6); o.frequency.exponentialRampToValueAtTime(f * 0.97, t + dur); // it sags at the end
+      lp.connect(g); g.connect(bus); g.connect(this.delay);
+      return;
+    }
+    if (inst === 'choir') { // a ghostly "aah": detuned saws through two vowel formants, slow to swell
+      const g = this.env(t, Math.max(dur, 0.4), vol * 1.4, Math.min(0.35, dur * 0.4)), mix = c.createGain();
+      for (const det of [-12, 0, 11]) this.osc('sawtooth', f, t, Math.max(dur, 0.4), mix, det);
+      for (const [fq, q, v] of [[700, 6, 1], [1150, 8, 0.6]]) {
+        const bp = c.createBiquadFilter(), bg = c.createGain();
+        bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = q; bg.gain.value = v;
+        mix.connect(bp); bp.connect(bg); bg.connect(g);
+      }
+      g.connect(bus); g.connect(this.delay);
+      return;
+    }
     if (inst === 'organ') {
       const g = this.env(t, dur, vol * 0.7, 0.01);
       for (const [m, v] of [[1, 1], [2, 0.5], [3, 0.3], [0.5, 0.4]]) { const og = c.createGain(); og.gain.value = v; og.connect(g); this.osc('sine', f * m, t, dur, og); }
@@ -345,9 +376,29 @@ const Music = {
     lp.connect(g); g.connect(bus);
   },
 
+  // Two low tones a semitone apart, beating against each other, filter slowly breathing.
+  drone(f1, f2, t, dur, bus) {
+    const c = this.c, g = c.createGain(), lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(180, t); lp.frequency.linearRampToValueAtTime(420, t + dur * 0.5); lp.frequency.linearRampToValueAtTime(180, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + dur * 0.25); g.gain.linearRampToValueAtTime(0.05, t + dur * 0.75); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    this.osc('sawtooth', f1, t, dur, lp); this.osc('sawtooth', f2, t, dur, lp, 0);
+    this.osc('sine', f1 / 2, t, dur, g);
+    lp.connect(g); g.connect(bus);
+  },
+
+  // Something far off, screaming: a thin high tone sliding down into the echo.
+  screech(t, bus) {
+    const c = this.c, f = 1400 + Math.random() * 900, dur = 0.9 + Math.random() * 0.7;
+    const g = this.env(t, dur, 0.018, 0.12), bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 9;
+    const o = this.osc('sawtooth', f, t, dur, bp, 0);
+    o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + dur);
+    bp.connect(g); g.connect(bus); g.connect(this.delay);
+  },
+
   pad(f, t, dur, bus) {
     const c = this.c, g = c.createGain(), lp = c.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 700;
+    lp.type = 'lowpass'; lp.frequency.value = 520;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.018, t + dur * 0.3);
     g.gain.linearRampToValueAtTime(0.0001, t + dur);
