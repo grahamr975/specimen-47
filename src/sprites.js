@@ -597,13 +597,15 @@ function paintHazmat(horiz, dmg) {
 }
 
 // A planted polyp: a fleshy bulb on a stalk with a toothed mouth on top.
-function paintPolypAlly() {
+function paintPolypAlly() { // Spider Womb's egg sac: silk wrapped tight, eggs pressing through, tied down
   const P = new Painter(12, 14, 83);
-  P.blob(6, 12.6, 3.4, 1.2, R.flesh, { shift: -0.3 });
-  P.tube([[6, 12.4], [5.6, 9.5], [6, 7.6]], 1.4, 1.1, R.flesh, { spec: 1 });
-  P.blob(6, 5.4, 3.6, 3.2, R.cyst, { spec: 1, noise: 0.15 });
-  P.blob(6, 4, 1.7, 1.2, R.socket, { noise: 0 });
-  for (let x = 4.5; x <= 7.5; x++) P.dot(x, 3.2, '#e0d4b8');
+  const SILK = ['#3a3430', '#6a625a', '#a49a8c', '#cfc6b6', '#ece6da'];
+  P.blob(6, 12.8, 3.8, 1, R.flesh, { shift: -0.4 }); // the smear of you it was laid in
+  P.tube([[2, 13], [3.5, 9]], 0.4, 0.4, SILK).tube([[10, 13], [8.5, 9]], 0.4, 0.4, SILK); // threads to the floor
+  P.blob(6, 7.6, 4.2, 5, SILK, { spec: 1, noise: 0.18 });
+  for (const [x, y] of [[4.5, 6], [7.4, 5.4], [5.6, 9], [8, 8.6], [6.4, 3.8]]) P.blob(x, y, 1, 1, R.belly, { spec: 1 });
+  P.scratch([[2.5, 5], [9.5, 10]], '#8a8072').scratch([[9.5, 4.5], [2.6, 9.8]], '#8a8072');
+  P.dot(6.2, 2.6, '#8a8072');
   return P.outline().toCanvas();
 }
 

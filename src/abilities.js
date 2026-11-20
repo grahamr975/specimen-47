@@ -65,7 +65,9 @@ const BROOD_CAP = 2;
 const broodCap = (p = game.player) => BROOD_CAP + ((p && p.stats.broodCap) || 0);
 const FLESH_CAP = 2; // pieces of you have their own cap (Abomination), apart from Hive's brood
 
-function spawnAlly(kind, x, y) {
+// `sac`: a Spider Womb egg sac this hatched from. Its hatchlings are the sac's own (the sac
+// keeps its own count), so they don't crowd your brood out or count toward its cap.
+function spawnAlly(kind, x, y, sac) {
   const a = { kind, x, y, r: kind === 'twin' ? 4 : 3, t: Math.random() * 3, biteT: 0, hp: kind === 'twin' ? 2 : 1, inv: 0, flying: false, born: game.time };
   a.life = (BROOD[kind] ? BROOD[kind].life : Infinity) * ((game.player && game.player.stats.allyLife) || 1);
   if (BROOD[kind]) { a.hp = BROOD[kind].hp + ((game.player && game.player.stats.broodHp) || 0); a.inv = 0.7; } // freshly hatched: a moment before anything can hurt it (Royal Jelly: tougher)
@@ -75,8 +77,9 @@ function spawnAlly(kind, x, y) {
     const fl = game.allies.filter(o => o.kind === 'flesh' && !o.dead).sort((m, n) => m.born - n.born);
     for (let i = 0; i <= fl.length - FLESH_CAP; i++) killAlly(fl[i], true);
   }
-  if (BROOD_KINDS.has(kind)) { // over the cap: the oldest of the brood withers
-    const brood = game.allies.filter(o => BROOD_KINDS.has(o.kind) && !o.dead).sort((m, n) => m.born - n.born);
+  if (sac) a.sac = sac;
+  else if (BROOD_KINDS.has(kind)) { // over the cap: the oldest of the brood withers
+    const brood = game.allies.filter(o => BROOD_KINDS.has(o.kind) && !o.dead && !o.sac).sort((m, n) => m.born - n.born);
     for (let i = 0; i <= brood.length - broodCap(); i++) killAlly(brood[i], true);
   }
   game.allies.push(a);
@@ -88,6 +91,7 @@ function killAlly(a, withered = false) {
   const p = game.player;
   a.dead = true; burst(a.x, a.y, withered ? '#4a3a30' : '#5a3a28', withered ? 3 : 5, 30);
   if (a.kind === 'maggot' && p.stats.maggotBurst) { spawnPuddle(a.x, a.y, 14, 3, 'player'); Sfx.play('splat'); } // Rupturing Maggots
+  if (a.sac && p.stats.polypCloud) spawnCloud(a.x, a.y, 14); // Spore Clutch: a hatchling dies in a puff of spores
   if (a.kind === 'polyp' && p.stats.polypBurst) polypPop(a);
 }
 
@@ -98,7 +102,12 @@ function ensureTwin() {
 
 const allyDmg = () => game.player.stats.allyDmg || 1;
 function allyBite(a, e, dmg) {
+  const s = game.player.stats, sac = a.sac && s.polyp; // a Spider Womb hatchling: it's your weapon, so it bites like one
+  if (sac) dmg *= s.polyp.dmg;
   damageEnemy(e, dmg * allyDmg() * (game.player.broodFedT > 0 ? 1.6 : 1), e.x - a.x, e.y - a.y, true); // (Blood Queen: fed on your blood)
+  if (sac && s.polypPollen && !e.dead) pollinate(e, s); // Greenhouse
+  if (sac && s.bilePolyps) spawnPuddle(e.x, e.y, 6, 1.2, 'player'); // Bile Garden: bites of burning bile
+  if (sac && e.dead && s.polypFeed) polypFed(game.player); // Nursing Sacs
   if (a.kind === 'spiderling' && game.player.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player'); // Venom Brood
   if (game.player.stats.broodSlow && !e.dead) inflict(e, 'slow', { t: 1.2 }); // Pheromone Glands
   bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
@@ -208,6 +217,16 @@ function hurtTwin(twin) {
 }
 
 function drawAllies(ctx) {
+  // Spider Womb: the sac you're laying, growing out of you as you hold fire.
+  const lp = game.player;
+  if (lp && lp.layT > 0 && lp.stats.polyp && SPR.polyp) {
+    const k = Math.min(1, lp.layT / lp.stats.polyp.channel), at = sacSpot(lp), img = SPR.polyp;
+    const w = Math.max(2, Math.round(img.width * (0.25 + 0.75 * k))), h = Math.max(2, Math.round(img.height * (0.25 + 0.75 * k)));
+    ctx.globalAlpha = 0.5 + 0.5 * k;
+    ctx.drawImage(img, Math.round(at.x - w / 2), Math.round(at.y + 6 - h), w, h);
+    ctx.globalAlpha = 1;
+    pxLine(ctx, lp.x, lp.y + 2, at.x, at.y + 2, '#cfc6b6', 1, 1); // still joined to you
+  }
   // Mycelial Web: threads joining your polyps.
   if (game.player.stats.polypLink) {
     const ps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);
@@ -714,17 +733,24 @@ function howl(p, mul = 1, around = false) {
   Sfx.play('scream');
 }
 
-// Polyp Seeder: plant fleshy turrets.
+// Spider Womb: hold fire to lay an egg sac (it's a channel: see updateSacChannel in
+// player.js). The sac hatches spiderlings (its own brood) until it withers. The ally is
+// still called a 'polyp' inside (the Webbed / Bursting / Lashing branches work on it).
+function sacSpot(p) {
+  let x = p.x + p.aimX * 14, y = p.y + p.aimY * 14;
+  if (pointSolid(game.room, x, y)) { x = p.x; y = p.y; }
+  return { x, y };
+}
 function plantPolyp(p) {
   const s = p.stats;
   const polyps = game.allies.filter(a => a.kind === 'polyp' && !a.dead);
   if (polyps.length >= s.polyp.max) witherPolyp(polyps[0]);
-  let x = p.x + p.aimX * 14, y = p.y + p.aimY * 14;
-  if (pointSolid(game.room, x, y)) { x = p.x; y = p.y; }
+  const { x, y } = sacSpot(p);
   strikeSeal(x, y, 8);
   const a = spawnAlly('polyp', x, y);
-  a.shootT = 0.4;
-  burst(x, y, '#a8534f', 6, 40);
+  a.shootT = 0.4; a.hatchT = 0.5; // the first one comes quickly
+  burst(x, y, '#cfc6b6', 8, 40);
+  for (let i = 0; i < 6; i++) stainPx(x + rand(-3, 3), y + rand(1, 4), ['#3a2e28', '#5a4a3e', '#8a7a68'], 1);
   Sfx.play('splat');
 }
 
@@ -749,31 +775,28 @@ function updatePolyp(a, dt) {
   const pp = s.polyp; // Polyp Seeder
   if (!pp) { a.dead = true; return; }
   a.shootT -= dt;
-  if (s.polypBurst) for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1) { polypPop(a); return; }
-  let e = nearestEnemy(a.x, a.y, s.polypLash ? 34 : 95);
-  if (a.shootT > 0) return;
-  if (!e) { // nothing alive in reach: spit at meat instead (that's your DNA)
-    const c = corpsesNear(a.x, a.y, s.polypLash ? 34 : 95)[0];
-    if (!c) return;
-    a.shootT = pp.rate;
-    if (s.polypLash) { game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: c.x, y2: c.y, t: 0.12 }); damageCorpse(c, pp.dmg * 1.8); }
-    else { const d = Math.hypot(c.x - a.x, c.y - a.y) || 1; spawnBullet({ x: a.x, y: a.y - 3, vx: (c.x - a.x) / d * 140, vy: (c.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', polyp: true }); }
-    return;
+  if (s.polypBurst) for (const e of game.enemies) if (!e.dead && e.spawnT <= 0 && Math.hypot(e.x - a.x, e.y - a.y) < e.r + a.r + 1) { polypPop(a); return; } // Bursting Sac
+  // It hatches: a spiderling every few seconds, while fewer than its brood are alive.
+  if (a.pulse > 0) a.pulse -= dt;
+  if ((a.hatchT = (a.hatchT === undefined ? 0.5 : a.hatchT) - dt) <= 0) {
+    a.hatchT = pp.every;
+    if (game.allies.filter(o => o.sac === a && !o.dead).length < pp.hatch) {
+      spawnAlly('spiderling', a.x + rand(-3, 3), a.y + rand(1, 4), a);
+      burst(a.x, a.y, '#c8c08e', 5, 35, 0.3);
+      a.pulse = 0.25;
+      Sfx.play('hatch');
+    }
   }
-  if (s.polypLash) { // Tendril Polyp
+  if (!s.polypLash) return; // (it doesn't spit: its brood does the work)
+  const e = nearestEnemy(a.x, a.y, 34);
+  if (a.shootT > 0 || !e) return;
+  { // Lashing Sac
     a.shootT = 0.6;
     game.fx.push({ kind: 'whip', x1: a.x, y1: a.y - 2, x2: e.x, y2: e.y, t: 0.12 });
     damageEnemy(e, pp.dmg * 1.8, e.x - a.x, e.y - a.y, true);
     if (s.polypGrab && !e.dead) { inflict(e, 'slow', { t: 1 }); knock(e, a.x - e.x, a.y - e.y, 120); }
     if (e.dead && s.polypFeed) polypFed(p);
     Sfx.play('whip');
-  } else {
-    a.shootT = pp.rate;
-    const d = Math.hypot(e.x - a.x, e.y - a.y) || 1;
-    if (s.bilePolyps) { // Bile Garden: a spray of burning bile, twice as often
-      a.shootT = pp.rate * 0.5;
-      for (let k = 0; k < 3; k++) { const ang = Math.atan2(e.y - a.y, e.x - a.x) + rand(-0.2, 0.2); spawnBullet({ x: a.x, y: a.y - 3, vx: Math.cos(ang) * 165, vy: Math.sin(ang) * 165, r: 1.5, dmg: pp.dmg * 0.6, life: 0.5, kind: 'shot', round: true, fade: true, color: '#b0c040', acid: 8, polyp: true, pollen: s.polypPollen }); }
-    } else spawnBullet({ x: a.x, y: a.y - 3, vx: (e.x - a.x) / d * 140, vy: (e.y - a.y) / d * 140, r: 1.5, dmg: pp.dmg, life: 0.8, kind: 'shot', round: true, color: '#c870a0', spore: s.polypCloud ? 12 : 0, polyp: true, pollen: s.polypPollen });
   }
 }
 

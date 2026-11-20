@@ -471,6 +471,7 @@ function updatePlayer(dt) {
     // Sticky culture spills (Floor 1) drag at you, unless you fly or walk on stilts.
     if (!mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'sticky')) top *= 0.55;
     top *= statusMoveMul(p); // chilled by frost
+    if (p.layT > 0) top *= SAC_LAY_SLOW; // laying an egg sac: you can barely move
     const icy = !mv.flyover && !mv.stilts && onHazard(p.x, p.y + 3, 'ice'); // Cryo Wing: you slide on ice
     if (mv.accel || icy) {
       // Wings / cilia (and ice): momentum. You accelerate, drift and overshoot.
@@ -570,6 +571,7 @@ function updatePlayer(dt) {
     fireWeapons(p);
   }
   if (!s.charge) updateTongueCharge(p, dt, firing, canAttack); // Frog Tongue: hold to coil, release to send
+  updateSacChannel(p, dt, firing, canAttack); // Spider Womb: hold fire to lay an egg sac
 }
 
 const CHARGE_TIME = 1.0; // seconds to a full charge
@@ -674,7 +676,7 @@ function fireWeapons(p, only) {
   if (s.beam && ready('beam', 0.1)) drainBeam(p);
   if (s.ovi && ready('ovi', s.ovi.delay)) { boost(); fireLarva(p, mul); }
   if (s.howl && ready('howl', s.howl.delay)) { boost(); howl(p, mul); }
-  if (s.polyp && ready('polyp', s.polyp.delay)) { boost(); plantPolyp(p); }
+  // (Spider Womb lays its sacs by channel: updateSacChannel)
   if (s.silk && ready('silk', s.silk.delay)) { boost(); spinWeb(p); }
   if (fired) twinCopy(p);
 }
@@ -699,7 +701,7 @@ function releaseCharge(p, frac) {
   for (const g of s.guns) blast(p, frac, g, mul);
   if (s.ovi) for (let i = 0; i < 1 + Math.round(2 * frac); i++) fireLarva(p, mul, 0.3 * i);
   if (s.howl) howl(p, mul * (1 + frac));
-  if (s.polyp) plantPolyp(p);
+  // (Spider Womb: a charge doesn't lay a sac; holding fire does)
   if (s.tongue) tongueAttack(p, mul * (1 + frac));
   if (s.silk) spinWeb(p);
   // Overcharge: a full charge bursts out of you as a shard ring too.
@@ -1730,4 +1732,26 @@ function nightEyesMul(e) {
   const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
   if (s.nightEyes && (d > 45 || p.blackoutT > 0)) m *= 1 + s.nightEyes; // Blackout: it's all dark
   return m;
+}
+
+// Spider Womb: hold fire to lay an egg sac. It grows out of you over `channel` seconds,
+// and you can barely move while it does; let go (or dash, or get swallowed by your shell)
+// and it's lost. Then a long wait (the weapon's delay) before the next.
+const SAC_LAY_SLOW = 0.25;
+function updateSacChannel(p, dt, firing, canAttack) {
+  const s = p.stats;
+  if (!s.polyp || (p.cd.polyp || 0) > 0 || !firing || !canAttack) {
+    if (p.layT > 0.2 && s.polyp) burst(p.x, p.y + 4, '#8a7a68', 3, 25, 0.3); // it falls away, unfinished
+    p.layT = 0;
+    return;
+  }
+  const before = p.layT || 0;
+  p.layT = before + dt;
+  if (Math.floor(p.layT * 4) > Math.floor(before * 4)) Sfx.play('squelch');
+  if (p.layT >= s.polyp.channel) {
+    p.layT = 0;
+    p.cd.polyp = s.polyp.delay * attackRate(p);
+    plantPolyp(p);
+    Sfx.play('hatch');
+  }
 }

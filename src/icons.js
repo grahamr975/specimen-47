@@ -21,7 +21,7 @@ const ICON_SET_LOOK = {
 };
 
 // Hand-painted icons that get replaced anyway (they didn't read as their part).
-const ICON_REDO = new Set(['silk']);
+const ICON_REDO = new Set(['silk', 'polyp']); // (polyp: now the Spider Womb)
 
 // Name -> motif, first match wins. (Order matters: "Venus Maw" is a flower, not a jaw.)
 const ICON_RULES = [

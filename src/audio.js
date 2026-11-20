@@ -1,6 +1,9 @@
 'use strict';
 // Tiny synth for sound effects + a droning ambience — no audio files needed.
 
+// How loud creature voices are, over all (they sit just under combat sounds).
+const VOICE_GAIN = 3;
+
 const Sfx = {
   ctx: null,
   master: null,
@@ -84,6 +87,7 @@ const Sfx = {
   // Creatures making their noises, for ambience: quiet, and quieter the further away (v: 0..1).
   voice(kind, v = 1) {
     if (!this.ctx || v <= 0) return;
+    v *= VOICE_GAIN;
     const r = (a, b) => a + Math.random() * (b - a);
     switch (kind) {
       case 'squeak': { // a rat: one or two thin squeaks

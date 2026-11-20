@@ -287,11 +287,19 @@ try {
     p = setup('howl'); p.x = ROOM_PX_W - TILE - 50; a = dummy(20, 30); a.speed = 0;
     run(2, true); const thrown = !!a.thrown; run(40);
     check(`howl: flings enemies into walls (thrown ${thrown}, ${(30 - a.hp).toFixed(1)} dmg)`, thrown && a.hp < 30 - 1.5);
-    // Polyp Seeder.
-    p = setup('polyp'); run(2, true); a = dummy(60, 30); a.speed = 0; run(120);
-    check(`polyp: plants a polyp that spits at enemies (${game.allies.filter(x => x.kind === 'polyp').length} polyps, ${(30 - a.hp).toFixed(1)} dmg)`, game.allies.some(x => x.kind === 'polyp') && a.hp < 30);
+    // Spider Womb: hold fire to lay an egg sac (a channel); it hatches spiderlings that bite.
+    p = setup('polyp'); p.cd = {}; a = dummy(60, 30); a.speed = 0;
+    run(Math.round(p.stats.polyp.channel * 60 * 0.5), true); run(2);
+    check('spider womb: letting go early lays nothing', !game.allies.some(x => x.kind === 'polyp'));
+    run(Math.round(p.stats.polyp.channel * 60) + 2, true);
+    const sac = game.allies.find(x => x.kind === 'polyp' && !x.dead);
+    check(`spider womb: holding fire lays an egg sac (cooldown ${(p.cd.polyp || 0).toFixed(1)}s)`, !!sac && p.cd.polyp > 3);
+    run(60 * 6);
+    const hatch = game.allies.filter(x => x.sac === sac && !x.dead);
+    check(`spider womb: the sac hatches spiderlings (${hatch.length}) and they bite (${(30 - a.hp).toFixed(1)} dmg)`, hatch.length >= 1 && a.hp < 30);
+    check(`...its own brood: they don't count against your brood cap (cap ${broodCap()}, sac ${hatch.length})`, hatch.length <= p.stats.polyp.hatch);
     run(60 * 4, true);
-    check('polyp: only a few grow at once', game.allies.filter(x => x.kind === 'polyp' && !x.dead).length <= p.stats.polyp.max);
+    check('spider womb: only a few sacs at once', game.allies.filter(x => x.kind === 'polyp' && !x.dead).length <= p.stats.polyp.max);
     // Frog Tongue: swallow, then spit.
     p = setup('tongue'); a = spawnEnemy('mini', p.x + 40, p.y); a.spawnT = 0; a.speed = 0;
     run(20, true);
