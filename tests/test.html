@@ -845,10 +845,10 @@ try {
     check('corpses pulse and enemy acid seethes and glows (drew without errors)', !!SPR.rat_pulse);
   }
   { // 0x) Gore escalation.
-    newRun(); combatRoom(); game.enemies = []; game.particles = []; const q = game.player; q.x = 120; q.y = 96;
-    let r = dummy(30, 10); damageEnemy(r, 0.5, 1, 0, true); const light = game.particles.filter(k => k.chunk).length;
-    damageEnemy(r, 4, 1, 0, true); const heavy = game.particles.filter(k => k.chunk).length;
-    check(`a light hit tears nothing off; a heavy one does (${light} -> ${heavy} chunks)`, light === 0 && heavy >= 1);
+    newRun(); combatRoom(); game.enemies = []; game.particles = []; game.limbs = []; const q = game.player; q.x = 120; q.y = 96;
+    let r = dummy(30, 10); damageEnemy(r, 0.5, 1, 0, true); const light = game.particles.filter(k => k.chunk).length + game.limbs.length;
+    damageEnemy(r, 4, 1, 0, true); const heavy = game.particles.filter(k => k.chunk).length + game.limbs.length;
+    check(`a light hit tears nothing off; a heavy one does (${light} -> ${heavy} chunks or limbs)`, light === 0 && heavy >= 1);
     game.particles = []; r = dummy(30, 4); damageEnemy(r, 3.9, 1, 0, true); const n1 = game.particles.length;
     game.particles = []; r = dummy(30, 4); damageEnemy(r, 40, 1, 0, true); const n2 = game.particles.length;
     check(`overkill bursts the body (${n1} particles for a clean kill, ${n2} for overkill)`, n2 > n1 * 1.5 && game.particles.some(k => k.chunk));
