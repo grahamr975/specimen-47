@@ -148,3 +148,15 @@ Effects are computed in one place: `limbEffects(e)` runs after each sever and ca
 - **Cache size:** with 5 severable parts there are up to 32 masks per frame. They are made lazily, so only the masks actually seen get built.
 - **Sim speed:** limbs are cosmetic outside eating, so the sim can skip spawning them (`game.sim` flag) and keep only `limbEffects`.
 - **Mutation overlays** (`drawEnemyMutations`) are drawn from anchor points. A growth on a severed part must be hidden: give each mutation anchor the part it sits on.
+
+## Status (2026-11-20)
+Done:
+- Steps 1–5.
+- Step 6 for 15 regular enemies (everything except splitter, mini, urchin, culture and bloater, which have no limbs to speak of).
+- Corpse tearing, pool spread, flies and drag smears.
+- A 50-run sim shows no real balance shift (average floor 1.8, about 1.75 before).
+
+Not yet:
+- Boss phase severs.
+- Severing styles by damage source (step 7).
+- Hiding mutation growths that sat on a severed part.

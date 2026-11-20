@@ -412,6 +412,7 @@ function updateHeld(p) {
   if (!h) return;
   if (h.ref.dead && h.kind === 'enemy') { p.held = null; return; }
   const pos = heldPos(p);
+  if (h.ref.fluid && GORE && Math.hypot(pos.x - h.ref.x, pos.y - h.ref.y) > 0.5) { stainPx(pos.x + rand(-1, 1), pos.y + 3, h.ref.fluid); if (Math.random() < 0.1) markWet(pos.x, pos.y + 3, 2, pick(h.ref.fluid)); } // a carried corpse drags a smear
   h.ref.x = pos.x; h.ref.y = pos.y;
   if (h.kind === 'enemy') { h.ref.kx = h.ref.ky = 0; }
 }

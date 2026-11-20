@@ -1152,6 +1152,17 @@ try {
     check(`thrown parts come to rest (${game.limbs.filter(l => l.settled).length} of ${game.limbs.length})`, game.limbs.filter(l => l.settled).length > game.limbs.length * 0.8);
     combatRoom(); check('leaving the room paints them into the floor', game.limbs.length === 0);
   }
+  { // 0j1v2) Corpses: hacking at one tears parts off before it bursts (biomass goes with them); they rot.
+    newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.room.corpses = []; const q = game.player;
+    const e = dummy(-40, 5); spawnCorpse(e, 'rat'); const c = game.room.corpses[0]; c.hp = 99; const d0 = c.dna;
+    for (let i = 0; i < 30; i++) damageCorpse(c, 0.1, 1, 0);
+    const torn = game.limbs.reduce((a, l) => a + l.dna, 0);
+    check(`a hacked corpse loses parts first (${(c.missing || []).length} gone, ${game.limbs.length} thrown)`, (c.missing || []).length >= 2 && game.limbs.length === c.missing.length);
+    check(`...and what they took comes off its biomass (${c.dna.toFixed(2)} + ${torn.toFixed(2)} = ${d0.toFixed(2)})`, Math.abs(c.dna + torn - d0) < 0.01);
+    check('...and it draws with its stumps', anatSprite(c.sprite, c.missing, '_dead') !== SPR.rat_dead);
+    for (let i = 0; i < 60 * 21; i++) { q.inv = 1; q.hp = q.maxHp; q.x = 30; q.y = 30; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    render(); check(`corpses rot: flies come after a while (age ${(c.age || 0).toFixed(0)}s)`, c.age > FLIES_AFTER);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

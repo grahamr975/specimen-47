@@ -18,7 +18,7 @@ function spawnCorpse(e, spriteName) {
   const T = ENEMY_TYPES[e.type];
   stain(e.x, e.y + 2, e.r + 1, T.fluid);
   game.room.corpses.push({
-    x: e.x, y: e.y, r: Math.max(5, e.r), sprite: spriteName, missing: e.missing,
+    x: e.x, y: e.y, r: Math.max(5, e.r), sprite: spriteName, type: e.type, missing: e.missing,
     // Gut Bacteria: richer corpses that take longer to burst.
     dna: Math.max(0, T.dna * (e.elite ? 3 : 1) - (e.limbDna || 0)) + game.player.stats.bacteria, // less whatever was torn off (dismember.js)
     hp: (e.elite ? 6 : 2.5) + game.player.stats.bacteria,
@@ -30,6 +30,7 @@ function damageCorpse(c, dmg, dx = 0, dy = 0) {
   if (c.dead) return;
   c.hp -= dmg;
   c.shake = 0.15;
+  if (c.hp > 0 && Math.random() < 0.5) tearCorpse(c, dx, dy); // hacking at it tears more off first (dismember.js)
   bloodSpray(c.x, c.y, dx, dy, 5, c.fluid, 90);
   Sfx.play('chomp');
   if (c.hp <= 0) burstCorpse(c);

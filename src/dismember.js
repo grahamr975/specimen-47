@@ -126,6 +126,7 @@ function severedFrame(l) {
 }
 
 function updateLimbs(dt) {
+  rotCorpses(dt);
   const room = game.room, p = game.player;
   for (const l of game.limbs) {
     l.t += dt;
@@ -188,10 +189,47 @@ function bakeAllLimbs() {
 }
 
 function drawLimbs(ctx) {
+  drawFlies(ctx);
   for (const l of game.limbs) {
     const img = severedFrame(l);
     if (l.z > 0.5) { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(Math.round(l.x - 2), Math.round(l.y + 1), 4, 2); }
     const w = Math.round(img.width * l.scale), h = Math.round(img.height * l.scale);
     ctx.drawImage(img, Math.round(l.x - w / 2), Math.round(l.y - l.z - h / 2), w, h);
+  }
+}
+
+// Hacking at a corpse tears more off it before it bursts. What comes off takes its
+// share of the corpse's biomass with it (eat it, or lose it).
+function tearCorpse(c, dx, dy) {
+  if (!ANATOMY[c.type] || !GORE) return null;
+  const body = { x: c.x, y: c.y, type: c.type, face: c.sprite.endsWith('_L') ? -1 : 1, missing: c.missing, maxHp: 1, speed: 0, dead: true };
+  const parts = intactParts(body);
+  if (!parts.length) return null;
+  let part = pick(parts), best = Infinity;
+  if (dx || dy) for (const n of parts) { const [ox, oy] = partOffset(body, n), d = ox * dx + oy * dy + rand(-2, 2); if (d < best) { best = d; part = n; } }
+  const l = severPart(body, part, dx, dy, 90);
+  c.missing = body.missing;
+  if (l) { const share = Math.min(l.dna, c.dna); l.dna = share; c.dna -= share; }
+  return l;
+}
+
+// Corpses rot where they lie: the pool under them spreads (twice), and after a while flies find them.
+const POOL_SPREAD = [3, 8], FLIES_AFTER = 20;
+function rotCorpses(dt) {
+  if (!game.room || !game.room.corpses) return;
+  for (const c of game.room.corpses) {
+    const a0 = c.age || 0; c.age = a0 + dt;
+    if (GORE) POOL_SPREAD.forEach((at, i) => { if (a0 < at && c.age >= at) stain(c.x + rand(-1, 1), c.y + 3, c.r * 0.6 + 1.5 + i * 1.2, c.fluid); });
+  }
+}
+function drawFlies(ctx) {
+  if (!GORE || !game.room || !game.room.corpses) return;
+  ctx.fillStyle = '#0a0606';
+  for (const c of game.room.corpses) {
+    if (!(c.age > FLIES_AFTER) || c.held) continue;
+    for (let i = 0; i < 3; i++) {
+      const t = game.time * (2.2 + i * 0.7) + i * 2.1 + c.x;
+      ctx.fillRect(Math.round(c.x + Math.cos(t) * (4 + i * 2)), Math.round(c.y - 4 + Math.sin(t * 1.3) * (2 + i)), 1, 1);
+    }
   }
 }
