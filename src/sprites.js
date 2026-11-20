@@ -369,17 +369,17 @@ function insectWings(P, frame) {
 // --- Enemies -------------------------------------------------------------------------
 function paintRat(frame) {
   const P = new Painter(24, 20, 11);
-  P.tube([[7, 13], [4, 14], [2, 16], [1, 18.5]], 1.1, 0.4, R.pink);
+  P.part('tail').tube([[7, 13], [4, 14], [2, 16], [1, 18.5]], 1.1, 0.4, R.pink);
   const lf = frame ? 1 : 0;
-  P.blob(9 - lf, 16.4, 1.4, 1, R.fur).blob(16 + lf, 16.2, 1.3, 1, R.fur);
+  P.part('legB').blob(9 - lf, 16.4, 1.4, 1, R.fur); P.part('legF').blob(16 + lf, 16.2, 1.3, 1, R.fur); P.part(null);
   P.blob(8.5, 12.5, 4, 4, R.fur, { noise: 0.3 });
   P.blob(12.5, 12.4, 6.5, 4.3, R.fur, { noise: 0.3 });
-  P.blob(18.3, 11.5, 3.6, 3, R.fur, { noise: 0.25 });
+  P.part('head').blob(18.3, 11.5, 3.6, 3, R.fur, { noise: 0.25 });
   P.blob(21.2, 12.4, 1.8, 1.4, R.pink, { spec: 1 });
   P.blob(16.6, 8.3, 1.6, 1.8, R.pink);
-  P.blob(12, 10.6, 2.4, 1.5, R.blood, { spec: 1 }); // open wound
+  P.part(null).blob(12, 10.6, 2.4, 1.5, R.blood, { spec: 1 }); // open wound
   P.scratch([[11, 10.4], [13, 10.4]], '#c4b898');
-  P.dot(19.6, 10.4, '#1a0608').dot(20, 11, '#e01828');
+  P.part('head').dot(19.6, 10.4, '#1a0608').dot(20, 11, '#e01828');
   return P.outline().toCanvas();
 }
 
@@ -423,15 +423,16 @@ function paintMini() {
 
 function paintToad() {
   const P = new Painter(22, 20, 41);
-  P.blob(4, 15, 3.2, 2.4, R.toad).blob(18, 15, 3.2, 2.4, R.toad);
-  P.blob(11, 12.5, 8, 6, R.toad, { spec: 1, noise: 0.22 });
+  P.part('hindL').blob(4, 15, 3.2, 2.4, R.toad); P.part('hindR').blob(18, 15, 3.2, 2.4, R.toad);
+  P.part(null).blob(11, 12.5, 8, 6, R.toad, { spec: 1, noise: 0.22 });
   P.blob(11, 15.6, 4.6, 2.6, R.belly, { spec: 1 });
-  P.blob(11, 9, 6, 4, R.toad, { spec: 1, noise: 0.2 });
+  P.part('head').blob(11, 9, 6, 4, R.toad, { spec: 1, noise: 0.2 });
   P.blob(7, 6.6, 2.3, 2.3, R.toad).blob(15, 6.6, 2.3, 2.3, R.toad);
   P.eye(7, 6.2, 1.6, '#b08a20', { look: [-0.4, 0] }).eye(15, 6.2, 1.6, '#b08a20', { look: [0.4, 0] });
+  P.part(null);
   for (const [x, y, r] of [[5, 11, 1.2], [8.5, 13.5, 0.9], [16, 11.5, 1.3], [17.5, 13.8, 0.9], [13.5, 8.5, 0.9], [4, 13.5, 0.8]]) P.blob(x, y, r, r, R.pus, { spec: 1 });
   P.scratch([[6, 11], [8, 11.6], [11, 11.8], [14, 11.6], [16, 11]], '#0e1008');
-  P.blob(7, 18.3, 1.6, 1, R.toad).blob(15, 18.3, 1.6, 1, R.toad);
+  P.part('footL').blob(7, 18.3, 1.6, 1, R.toad); P.part('footR').blob(15, 18.3, 1.6, 1, R.toad);
   return P.outline().toCanvas();
 }
 
@@ -1122,13 +1123,14 @@ const SICK = ['#141a0c', '#2e3a18', '#4e6226', '#7a9238', '#aac25a'];
 // --- Cryo Wing -------------------------------------------------------------------------------
 function paintFrostbitten(frame) { // a hunched, half-frozen corpse with ice on its back
   const P = new Painter(20, 22, 61), lf = frame ? 1 : 0;
-  P.tube([[8, 16], [7 - lf, 21]], 1.3, 1, FROZEN).tube([[12, 16], [13 + lf, 21]], 1.3, 1, FROZEN);
-  P.blob(10, 12, 5, 6, FROZEN, { spec: 1, noise: 0.2 });
-  P.tube([[14, 11], [17, 15 + lf]], 1, 0.8, FROZEN);
-  P.blob(13.5, 6.8, 3, 3, FROZEN, { spec: 1 });
+  P.part('legL').tube([[8, 16], [7 - lf, 21]], 1.3, 1, FROZEN); P.part('legR').tube([[12, 16], [13 + lf, 21]], 1.3, 1, FROZEN);
+  P.part(null).blob(10, 12, 5, 6, FROZEN, { spec: 1, noise: 0.2 });
+  P.part('arm').tube([[14, 11], [17, 15 + lf]], 1, 0.8, FROZEN);
+  P.part('head').blob(13.5, 6.8, 3, 3, FROZEN, { spec: 1 });
+  P.part(null);
   for (let k = 0; k < 4; k++) P.tube([[7 + k * 1.6, 8.5], [5.5 + k * 2, 3 + hash2(k, 1, 61) * 2]], 0.9, 0.2, ICE, { spec: 1 });
   P.blob(10, 13, 1.6, 1.2, R.blood, { noise: 0 });
-  P.dot(14.6, 6.4, '#a0e0ff');
+  P.part('head').dot(14.6, 6.4, '#a0e0ff');
   return P.outline().toCanvas();
 }
 function paintCryoCrawler(frame) { // a pale, skittering thing with a swollen frost gland
@@ -1163,11 +1165,12 @@ function paintThawed(frame) { // what came out of the jar: long-limbed and wet
 // --- Bio-Weapons -----------------------------------------------------------------------------
 function paintCarrier(frame) { // an infected test subject, bloated with green boils
   const P = new Painter(20, 22, 71), lf = frame ? 1 : 0;
-  P.tube([[8, 16], [7 - lf, 21]], 1.4, 1.1, R.flesh).tube([[12, 16], [13 + lf, 21]], 1.4, 1.1, R.flesh);
-  P.blob(10, 12, 5.6, 6, R.flesh, { spec: 1, noise: 0.25 });
-  P.blob(12.5, 5.6, 3, 2.8, R.flesh, { spec: 1 });
+  P.part('legL').tube([[8, 16], [7 - lf, 21]], 1.4, 1.1, R.flesh); P.part('legR').tube([[12, 16], [13 + lf, 21]], 1.4, 1.1, R.flesh);
+  P.part(null).blob(10, 12, 5.6, 6, R.flesh, { spec: 1, noise: 0.25 });
+  P.part('head').blob(12.5, 5.6, 3, 2.8, R.flesh, { spec: 1 });
+  P.part(null);
   for (let k = 0; k < 5; k++) P.blob(6.5 + hash2(k, 1, 71) * 7, 9 + hash2(k, 2, 71) * 7, 1.2, 1.1, R.pus, { spec: 1 });
-  P.dot(13.6, 5.2, '#c0e040');
+  P.part('head').dot(13.6, 5.2, '#c0e040');
   P.tube([[13, 7.5], [14, 10]], 0.5, 0.4, R.bile);
   return P.outline().toCanvas();
 }
@@ -1299,7 +1302,46 @@ function paintDirector(frame) { // the man who made you, fused into a walking se
   return P.outline().toCanvas();
 }
 
+// --- Anatomy: which painted parts can be torn off each enemy, and what kind they are.
+// The part names match the P.part() calls in its paint function (every frame).
+// Kinds drive what losing it does (dismember.js): leg/hind/foot slow it, arm cuts its
+// firing, head blinds it, tail makes it wobble, wing grounds it.
+const ANATOMY = {
+  rat:         { tail: 'tail', legB: 'leg', legF: 'leg', head: 'head' },
+  spitter:     { hindL: 'leg', hindR: 'leg', footL: 'leg', footR: 'leg', head: 'head' },
+  frostbitten: { legL: 'leg', legR: 'leg', arm: 'arm', head: 'head' },
+  carrier:     { legL: 'leg', legR: 'leg', head: 'head' },
+};
+SPR.anat = {}; // sprite name -> its Painter (kept for its layers)
+const ANAT_CACHE = new Map();
+
+// The sprite `name` (may end in '_L') with parts missing; the same as SPR[name + variant]
+// when nothing is. variant: '', '_flash', '_elite' or '_dead'.
+function anatSprite(name, missing, variant = '') {
+  const left = name.endsWith('_L'), base = left ? name.slice(0, -2) : name, P = SPR.anat[base];
+  if (!P || !missing || !missing.length) return SPR[name + variant];
+  const key = name + '|' + missing.join(',') + '|' + variant;
+  let c = ANAT_CACHE.get(key);
+  if (!c) {
+    if (variant) {
+      const img = anatSprite(name, missing);
+      c = variant === '_flash' ? silhouette(img, '#f4e8dc') : variant === '_elite' ? silhouette(img, PAL.red) : darkened(img);
+    } else c = left ? flipH(anatSprite(base, missing)) : P.compose(missing);
+    ANAT_CACHE.set(key, c);
+  }
+  return c;
+}
+
+// A torn-off part on its own: { img, cx, cy } (cx, cy: where it sat, from the sprite's top-left).
+function limbSprite(name, part) {
+  const key = name + '#' + part;
+  let s = ANAT_CACHE.get(key);
+  if (!s && SPR.anat[name]) ANAT_CACHE.set(key, s = SPR.anat[name].partSprite(part));
+  return s;
+}
+
 function withFlash(name, img) {
+  if (img.painter) SPR.anat[name] = img.painter;
   for (const [n, i] of [[name, img], [name + '_L', flipH(img)]]) {
     SPR[n] = i;
     SPR[n + '_flash'] = silhouette(i, '#f4e8dc');

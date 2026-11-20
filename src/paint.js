@@ -94,6 +94,91 @@ class Painter {
     const i = y * this.w + x;
     this.col[i] = color;
     this.dark[i] = ramp ? ramp[0] : color;
+    if (this.stack) (this.stack[i] || (this.stack[i] = [])).push(this.cur, color, this.dark[i]);
+  }
+
+  // --- Anatomy layers (dismemberment) ---------------------------------------------------
+  // part('legL') ... part(null): everything painted in between belongs to that part.
+  // Each pixel remembers every [part, color, dark] painted on it, so the sprite can be
+  // rebuilt with parts missing (compose) and each part cut out whole (partSprite).
+  part(name) {
+    if (!this.stack) { // start tracking: what's already painted is the body
+      this.stack = new Array(this.w * this.h);
+      this.parts = [];
+      for (let i = 0; i < this.col.length; i++) if (this.col[i] !== null) this.stack[i] = [null, this.col[i], this.dark[i]];
+    }
+    if (name && !this.parts.includes(name)) this.parts.push(name);
+    this.cur = name || null;
+    return this;
+  }
+
+  // Where a part sits: the center of every pixel it ever painted (sprite coords).
+  partCenter(name) {
+    let sx = 0, sy = 0, n = 0;
+    for (let i = 0; i < this.stack.length; i++) {
+      const s = this.stack[i]; if (!s) continue;
+      for (let k = 0; k < s.length; k += 3) if (s[k] === name) { sx += i % this.w; sy += (i / this.w) | 0; n++; break; }
+    }
+    return n ? [sx / n + 0.5, sy / n + 0.5, n] : [this.w / 2, this.h / 2, 0];
+  }
+
+  // The sprite with some parts gone, raw stumps where they were torn from.
+  compose(missing = []) {
+    const Q = new Painter(this.w, this.h, this.seed), W = this.w;
+    const gone = new Uint8Array(this.w * this.h), raw = new Uint8Array(this.w * this.h);
+    for (let i = 0; i < this.stack.length; i++) {
+      const s = this.stack[i]; if (!s) continue;
+      let top = -1;
+      for (let k = s.length - 3; k >= 0; k -= 3) if (!missing.includes(s[k])) { top = k; break; }
+      const lost = missing.includes(s[s.length - 3]);
+      if (top < 0) { gone[i] = 1; continue; }
+      Q.col[i] = s[top + 1]; Q.dark[i] = s[top + 2];
+      if (lost) raw[i] = 1; // a missing part used to cover this: exposed meat
+    }
+    if (missing.length) {
+      const bone = missing.map(m => this.partCenter(m)), best = bone.map(() => [Infinity, -1]);
+      for (let i = 0; i < Q.col.length; i++) {
+        if (Q.col[i] === null) continue;
+        const x = i % W, y = (i / W) | 0;
+        let edge = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < W && ny < this.h && gone[ny * W + nx]) edge = true;
+        }
+        if (edge || raw[i]) {
+          Q.col[i] = edge ? RAMPS.blood[2 + ((x + y) & 1)] : RAMPS.muscle[1 + (hash2(x, y, 9) * 3 | 0)];
+          Q.dark[i] = RAMPS.blood[0];
+          bone.forEach(([bx, by], j) => { const d = (x + 0.5 - bx) ** 2 + (y + 0.5 - by) ** 2; if (d < best[j][0]) best[j] = [d, i]; });
+        }
+      }
+      for (const [, i] of best) if (i >= 0) Q.col[i] = '#e8e0c8'; // a bone end in each stump
+    }
+    return Q.outline().toCanvas();
+  }
+
+  // One part on its own, whole (including bits the body was painted over), outlined,
+  // with a raw red end where it joined. Returns { img, cx, cy } (center, sprite coords).
+  partSprite(name) {
+    const Q = new Painter(this.w, this.h, this.seed);
+    for (let i = 0; i < this.stack.length; i++) {
+      const s = this.stack[i]; if (!s) continue;
+      for (let k = s.length - 3; k >= 0; k -= 3) if (s[k] === name) { Q.col[i] = s[k + 1]; Q.dark[i] = s[k + 2]; break; }
+    }
+    // The joint: its edge pixels that touch the rest of the body.
+    const W = this.w, joint = [];
+    for (let i = 0; i < Q.col.length; i++) {
+      if (Q.col[i] === null) continue;
+      const x = i % W, y = (i / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= this.h) continue;
+        const j = ny * W + nx;
+        if (Q.col[j] === null && this.stack[j]) { joint.push(i); break; }
+      }
+    }
+    for (const i of joint) { Q.col[i] = RAMPS.blood[2 + (i & 1)]; Q.dark[i] = RAMPS.blood[0]; }
+    const [cx, cy] = this.partCenter(name);
+    return { img: Q.outline().toCanvas(), cx, cy };
   }
 
   has(x, y) {
@@ -258,6 +343,7 @@ class Painter {
       img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
     }
     x.putImageData(img, 0, 0);
+    if (this.stack) c.painter = this; // keeps its layers for dismemberment
     return c;
   }
 }

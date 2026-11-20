@@ -845,18 +845,19 @@ function drawEnemies(ctx) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(Math.round(e.x - e.r - 2), Math.round(e.y + e.r - 1), e.r * 2 + 4, 3);
 
-    const name = enemySpriteName(e);
+    const name = enemySpriteName(e), M = e.missing; // M: parts torn off (dismember.js)
     const { x, y } = enemyDrawPos(e);
     const winding = e.type === 'urchin' && e.state === 'wind';
 
     if (e.elite) {
-      const outline = SPR[name + '_elite'];
+      const outline = anatSprite(name, M, '_elite');
       for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawEnemyImg(ctx, outline, x + ox, y + oy, e.drawScale || 1);
     }
     const flash = e.flash > 0 || (winding && Math.floor(e.t * 20) % 2);
-    drawEnemyImg(ctx, SPR[flash ? name + '_flash' : name], x, y, e.drawScale || 1);
-    if (!flash) drawEnemyMutations(ctx, e, SPR[name], x, y); // tumors, spikes, extra eyes... (deeper floors)
-    if (!flash) drawStatusTint(ctx, e, SPR[name], x, y); // status hue, DoT flash (status.js)
+    const img = anatSprite(name, M);
+    drawEnemyImg(ctx, flash ? anatSprite(name, M, '_flash') : img, x, y, e.drawScale || 1);
+    if (!flash) drawEnemyMutations(ctx, e, img, x, y); // tumors, spikes, extra eyes... (deeper floors)
+    if (!flash) drawStatusTint(ctx, e, img, x, y); // status hue, DoT flash (status.js)
 
   }
 }
@@ -873,7 +874,7 @@ function drawEnemyGlow(ctx) {
   for (const e of game.enemies) {
     if (p.stats.antennae && e.spawnT <= 0 && Math.hypot(e.x - p.x, e.y - p.y) > 50) {
       ctx.globalAlpha = 0.22;
-      drawCentered(ctx, SPR[enemySpriteName(e) + '_flash'], e.x, e.y);
+      drawCentered(ctx, anatSprite(enemySpriteName(e), e.missing, '_flash'), e.x, e.y);
       ctx.globalAlpha = 1;
     }
     drawStatuses(ctx, e); // stun stars, mark reticles, pollen (status.js)

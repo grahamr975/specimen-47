@@ -1097,6 +1097,27 @@ try {
     check(`hypertrophy makes you a little stronger (damage x${d0.toFixed(2)} -> x${q.stats.damageMul.toFixed(2)})`, q.stats.damageMul > d0 * 1.04);
     check(`its card reads properly (${choiceInfo(q, { id: '_hyper' }).name})`, choiceInfo(q, { id: '_hyper' }).name === 'Hypertrophy');
   }
+  { // 0j1u) Dismemberment anatomy: parts recombine into the original sprite; parts and stumps exist.
+    const px = c => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const opaque = c => { const d = px(c); let n = 0; for (let i = 3; i < d.length; i += 4) n += d[i] > 0; return n; };
+    const bad = [], noPart = [], noStump = [];
+    for (const type in ANATOMY) for (const name of [type, type + '2']) {
+      if (!SPR[name]) continue;
+      const P = SPR.anat[name]; if (!P) { bad.push(name + ':untagged'); continue; }
+      const a = px(SPR[name]), b = px(P.compose([]));
+      if (a.some((v, i) => v !== b[i])) bad.push(name);
+      for (const part in ANATOMY[type]) {
+        if (!P.parts.includes(part) || !opaque(limbSprite(name, part).img)) noPart.push(name + '.' + part);
+        const m = anatSprite(name, [part]), d = px(m); let red = false;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] && d[i] > 120 && d[i + 1] < 60) red = true;
+        if (!(opaque(m) <= opaque(SPR[name])) || !red) noStump.push(name + '.' + part);
+      }
+    }
+    check(`tagged enemies recombine pixel for pixel (${bad.join(',') || Object.keys(ANATOMY).join(',')})`, !bad.length);
+    check(`every anatomy part paints something (${noPart.join(',') || 'all'})`, !noPart.length);
+    check(`a sprite missing a part shows a raw stump (${noStump.join(',') || 'all'})`, !noStump.length);
+    check('missing-part sprites are cached and flip/flash', anatSprite('rat', ['tail']) === anatSprite('rat', ['tail']) && anatSprite('rat_L', ['tail'], '_flash').width === SPR.rat.width && anatSprite('rat', []) === SPR.rat);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
