@@ -2701,9 +2701,16 @@ function choiceInfo(p, c) {
   const was = m && !m.starter && setOf(m.id);
   if (was) counts[was]--;
   const after = set ? (counts[set] || 0) + 1 : 0;
+  // Does it complete a set bonus, or leave you one short of one?
+  let setNote = null, setBonus = null;
+  if (set) {
+    const B = SETS[set].bonus, tier = after >= 5 ? 1 : after >= 3 ? 0 : null;
+    if (tier !== null && after === (tier ? 5 : 3)) { setBonus = B[tier]; setNote = 'COMPLETES ' + B[tier].name.toUpperCase(); }
+    else if (after === 2 || after === 4) { setBonus = B[after === 4 ? 1 : 0]; setNote = 'ONE MORE: ' + setBonus.name.toUpperCase(); }
+  }
   return {
     id: gid, name: d.name, rarity: d.rarity, costCard: d.costShort, desc: grown.length > 1 ? grown.map(id => MUTATIONS[id].name + ': ' + cardText(MUTATIONS[id])).join(' ') : d.desc, short: cardText(d), cost: d.cost, shed: c.kind !== 'branch' && m && !m.starter ? m : null, malignant: !!d.malignant, cures: !!d.cures, set,
-    slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, size: rootSize(c.id), grown,
+    slot: loc, kind: c.kind, status, note, noteColor, setAfter: after, setNote, setBonus, size: rootSize(c.id), grown,
     tier: c.kind === 'branch' && m ? m.path.length : grown.length - 1, overlays: mutOverlays(gid), stirs: wouldSplice(p, c), from: c.kind === 'branch' && m ? m.id : null,
   };
 }

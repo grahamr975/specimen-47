@@ -120,8 +120,8 @@ function spawnRoomEnemies(room) {
 function onSetKill(e, p, s) {
   if (e.type === 'scavenger') return; // its own payout
   if (s.setKillShards) ringFrom(e.x, e.y, s.setKillShards);                        // Bone
-  if (s.setKillCloud) spawnCloud(e.x, e.y, s.setKillCloud);                         // Fungal
-  if (s.setKillBrood && Math.random() < s.setKillBrood) spawnAlly('spiderling', e.x, e.y); // Hive
+  if (s.setKillCloud) { spawnCloud(e.x, e.y, s.setKillCloud); setProc(e.x, e.y); }                         // Fungal
+  if (s.setKillBrood && Math.random() < s.setKillBrood) { spawnAlly('spiderling', e.x, e.y); setProc(e.x, e.y); } // Hive
   if (s.setKillFrenzy) { if (!(p.frenzyT > 0)) { p.frenzyT = 3; recomputeStats(p); } else p.frenzyT = 3; } // Apex
   if (s.setKillHeal && ++p.setKills % s.setKillHeal === 0) healPlayer(1);
   if (s.shellOnKills && s.shieldCd > 0 && !p.shieldUp && ++p.armorKills % s.shellOnKills === 0) { p.shieldUp = true; Sfx.play('shieldUp'); floatText(p.x, p.y - 14, 'SHELL REGROWN', '#8a7a5a'); } // Living Armor
@@ -169,7 +169,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (e.dead) return;
   // Predator set: marked or bleeding prey takes more; both at once, far more.
   const ps = game.player && game.player.stats;
-  if (ps && ps.setPrey) { const mk = hasStatus(e, 'mark'), bl = hasStatus(e, 'bleed'); if (mk && bl && ps.setPreyBoth) dmg *= 1 + ps.setPreyBoth; else if (mk || bl) dmg *= 1 + ps.setPrey; }
+  if (ps && ps.setPrey) { const mk = hasStatus(e, 'mark'), bl = hasStatus(e, 'bleed'); if (mk && bl && ps.setPreyBoth) { dmg *= 1 + ps.setPreyBoth; setProc(e.x, e.y); } else if (mk || bl) { dmg *= 1 + ps.setPrey; setProc(e.x, e.y); } }
   dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
   dmg *= marrowMul(game.player); // Dense Marrow: fed by every block
   if (ENEMY_BEHAVIOR[e.type].onHurt) dmg = ENEMY_BEHAVIOR[e.type].onHurt(e, dmg, vx, vy); // (the Enforcer's riot plate)

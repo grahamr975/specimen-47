@@ -190,7 +190,13 @@ function drawCard(ctx, info, i, x, y, menu) {
       drawText(ctx, setTag, cx, ty, SETS[info.set].color, 1, 'center', null); ty += 8;
     }
     // What the set does, in its colour (dimmer): "MARKS & BLEEDS", "CORRODES"...
-    if (info.set && SETS[info.set].verb) { ctx.globalAlpha = 0.7; drawText(ctx, SETS[info.set].verb, cx, ty - 1, SETS[info.set].color, 1, 'center', null); ctx.globalAlpha = 1; ty += 7; }
+    if (info.set && (info.setNote || SETS[info.set].verb)) {
+      // "COMPLETES BLOOD SCENT" (pulsing) / "ONE MORE: ..." when it matters; otherwise what the set does.
+      const done = info.setNote && info.setNote.startsWith('COMPLETES');
+      ctx.globalAlpha = info.setNote ? (done ? 0.75 + 0.25 * Math.sin(menu.t * 6) : 0.9) : 0.7;
+      for (const line of fitText(info.setNote || SETS[info.set].verb, w - 8, 1)) drawText(ctx, line, cx, ty - 1, done && Math.floor(menu.t * 4) % 2 ? '#ffffff' : SETS[info.set].color, 1, 'center', null);
+      ctx.globalAlpha = 1; ty += 7;
+    }
   }
 
   // The bottom: its status and what it costs or keeps, above the key.
@@ -244,7 +250,7 @@ function drawMenu(ctx) {
     // Hovering a card: everything it does (the card only says the gist).
     const hov = menu.hover >= 0 && menu.choices[menu.hover] && choiceInfo(p, menu.choices[menu.hover]);
     if (hov && hov.shed) drawShedLink(ctx, hov.shed, cardX(menu.hover, n) + CARD.w / 2, CARD.y + CARD.h + 2, menu.t);
-    const help = hov && (hov.kind === 'level' ? LEVEL_HELP : !hov.id ? GORGE_HELP : hov.desc + (hov.cost ? ' ' + hov.cost : ''));
+    const help = hov && (hov.kind === 'level' ? LEVEL_HELP : !hov.id ? GORGE_HELP : hov.desc + (hov.cost ? ' ' + hov.cost : '') + (hov.setBonus ? ' SET - ' + hov.setBonus.name + ': ' + hov.setBonus.desc : ''));
 
     if (help) fitText(help, VIEW_W - 16, 3).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 203 + i * 7, '#c8b8a8', 1, 'center'));
     else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
@@ -306,6 +312,7 @@ function drawHUD(ctx) {
 
   drawDnaTube(ctx, p);
 
+  drawSetBadge(ctx, p);
   drawText(ctx, `FLOOR ${game.depth}`, 5, 21, PAL.silver);
   if (p.stats.starve > 0 && p.hungerT > p.stats.starve * 0.5) {
     // Hunger warning: steady, then blinking when you're about to starve.
@@ -483,6 +490,27 @@ function drawMutationList(ctx) {
     if (!m.starter) for (let l = 0; l < LEVEL_MAX; l++) { ctx.fillStyle = l < (m.lvl || 0) ? VIAL_COLOR : '#2a1c22'; ctx.fillRect(x + 38 + l * 3, top + 23, 2, 2); }
     if ((m.lvl || 0) > LEVEL_MAX) drawText(ctx, '+' + (m.lvl - LEVEL_MAX), x + w - 2, top + 21, '#ffd070', 1, 'right', null); // overgrowth
   });
+}
+
+// --- Set bonus feedback --------------------------------------------------------------------
+// The badge under your hearts: the set you're closest to (or have), with pips
+// toward 3 and 5. It lights up once the bonus is on, and flashes every time the
+// bonus does something (setProc), so you can tell that burst was your set.
+function drawSetBadge(ctx, p) {
+  const n = setCounts(p), act = activeSet(p);
+  const k = act ? act.set : Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+  if (!k || !n[k]) return;
+  const S = SETS[k], c = n[k], flash = Math.max(0, (p.setPulseT || 0) / SET_PULSE);
+  const label = act ? S.bonus[act.tier].name.toUpperCase() : S.name;
+  ctx.globalAlpha = act ? 1 : 0.55;
+  drawText(ctx, label, 5, 13, flash > 0 && Math.floor(game.time * 20) % 2 ? '#ffffff' : S.color, 1, 'left');
+  const x0 = 7 + textWidth(label);
+  for (let i = 0; i < 5; i++) { // pips: three to the bonus, five to the full set
+    ctx.fillStyle = i < c ? S.color : '#2a2222';
+    ctx.fillRect(x0 + i * 4 + (i >= 3 ? 2 : 0), 15, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+  if (flash > 0) { ctx.globalAlpha = flash * 0.6; ctx.fillStyle = S.color; ctx.fillRect(3, 12, x0 + 24 - 3, 1); ctx.fillRect(3, 19, x0 + 24 - 3, 1); ctx.globalAlpha = 1; }
 }
 
 // The right-click (E) ability and the head's automatic one, with their cooldowns.

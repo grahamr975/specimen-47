@@ -45,6 +45,7 @@ function recomputeStats(p) {
   if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
   // Set bonus: 3 (or 5) parts of the same set.
   const set = activeSet(p);
+  p.setActive = set; // (cached for setProc)
   if (set) SETS[set.set].bonus[set.tier].apply(s, p);
   if (p.frenzyT > 0 && s.setKillFrenzy) s.damageMul *= 1.4; // Apex frenzy
   // Splices: parts that have fused (each one frees a slot).
@@ -173,6 +174,21 @@ function bodyFrames(p) {
 }
 
 // Evolutions needed to reach each stage. Owning anything malignant adds a stage.
+// --- Set bonus procs: tell the player it was their set ---------------------------------------
+// Called wherever a set bonus does something. The HUD badge flashes; the first
+// few times per run (at most every 1.5s) the bonus's name pops up at the spot.
+const SET_PULSE = 0.5, SET_CALLOUTS = 3;
+function setProc(x, y) {
+  const p = game.player, act = p && p.setActive;
+  if (!act) return;
+  p.setPulseT = SET_PULSE;
+  const name = SETS[act.set].bonus[act.tier].name;
+  p.setCalls = p.setCalls || {};
+  if ((p.setCalls[name] || 0) >= SET_CALLOUTS || game.time - (p.setCallAt ?? -9) < 1.5) return;
+  p.setCalls[name] = (p.setCalls[name] || 0) + 1; p.setCallAt = game.time;
+  floatText(x, y - 14, name.toUpperCase(), SETS[act.set].color);
+}
+
 const STAGE_AT = [0, 2, 4, 7, 11];
 const POUNCE_RANGE = 130, POUNCE_CONE = 0.87; // Huntsman: prey within ~30 degrees of your leap
 
@@ -289,7 +305,7 @@ function updatePlayer(dt) {
   for (const k in p.cd) p.cd[k] -= dt;
   if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
   updateStatuses(p, dt); // chill, net
-  if (s.setSporeAura && game.room.locked && (p.sporeT = (p.sporeT || s.setSporeAura) - dt) <= 0) { p.sporeT = s.setSporeAura; spawnCloud(p.x, p.y, 24); } // Fruiting Body
+  if (s.setSporeAura && game.room.locked && (p.sporeT = (p.sporeT || s.setSporeAura) - dt) <= 0) { p.sporeT = s.setSporeAura; spawnCloud(p.x, p.y, 24); setProc(p.x, p.y); } // Fruiting Body
   const mv = movement(p);
 
   // --- Movement input (WASD) ---
@@ -305,6 +321,7 @@ function updatePlayer(dt) {
   if (il) { ix /= il; iy /= il; }
   p.moving = il > 0;
   updatePlayerGore(p, dt);
+  if (p.setPulseT > 0) p.setPulseT -= dt; // the set badge's flash fades
   // Growing isn't instant: the body swells past its new size and wobbles back.
   { const a = (p.size - p.sizeShown) * 70 - (p.sizeV || 0) * 7; p.sizeV = (p.sizeV || 0) + a * dt; p.sizeShown += p.sizeV * dt; }
   p.inX = ix; p.inY = iy; // (a boss lair's door checks you're walking into it)
@@ -864,7 +881,7 @@ function fireRing(p, n) {
 // Something of yours just blocked a hit or broke an enemy shot. Dense Marrow feeds on it.
 const MARROW_MAX = 5, MARROW_TIME = 4;
 function boneBlock(p) {
-  if (p.stats.setBlockShards && game.time - (p.blockShardAt || -9) > 0.25) { p.blockShardAt = game.time; fireRing(p, p.stats.setBlockShards); } // Bone set: a block bursts into shards
+  if (p.stats.setBlockShards && game.time - (p.blockShardAt || -9) > 0.25) { p.blockShardAt = game.time; fireRing(p, p.stats.setBlockShards); setProc(p.x, p.y); } // Bone set: a block bursts into shards
   const s = p.stats;
   if (!s.marrowFeed) return;
   p.marrowStacks = Math.min(MARROW_MAX, (p.marrowStacks || 0) + 1);
@@ -1336,7 +1353,7 @@ function hurtPlayer(dmg) {
   if (s.ventCloud) ventCloud(p);    // Spore Vents
   if (s.hurtFlesh) { for (let i = 0; i < s.hurtFlesh; i++) spawnAlly('flesh', p.x + rand(-5, 5), p.y + rand(-4, 4)); floatText(p.x, p.y - 22, 'IT SPLITS OFF', '#9a8c70'); } // Splitter Cells
   if (s.adrenal) p.adrenalT = s.adrenal;
-  if (s.setHurtLash) { // Grafted / Abomination: tendrils burst out
+  if (s.setHurtLash) { setProc(p.x, p.y); // Abomination: tendrils burst out
     for (const e of game.enemies) {
       if (e.dead || e.spawnT > 0 || Math.hypot(e.x - p.x, e.y - p.y) > 44 + e.r) continue;
       game.fx.push({ kind: 'whip', x1: p.x, y1: p.y, x2: e.x, y2: e.y, t: 0.16 });

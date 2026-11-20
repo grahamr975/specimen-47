@@ -1025,6 +1025,18 @@ try {
       newRun(); const q = game.player; grow(q, ...ids); check(`${SPLICES[k].name} fuses (${ids.join(' + ')})`, activeSplices(q).includes(k));
     }
   }
+  { // 0j1n) Set feedback: cards say what they complete; procs flash the badge and name the bonus (a few times).
+    newRun(); combatRoom(); let q = game.player; grow(q, 'mandibles', 'haunches');
+    const info = choiceInfo(q, { id: 'eyes', kind: 'root' });
+    check(`a card that completes a set says so (${info.setNote})`, info.setNote === 'COMPLETES ' + SETS.PREDATOR.bonus[0].name.toUpperCase());
+    const one = choiceInfo(game.player, { id: 'twitch', kind: 'root' });
+    newRun(); q = game.player; grow(q, 'mandibles'); check(`...and one short says ONE MORE (${choiceInfo(q, { id: 'haunches', kind: 'root' }).setNote})`, /^ONE MORE: /.test(choiceInfo(q, { id: 'haunches', kind: 'root' }).setNote || ''));
+    newRun(); combatRoom(); q = game.player; grow(q, 'mandibles', 'haunches', 'eyes'); game.texts = [];
+    for (let i = 0; i < 6; i++) { game.time += 2; setProc(q.x, q.y); }
+    const calls = game.texts.filter(t => t.text === SETS.PREDATOR.bonus[0].name.toUpperCase()).length;
+    check(`set procs name the bonus the first few times, then just flash (${calls} callouts, pulse ${q.setPulseT})`, calls === SET_CALLOUTS && q.setPulseT > 0);
+    render(); check('the set badge draws without errors', true);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
