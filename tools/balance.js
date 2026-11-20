@@ -43,7 +43,7 @@ function pickCard(p, strategy) {
   let best = 0, bs = -Infinity;
   m.choices.forEach((c, i) => {
     const info = choiceInfo(p, c);
-    const v = c.id === '_gorge' ? (p.hp < p.maxHp * 0.35 ? 8 : -5) : score(p, info); // gorge only when hurting
+    const v = c.id === '_gorge' ? (p.hp < p.maxHp * 0.35 ? 8 : -5) : c.id === '_hyper' ? -3 : score(p, info); // gorge only when hurting; hypertrophy only if nothing else
     if (v > bs) { bs = v; best = i; }
   });
   return best;

@@ -178,8 +178,8 @@ try {
       for (let k = 0; k < randInt(0, 12); k++) { const c = rollChoices(p, 3)[randInt(0, 2)] || { id: '_gorge' }; if (c && c.id !== '_gorge') applyChoice(p, c); if (Math.random() < 0.3) game.depth++; }
       if (slotsUsed(p) > slotCapacity(p)) over++;
       const cards = rollChoices(p, 3), legal = bodyOffers(p);
-      for (const c of cards) if (c.id !== '_gorge' && !legal.some(o => o.id === c.id && o.kind === c.kind)) illegal++;
-      if (cards.some(c => c.id !== '_gorge' && cards.some(o => o !== c && o.id === siblingOf(c.id)))) forks++;
+      for (const c of cards) if (c.id !== '_gorge' && !(c.kind === 'level' ? p.parts.includes(c.part) && !c.part.starter : legal.some(o => o.id === c.id && o.kind === c.kind))) illegal++;
+      if (cards.some(c => c.kind === 'branch' && c.part && (c.part.lvl || 0) < LEVEL_MAX)) forks++; // (now: a vial evolving a part early)
       if (new Set(cards.map(c => c.id)).size !== cards.length) illegal++;
       if (partsAt(p, 'HEAD').length > 1 || partsAt(p, 'LIMBS').length > 1) illegal++;
     }
@@ -197,7 +197,7 @@ try {
       check(`slime blobs slow what they hit (${(statusT(r, 'slow') || 0).toFixed(1)}s)`, statusT(r, 'slow') > 0.8); }
     { const dps = g => g.dmg * g.count / g.delay; grow(p, 'slime'); const slime = dps(p.stats.guns[0]); grow(p, 'spike'); const spike = dps(p.stats.guns[0]);
       check(`bone spike is never a downgrade from the slime (${slime.toFixed(2)} -> ${spike.toFixed(2)} dps)`, spike > slime); }
-    check(`most rolls show a fork side by side (${forks}/300)`, forks > 120);
+    check(`vials never evolve a part early: they offer it a level instead (${forks}/300 early forks)`, forks === 0);
     for (let i = 0; i < 60; i++) { update(1 / 60); render(); Input.endFrame(); }
   }
   { // 000) Attack types: MOUTH = what you fire; paths change how.
@@ -533,7 +533,7 @@ try {
     check('six fully grown parts (two weapons + four body): ready', apexReady(p));
     for (const m of p.parts) m.lvl = LEVEL_MAX;
     recomputeStats(p);
-    { const cs = rollLevelUps(p, 3); check(`before it, a maxed body has nothing to level (${cs.map(c => c.id).join(',')})`, !cs.some(c => c.kind === 'level')); }
+    { const cs = rollLevelUps(p, 3); check(`a maxed body still grows (overgrowth) and is never offered a replacement (${cs.map(c => c.kind + ':' + c.id).join(',')})`, cs.some(c => c.kind === 'level') && !cs.some(c => c.kind === 'meta')); }
     checkApex(p);
     check('it queues the ultimate metamorphosis', game.pendingEvolutions.some(e => e.apex) && evolveReady(p));
     const dmg0 = p.stats.damageMul, hp0 = p.maxHp;
@@ -1089,6 +1089,14 @@ try {
     const h0 = z.hp; for (let i = 0; i < 60; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`six overlapping pools burn no harder than one (${(h0 - z.hp).toFixed(1)} in 1s)`, h0 - z.hp < 3);
   }
+  { // 0j1t) No forced downgrades: short of cards, a level-up offers Hypertrophy (pass, and grow a little stronger).
+    newRun(); const q = game.player; grow(q, 'shrapnel'); q.capacity = slotsUsed(q); for (const m of q.parts) m.lvl = LEVEL_MAX; recomputeStats(q);
+    const cs = rollLevelUps(q, 3);
+    check(`a full, maxed body: overgrowth and Hypertrophy, never a replacement (${cs.map(c => c.kind ? c.kind + ':' + c.id : c.id).join(',')})`, cs.some(c => c.id === '_hyper') && cs.some(c => c.kind === 'level') && !cs.some(c => c.kind === 'meta'));
+    const d0 = q.stats.damageMul; applyChoice(q, { id: '_hyper' });
+    check(`hypertrophy makes you a little stronger (damage x${d0.toFixed(2)} -> x${q.stats.damageMul.toFixed(2)})`, q.stats.damageMul > d0 * 1.04);
+    check(`its card reads properly (${choiceInfo(q, { id: '_hyper' }).name})`, choiceInfo(q, { id: '_hyper' }).name === 'Hypertrophy');
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
@@ -1247,7 +1255,7 @@ try {
   }
   { // 0f) Boss cores: CORE only grows by eating what guards each floor.
     let p, core = 0;
-    for (let i = 0; i < 200; i++) { newRun(); p = game.player; if (i % 2) { p.capacity = 5; applyChoice(p, { id: 'hide' }); } for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE' && c.kind !== 'branch')) core++; }
+    for (let i = 0; i < 200; i++) { newRun(); p = game.player; if (i % 2) { p.capacity = 5; applyChoice(p, { id: 'hide' }); } for (let k = 0; k < 6; k++) { const c = rollChoices(p, 3)[0]; if (c.id !== '_gorge') applyChoice(p, c); } if (rollChoices(p, 3).some(c => c.id !== '_gorge' && slotOf(c.id) === 'CORE' && c.kind !== 'branch' && c.kind !== 'level')) core++; }
     check(`normal evolutions never PLANT a CORE (${core}/200)`, core === 0);
     newRun(); p = game.player; grow(p, 'spike', 'hide', 'marrow');
     check('...but a planted CORE branches like any other part', bodyOffers(p).some(c => c.kind === 'branch' && slotOf(c.id) === 'CORE'));

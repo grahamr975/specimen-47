@@ -2277,7 +2277,7 @@ function activeSplices(p) { return splicesOf(p.parts); }
 // The body you'd have after taking a card.
 function partsAfter(p, c) {
   c = resolveCard(p, c);
-  if (c.id === '_gorge') return p.parts;
+  if (c.id === '_gorge' || c.id === '_hyper') return p.parts;
   if (c.kind === 'branch') { const m = c.part || partFor(p, c.id); return p.parts.map(x => x === m ? Object.assign({}, x, { id: c.id, path: x.path.concat([c.id]) }) : x); }
   return p.parts.filter(m => m !== c.shed).concat([{ id: c.id, path: [c.id], loc: locOf(c.id) }]);
 }
@@ -2555,9 +2555,15 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
     for (const c of cs) if ((r -= weight(c)) <= 0) return c;
     return cs[cs.length - 1];
   };
-  const card = c => { const o = { id: c.id, kind: c.kind }; if (c.shed) o.shed = c.shed; return o; };
+  const card = c => { const o = { id: c.id, kind: c.kind }; if (c.shed) o.shed = c.shed; if (c.part) o.part = c.part; return o; };
   const gorge = { id: '_gorge' };
-  const all = bodyOffers(p, onlyLoc);
+  // A vial never evolves a part early: a branch of a part that isn't fully levelled becomes a
+  // level for that part instead (it evolves when it's ready, through its own fork).
+  const all = [];
+  for (const c of bodyOffers(p, onlyLoc)) {
+    if (onlyLoc !== 'CORE' && c.kind === 'branch' && c.part && (c.part.lvl || 0) < LEVEL_MAX) { if (!all.some(o => o.kind === 'level' && o.part === c.part)) all.push({ id: c.part.id, kind: 'level', part: c.part }); }
+    else all.push(c);
+  }
 
   if (onlyLoc && onlyLoc !== 'CORE') {
     // A colored vial: only that kind of part. Usually a fork, never two
@@ -2657,7 +2663,7 @@ function inheritedLevel(old) { return Math.min(LEVEL_MAX - 1, (old.lvl || 0) + 1
 
 // Fill in what a hand-made card ({ id } only) would do.
 function resolveCard(p, c) {
-  if (c.kind || c.id === '_gorge') return c;
+  if (c.kind || c.id === '_gorge' || c.id === '_hyper') return c;
   const d = MUTATIONS[c.id], loc = locOf(c.id);
   if (d.from) return { id: c.id, kind: 'branch', part: partFor(p, c.id) };
   const starter = p.parts.find(m => m.starter && m.loc === loc);
@@ -2684,6 +2690,9 @@ function choiceInfo(p, c) {
     const m = c.part, d = MUTATIONS[m.id], L = (m.lvl || 0) + 1, evolves = L >= LEVEL_MAX && childrenOf(m.id).length > 0;
     return { id: m.id, name: d.name, rarity: d.rarity, desc: d.desc, short: cardText(d), malignant: !!d.malignant && slotMalignant(m), set: null, slot: m.loc, kind: 'level',
       status: evolves ? 'EVOLVES!' : L > LEVEL_MAX ? 'OVERGROWTH ' + (L - LEVEL_MAX) : 'LEVEL ' + L, note: levelText(m, L), noteColor: evolves ? VIAL_COLOR : PAL.slate, overlays: [], stirs: false, tier: 0, level: Math.min(L, LEVEL_MAX), size: 1 };
+  }
+  if (c.id === '_hyper') { // the pass card on level-ups: nothing new grows, but you get a little stronger
+    return { name: 'Hypertrophy', rarity: 'common', desc: 'Grow nothing new. Your whole body thickens a little: slightly more damage, for good.', short: 'Grow nothing new. Your body thickens: a little stronger.', status: 'STRONGER', note: 'KEEPS YOUR BODY AS IT IS', noteColor: VIAL_COLOR, overlays: [], slot: '' };
   }
   if (c.id === '_gorge') {
     const free = freeSlots(p);
@@ -2777,19 +2786,21 @@ function rollLevelUps(p, n) {
   const takeRoot = loc => { const rs = roots.filter(c => (!loc || locOf(c.id) === loc) && !out.some(o => o.id === c.id)); if (rs.length) out.push({ id: pickW(rs).id, kind: 'root' }); };
   if (!partAt(p, 'MOUTH')) takeRoot('MOUTH');
   if (!partAt(p, 'LIMBS') && out.length < n) takeRoot('LIMBS');
-  const levels = p.parts.filter(m => !m.starter && ((m.lvl || 0) < LEVEL_MAX || (p.apex && fullyGrown(m)))).sort(() => Math.random() - 0.5).map(m => ({ id: m.id, kind: 'level', part: m }));
+  // A fully grown part keeps growing (overgrowth, smaller steps): a level-up always has something to grow.
+  const levels = p.parts.filter(m => !m.starter && ((m.lvl || 0) < LEVEL_MAX || fullyGrown(m))).sort(() => Math.random() - 0.5).map(m => ({ id: m.id, kind: 'level', part: m }));
   if (!out.length && roots.length) takeRoot(); // room for one more part: one card offers it
   for (const c of levels) { if (out.length >= n) break; out.push(c); }
   while (out.length < n && roots.length > out.filter(c => c.kind === 'root').length) { const k = out.length; takeRoot(); if (out.length === k) break; }
-  const metas = all.filter(c => c.kind === 'meta');
-  if (out.length < n && metas.length) { const c = metas[Math.floor(Math.random() * metas.length)]; out.push({ id: c.id, kind: 'meta', shed: c.shed }); }
-  if (!out.length) out.push({ id: '_gorge' });
+  // Level-ups never replace a part (metamorphoses come from vials and cores). Short of cards?
+  // Hypertrophy: pass, and grow a little stronger anyway.
+  if (out.length < n) out.push({ id: '_hyper' });
   return out.sort(() => Math.random() - 0.5);
 }
 
 // --- Applying a choice ------------------------------------------------------------
 function applyChoice(p, c) {
   if (c.id === '_gorge') { p.hp = Math.min(p.maxHp, p.hp + HP_PER_HEART); return; }
+  if (c.id === '_hyper') { p.hyper = (p.hyper || 0) + 1; recomputeStats(p); floatText(p.x, p.y - 14, 'HYPERTROPHY', VIAL_COLOR); Sfx.play('absorb'); return; }
   if (c.kind === 'level') { // a part grows a level; at the max, it evolves
     const m = c.part, d = MUTATIONS[m.id];
     m.lvl = (m.lvl || 0) + 1;

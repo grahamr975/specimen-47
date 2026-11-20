@@ -43,6 +43,7 @@ function recomputeStats(p) {
   const s = baseStats();
   for (const m of p.parts) applyMutation(s, m, p);
   if (p.frenzyT > 0 && s.feedFrenzy) s.damageMul *= 1 + s.feedFrenzy; // Feeding Frenzy
+  if (p.hyper) s.damageMul *= 1 + HYPER_DMG * p.hyper; // Hypertrophy: level-ups you passed on
   // Set bonus: 3 (or 5) parts of the same set.
   const set = activeSet(p);
   p.setActive = set; // (cached for setProc)
@@ -231,6 +232,7 @@ function parasiteGunner(p, dt) {
 // lopsided masses on the body (drawBulk), +BULK_DAMAGE damage and +BULK_R hitbox each.
 // Size is drawn (the whole body scales around its feet) and felt: the hitbox
 // grows with it, a little.
+const HYPER_DMG = 0.05; // each Hypertrophy (passing a level-up): +5% damage, for good
 const SIZE_MIN = 0.6, SIZE_FULL = 1.25, SIZE_APEX = 1.5, BULK_R = 0.6, BULK_DAMAGE = 0.1, PLAYER_R_MAX = 7.5;
 function bodySize(p, s = p.stats) {
   const grown = Math.min(MAX_SLOTS, p.parts.filter(m => !m.starter).length);
