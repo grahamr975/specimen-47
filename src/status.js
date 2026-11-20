@@ -244,9 +244,34 @@ const STATUS_FX = {
     for (let k = 0; k < 5; k++) ctx.fillRect(Math.round(e.x - e.r + ((game.time * 8 + k * 5) % (e.r * 2))), Math.round(e.y - e.r * 0.4 + (k % 2)), 2, 1);
     ctx.globalAlpha = 1;
   },
+  leak(ctx, e) { // burning bile dripping from its underside
+    ctx.fillStyle = '#a8c040';
+    for (let k = 0; k < 3; k++) { const ph = (game.time * 1.4 + k * 0.33 + e.x * 0.01) % 1; ctx.fillRect(Math.round(e.x - e.r * 0.5 + k * e.r * 0.5), Math.round(e.y + e.r * 0.6 + ph * 5), 1, ph < 0.6 ? 2 : 1); }
+  },
+  acidMark(ctx, e) { // something rotting inside: green blisters bulging under the skin
+    for (let k = 0; k < 3; k++) {
+      const a = k * 2.1 + (e.x % 7), bx = e.x + Math.cos(a) * e.r * 0.45, by = e.y + Math.sin(a) * e.r * 0.4;
+      const br = 0.7 + Math.max(0, Math.sin(game.time * 3 + k * 1.7)) * 0.8;
+      pxCircle(ctx, bx, by, br + 0.5, '#2a3010'); pxCircle(ctx, bx, by, br, '#b0c840');
+    }
+  },
 };
 
+// Barbs stuck in it: one bone hook per barb (count them), shivering as they're about to rip out.
+function drawBarbs(ctx, e) {
+  const n = e.barbs || 0; if (!n || e.dead) return;
+  const shake = e.barbT < 0.25 ? Math.round((Math.random() - 0.5) * 2) : 0;
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.4 + 0.6, ux = Math.cos(a), uy = Math.sin(a) * 0.8;
+    const bx = e.x + ux * e.r * 0.55 + shake, by = e.y + uy * e.r * 0.55;
+    ctx.fillStyle = '#5a0a12'; ctx.fillRect(Math.round(bx - ux) - 1, Math.round(by - uy), 2, 2); // the wound it's stuck in
+    for (let k = 0; k < 6; k++) { ctx.fillStyle = k === 5 ? '#fff4dc' : k < 2 ? '#8a7c64' : '#d8ccb0'; ctx.fillRect(Math.round(bx + ux * k), Math.round(by + uy * k), 1, 1); } // the shaft
+    ctx.fillStyle = '#d8ccb0'; ctx.fillRect(Math.round(bx + ux * 4 - uy), Math.round(by + uy * 4 + ux), 1, 1); // the hook
+  }
+}
+
 function drawStatuses(ctx, t) {
+  drawBarbs(ctx, t);
   if (!t.status || t.dead) return;
   for (const id in t.status) {
     const st = t.status[id];
