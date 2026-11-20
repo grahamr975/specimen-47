@@ -176,6 +176,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
   e.hp -= dmg;
+  if (e.type === 'mother' && !e.dead && e.hp <= e.maxHp * 0.5) { e.hp = e.maxHp * 0.5; splitMother(e); return; } // she always splits first: overkill can't skip her second phase
   const T = ENEMY_TYPES[e.type];
   if (dmg < 0.3) { if (e.hp <= 0) killEnemy(e); return; } // tiny damage ticks (bleed) stay quiet
   e.flash = 0.08;

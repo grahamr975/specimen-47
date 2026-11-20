@@ -165,7 +165,8 @@ function updateAllies(dt) {
     if (a.kind === 'polyp') { updatePolyp(a, dt); continue; } // rooted in place
     if (a.kind === 'spiderling') { updateSpiderling(a, dt, p); continue; }
     if (a.kind === 'maggot' || a.kind === 'flesh') { updateMaggot(a, dt, p); continue; }
-    // Your twin hovers just behind you, mirroring your aim.
+    // Your twin hovers just behind you, mirroring your aim. Stuck far behind (a crate in the way)? It squeezes back to you.
+    if (Math.hypot(p.x - a.x, p.y - a.y) > 70) { burst(a.x, a.y, '#a8534f', 4, 40); a.x = p.x; a.y = p.y; }
     const tx = p.x - p.aimX * 12 + p.aimY * 8, ty = p.y - p.aimY * 12 - p.aimX * 8;
     const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
     if (d > 2) moveEntity(game.room, a, (dx / d) * 120 * dt, (dy / d) * 120 * dt);

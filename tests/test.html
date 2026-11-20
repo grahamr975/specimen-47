@@ -385,8 +385,8 @@ try {
       check(`brood howl: what it kills bursts into spiderlings (${kids})`, kids >= 2); }
     p = arena(); grow(p, leafUnder('spike'), 'juggernaut'); { dummy(14, 999); const r = dummy(60); r.speed = 0; Input.mouse.x = p.x - 50; Input.mouse.y = p.y + ROOM_Y; for (let i = 0; i < 21; i++) { update(1 / 60); Input.endFrame(); }
       check(`bone cannon: the headbutt fires a lance through what it butts (${(99 - r.hp).toFixed(1)} dmg at 60px)`, 99 - r.hp > 4); }
-    p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; inflict(r, 'web', { t: 5 }); for (let i = 0; i < 90; i++) { inflict(r, 'web', { t: 5 }); update(1 / 60); Input.endFrame(); }
-      check(`silk nursery: spiderlings hatch on what's stuck (${game.allies.filter(a => a.kind === 'spiderling').length})`, game.allies.some(a => a.kind === 'spiderling')); }
+    p = arena(); grow(p, leafUnder('silk'), leafUnder('spider')); { const r = dummy(40); r.speed = 0; inflict(r, 'web', { t: 5 }); let seen = 0; for (let i = 0; i < 90; i++) { inflict(r, 'web', { t: 5 }); update(1 / 60); Input.endFrame(); seen = Math.max(seen, game.allies.filter(a => a.kind === 'spiderling' && !a.dead).length); }
+      check(`silk nursery: spiderlings hatch on what's stuck (${seen} at once)`, seen > 0); }
     p = arena(); grow(p, 'venomspike', 'sporevents'); game.puddles = []; { const r = dummy(40); r.speed = 0; fireFor(30, true);
       check('venom barrage: spikes burst into bile', p.splices.includes('venombarrage') && game.puddles.some(pd => pd.team === 'player' && pd.r >= 14)); }
     p = arena(); grow(p, leafUnder('tongue'), leafUnder('regrow')); p.hp = 1; { const r = dummy(30); r.r = 3; r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; p.aimX = 1; p.aimY = 0; tongueAttack(p); for (let i = 0; i < 40; i++) { update(1 / 60); Input.endFrame(); }
@@ -1036,6 +1036,14 @@ try {
     const calls = game.texts.filter(t => t.text === SETS.PREDATOR.bonus[0].name.toUpperCase()).length;
     check(`set procs name the bonus the first few times, then just flash (${calls} callouts, pulse ${q.setPulseT})`, calls === SET_CALLOUTS && q.setPulseT > 0);
     render(); check('the set badge draws without errors', true);
+  }
+  { // 0j1o) Playtest fixes: the twin enters rooms with you; the Mother Culture always splits.
+    newRun(); combatRoom(); let q = game.player; grow(q, 'mirrortwin'); ensureTwin(); q.x = 300; q.y = 96;
+    const next = game.floor.rooms.find(r => r !== game.room && r.type === 'combat') || game.floor.rooms[2]; enterRoom(next, 'left');
+    const tw = game.allies.find(a => a.kind === 'twin');
+    check(`your twin comes into the room with you, not at the far wall (${tw && Math.round(Math.hypot(tw.x - q.x, tw.y - q.y))}px away)`, tw && Math.hypot(tw.x - q.x, tw.y - q.y) < 20);
+    newRun(); combatRoom(); game.enemies = []; const m = spawnEnemy('mother', 160, 96); m.spawnT = 0; damageEnemy(m, 99999, 0, 0, true);
+    check(`one huge hit can't skip the Mother Culture's split (${game.enemies.filter(e => e.type === 'motherling' && !e.dead).length} motherlings)`, game.enemies.filter(e => e.type === 'motherling' && !e.dead).length === 3);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });

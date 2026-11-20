@@ -61,10 +61,10 @@ function enterRoom(room, side) {
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
   game.player.tongue = null; game.player.grappleShot = null; game.whips = [];
   game.player.plates = game.player.stats.plates || 0; // Bone Plates regrow in every room
-  for (const a of game.allies) { a.x = game.player.x; a.y = game.player.y; }
 
   const p = game.player;
   if (side) { p.x = DOOR_SPAWN[side].x; p.y = DOOR_SPAWN[side].y; }
+  for (const a of game.allies) { a.x = p.x; a.y = p.y; } // your twin comes in with you (after you're placed: it used to arrive at the far door)
   p.dashT = 0;
   game.slowT = 0;
   // Broodmother: a fresh litter in every room.
