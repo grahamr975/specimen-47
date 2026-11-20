@@ -1,0 +1,16 @@
+#!/bin/sh
+# Every commit bumps the patch version and sets the "last updated" date shown on the
+# title screen (GAME_VERSION / GAME_UPDATED in src/ui.js). Minor/major bumps are by hand.
+# The staged copy is bumped directly, so other unstaged edits to ui.js aren't swept in.
+f=src/ui.js
+git ls-files --error-unmatch "$f" >/dev/null 2>&1 || exit 0
+v=$(git show ":$f" | sed -n "s/^const GAME_VERSION = '\([0-9]*\.[0-9]*\.[0-9]*\)'.*/\1/p")
+[ -n "$v" ] || exit 0
+major=${v%%.*}; rest=${v#*.}; minor=${rest%%.*}; patch=${rest#*.}
+new="$major.$minor.$((patch + 1))"; today=$(date +%Y-%m-%d)
+pat="s/^const GAME_VERSION = '[0-9.]*', GAME_UPDATED = '[0-9-]*';/const GAME_VERSION = '$new', GAME_UPDATED = '$today';/"
+mode=$(git ls-files -s "$f" | cut -d' ' -f1)
+blob=$(git show ":$f" | sed "$pat" | git hash-object -w --stdin)
+git update-index --cacheinfo "$mode,$blob,$f"
+sed -i "$pat" "$f" # and the working copy, to match
+exit 0

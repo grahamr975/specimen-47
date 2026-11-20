@@ -116,7 +116,7 @@ It uses headless Microsoft Edge, takes a minute or two, and exits with code 1 if
 
 The project is a git repository. Commit after each working change (`git add -A`, then `git commit -m "what changed"`), so any mistake can be undone with `git restore <file>` or by checking out an earlier commit.
 
-The version and last-updated date shown in the corner of the title screen are `GAME_VERSION` and `GAME_UPDATED` at the top of the title-screen code in `src/ui.js`. Bump them when you put out a new build.
+The version and last-updated date shown in the corner of the title screen are `GAME_VERSION` and `GAME_UPDATED` at the top of the title-screen code in `src/ui.js`. A pre-commit hook (`.githooks/pre-commit`) bumps the patch number and sets the date on every commit; bump the minor or major number by hand for bigger releases. On a fresh clone, turn the hook on once with `git config core.hooksPath .githooks`.
 
 ## Sharing
 
