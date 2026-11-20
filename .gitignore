@@ -8,3 +8,5 @@ desktop.ini
 # Balance simulator output (regenerate with tools/run-balance.ps1)
 tools/balance-report.html
 tools/balance-runs.json
+tools/autotune-report.html
+tools/autotune.json

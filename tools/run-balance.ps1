@@ -3,12 +3,18 @@
 #   powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1                  # 40 runs per strategy
 #   powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1 -Runs 200 -Seed 7
 #   powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1 -Strategies focus,mix
+#   powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1 -Build thornstorm,fractured -Runs 60   # measure a combo
+#   powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1 -Autotune -Runs 30 -Rounds 3          # tune weapon damage
 # Writes tools\balance-report.html (open it in a browser) and tools\balance-runs.json
 # (every run: seed, strategy, floor reached, parts, sets, splices) for digging in further.
+# -Autotune writes tools\autotune-report.html and tools\autotune.json instead (with a TUNE table to paste).
 param(
   [int]$Runs = 40,
   [int]$Seed = 1,
-  [string]$Strategies = 'random,focus,mix,splice'
+  [string]$Strategies = 'random,focus,mix,splice',
+  [string]$Build = '',   # e.g. 'thornstorm,fractured,chestburster': those parts from the start of every run
+  [switch]$Autotune,
+  [int]$Rounds = 3
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -20,15 +26,18 @@ $edge = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $edge) { Write-Error 'Microsoft Edge not found.'; exit 1 }
 
-$url = 'file:///' + (($page -replace '\\', '/') -replace ' ', '%20') + "?runs=$Runs&seed=$Seed&strategies=$Strategies"
+$query = "?runs=$Runs&seed=$Seed&strategies=$Strategies"
+if ($Build) { $query += "&build=$Build" }
+if ($Autotune) { $query += "&autotune=1&rounds=$Rounds" }
+$url = 'file:///' + (($page -replace '\\', '/') -replace ' ', '%20') + $query
 $tmp = Join-Path $env:TEMP ('specimen47-balance-' + [guid]::NewGuid())
 New-Item -ItemType Directory $tmp | Out-Null
 $dom = Join-Path $tmp 'dom.html'
 
-$total = $Runs * ($Strategies -split ',').Count
-Write-Host "Simulating $total runs in headless Edge (roughly a few seconds per run)..."
+if ($Autotune) { Write-Host "Auto-tuning weapons: $Rounds rounds of $Runs runs per weapon form (this takes a while)..." }
+else { Write-Host "Simulating $($Runs * ($Strategies -split ',').Count) runs in headless Edge..." }
 $args = @('--headless=new', '--disable-gpu', '--allow-file-access-from-files',
-          '--virtual-time-budget=100000000', "--user-data-dir=$tmp\profile", '--dump-dom', $url)
+          '--virtual-time-budget=1000000000', "--user-data-dir=$tmp\profile", '--dump-dom', $url)
 Start-Process -FilePath $edge -ArgumentList $args -RedirectStandardOutput $dom `
   -RedirectStandardError (Join-Path $tmp 'err.txt') -Wait -WindowStyle Hidden
 
@@ -41,9 +50,10 @@ if ($html -notmatch '(?s)<div id="report">(.*?)</div>\s*<pre id="out">(.*?)</pre
 }
 $report = $matches[1]; $json = [System.Net.WebUtility]::HtmlDecode($matches[2])
 $style = if ($html -match '(?s)<style>(.*?)</style>') { $matches[1] } else { '' }
+$name = if ($Autotune) { 'autotune' } else { 'balance' }
 $out = "<!doctype html><html><head><meta charset=`"utf-8`"><title>Balance Report</title><style>$style</style></head><body><div id=`"report`">$report</div></body></html>"
-[System.IO.File]::WriteAllText((Join-Path $here 'balance-report.html'), $out)
-[System.IO.File]::WriteAllText((Join-Path $here 'balance-runs.json'), $json)
-Write-Host "Saved tools\balance-report.html and tools\balance-runs.json"
+[System.IO.File]::WriteAllText((Join-Path $here "$name-report.html"), $out)
+[System.IO.File]::WriteAllText((Join-Path $here $(if ($Autotune) { 'autotune.json' } else { 'balance-runs.json' })), $json)
+Write-Host "Saved tools\$name-report.html"
 if ($json -match '"errors":(\d+)' -and [int]$matches[1] -gt 0) { Write-Host "$($matches[1]) runs crashed: see the top of the report."; exit 1 }
 exit 0

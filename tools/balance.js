@@ -70,7 +70,9 @@ function botFrame(strategy) {
       const melee = !p.stats.guns.length && !p.stats.beam && !p.stats.howl && !p.stats.miasma;
       // Steering: a sum of pushes, turned into WASD.
       let vx = 0, vy = 0, danger = 0;
-      const keep = melee ? Math.max(10, (p.stats.biteReach || p.stats.lashRange || 18) * 0.6) : 46; // melee holds just inside reach
+      // How far to hold: melee just inside reach; guns at about two-thirds of their real reach (short sneezes up close).
+      const reachOf = () => Math.max(p.stats.beam ? p.stats.beamRange : 0, p.stats.howl ? p.stats.howl.range : 0, ...p.stats.guns.map(g => (g.lob ? 140 : g.speed * g.range * (1 + (p.stats.rangeAdd || 0)))));
+      const keep = melee ? Math.max(10, (p.stats.biteReach || p.stats.lashRange || 18) * 0.6) : clamp(reachOf() * 0.65, 18, 46);
       for (const o of foes) { // keep your distance from everything (melee: close on the target, but no closer)
         const dx = p.x - o.x, dy = p.y - o.y, d = Math.hypot(dx, dy) || 1;
         const want = o === e ? keep : 34;
@@ -162,9 +164,28 @@ function leaveRoom(strategy) {
 const MAX_FRAMES = 60 * 60 * 15; // 15 minutes of game time
 const STALL = 60 * 60;           // a fight still going after a minute: call it a stall
 
+// Forced builds (?build=thornstorm,fractured,chestburster): those parts, fully
+// pathed, from the start of every run, so a reported combo can be measured.
+// Their slots are opened; the rest of the run plays as normal.
+function forceBuild(p, ids) {
+  const pathTo = id => { const out = [id]; while (MUTATIONS[out[0]].from) out.unshift(MUTATIONS[out[0]].from); return out; };
+  for (const id of ids) {
+    if (!MUTATIONS[id]) throw new Error('unknown part in build: ' + id);
+    const path = pathTo(id), loc = locOf(path[0]);
+    const at = p.parts.findIndex(m => m.loc === loc && (m.starter || partsAt(p, loc).length >= LOC_MAX[loc]));
+    const part = { id, path, loc, lvl: 0 };
+    if (at >= 0) p.parts.splice(at, 1, part); else p.parts.push(part);
+  }
+  p.capacity = Math.max(p.capacity, p.parts.length);
+  if (game.room.cage) game.room.cage = null; // (the starting cell: you already have a weapon)
+  recomputeStats(p); p.hp = p.maxHp;
+}
+
+let FORCED = null; // set from ?build=
 function playRun(seed, strategy) {
   Math.random = mulberry32(seed);
   newRun(); game.state = 'play';
+  if (FORCED) forceBuild(game.player, FORCED);
   const p0 = game.player;
   let frame = 0, hurt = 0, lockedFor = 0, stalls = 0, lastHp = p0.hp;
   const floorAt = {};
@@ -275,11 +296,67 @@ function watchHurts() {
   };
 }
 
+// --- Auto-tuning (?autotune=1&runs=30&rounds=3) --------------------------------------------
+// Nudges each WEAPON tree's damage (TUNE in mutations.js) toward the median
+// weapon. Each tree is measured by playing its first-evolution forms as forced
+// builds on the same seeds every round (so differences come from the tuning,
+// not luck), scored by floor reached (kill speed breaks ties), then moved
+// toward the median by at most 15% a round, and never past 0.6x-1.6x overall.
+function measureBuild(ids, runsPer, seed0) {
+  const mean = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
+  FORCED = ids; const rs = [];
+  for (let i = 0; i < runsPer; i++) { try { rs.push(playRun(seed0 + i * 7919, 'random')); } catch (e) { rs.push({ depth: 1, kills: 0, minutes: 1 }); } } // a crash scores as a floor-1 death
+  FORCED = null;
+  const depth = mean(rs.map(r => r.depth)), kpm = mean(rs.map(r => r.kills / Math.max(0.1, r.minutes)));
+  return { depth, kpm, score: depth + 0.02 * kpm };
+}
+
+function runAutotune(runsPer, rounds, seed0) {
+  const roots = Object.keys(MUTATIONS).filter(id => !MUTATIONS[id].from && !MUTATIONS[id].part && locOf(id) === 'MOUTH');
+  const formsOf = r => (childrenOf(r).length ? childrenOf(r) : [r]);
+  const start = {}, history = [];
+  for (let round = 0; round <= rounds; round++) {
+    const scores = {};
+    for (const r of roots) {
+      const ms = formsOf(r).map(id => measureBuild([id], runsPer, seed0));
+      scores[r] = { score: ms.reduce((s, m) => s + m.score, 0) / ms.length, depth: ms.reduce((s, m) => s + m.depth, 0) / ms.length };
+    }
+    if (round === 0) Object.assign(start, scores);
+    const sorted = Object.values(scores).map(s => s.score).sort((a, b) => a - b), target = sorted[Math.floor(sorted.length / 2)];
+    history.push({ round, target: +target.toFixed(2), spread: +(sorted[sorted.length - 1] - sorted[0]).toFixed(2) });
+    if (round === rounds) return { roots, start, end: scores, history, tune: { ...TUNE } };
+    for (const r of roots) { // nudge toward the median
+      const step = clamp(Math.pow(target / Math.max(0.5, scores[r].score), 0.8), 0.85, 1.15);
+      TUNE[r] = +clamp((TUNE[r] || 1) * step, 0.6, 1.6).toFixed(3);
+    }
+  }
+}
+
+function renderAutotune(res, el) {
+  const name = id => MUTATIONS[id].name, rows = res.roots.map(r => ({ r, a: res.start[r], b: res.end[r], t: res.tune[r] || 1 })).sort((x, y) => x.t - y.t);
+  el.innerHTML = `<h1>Specimen 47: weapon auto-tune</h1>
+    <p>Each weapon tree, scored by how far its first-evolution forms got (forced builds, same seeds every round), then its damage nudged toward the median weapon. Took ${res.seconds}s.</p>
+    <table><tr><th>round</th><th>median score</th><th>best - worst</th></tr>${res.history.map(h => `<tr><td>${h.round}</td><td>${h.target}</td><td>${h.spread}</td></tr>`).join('')}</table>
+    <h2>Per weapon</h2><table><tr><th>weapon tree</th><th>floor before</th><th>floor after</th><th>damage tune</th></tr>
+    ${rows.map(x => `<tr class="${x.t < 0.95 ? 'weak' : x.t > 1.05 ? 'strong' : ''}"><td>${name(x.r)}</td><td>${x.a.depth.toFixed(2)}</td><td>${x.b.depth.toFixed(2)}</td><td>${x.t.toFixed(2)}x</td></tr>`).join('')}</table>
+    <h2>TUNE (for src/mutations.js)</h2><pre>const TUNE = ${JSON.stringify(Object.fromEntries(Object.entries(res.tune).filter(([, v]) => Math.abs(v - 1) >= 0.02).sort()))};</pre>`;
+}
+
 function runBalance() {
   watchHurts();
   const q = new URLSearchParams(location.search);
+  if (q.get('autotune')) {
+    const realRandom = Math.random, t0 = performance.now();
+    const res = runAutotune(+(q.get('runs') || 30), +(q.get('rounds') || 3), +(q.get('seed') || 1));
+    Math.random = realRandom; res.seconds = +((performance.now() - t0) / 1000).toFixed(0);
+    document.getElementById('game').style.display = 'none';
+    renderAutotune(res, document.getElementById('report'));
+    document.getElementById('out').textContent = JSON.stringify({ autotune: res }, null, 0);
+    return;
+  }
   const runsPer = +(q.get('runs') || 40), seed0 = +(q.get('seed') || 1);
   const strategies = (q.get('strategies') || 'random,focus,mix,splice').split(',').filter(s => STRATEGIES[s]);
+  FORCED = q.get('build') ? q.get('build').split(',').map(s => s.trim()).filter(Boolean) : null;
   const realRandom = Math.random, runs = [], t0 = performance.now();
   for (const strategy of strategies) for (let i = 0; i < runsPer; i++) {
     try { runs.push(playRun(seed0 + i * 7919 + strategies.indexOf(strategy) * 104729, strategy)); }
