@@ -176,8 +176,16 @@ function gameOver() {
 }
 
 // Music follows the action: the combat layer swells during lockdowns.
+// Each floor has its own track, each boss its own song (music.js SONGS); deeper loops climb in key.
+function songFor() {
+  if (game.state === 'title' || !game.depth) return ['title', 0];
+  const loop = Math.floor((game.depth - 1) / FLOORS.length);
+  if (game.bossName && SONGS[game.bossId]) return [game.bossId, loop];
+  return ['floor' + ((game.depth - 1) % FLOORS.length), loop];
+}
 function updateMusicMood() {
   if (!Music.started) return;
+  Music.setSong(...songFor());
   if (game.state === 'title') Music.setMood(false, 0.8);
   else if (game.state === 'dead') Music.setMood(false, 0.35);
   else Music.setMood(game.room && game.room.locked, game.paused ? 0.4 : 1);

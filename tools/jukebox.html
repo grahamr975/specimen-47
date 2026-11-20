@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  Specimen 47 jukebox: listen to every song (src/music.js SONGS) without playing.
+  Open in a browser, pick a song, and toggle FIGHT to hear the combat layer come in.
+-->
+<html><head><meta charset="utf-8"><title>Jukebox</title>
+<style>
+  :root { --bg: #120d0f; --fg: #e0d4cc; --dim: #8a7c78; --red: #e05060; --line: #2e2627; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 640px; }
+  h1 { color: var(--red); margin: 8px 0 4px; font-size: 22px; } p { color: var(--dim); margin: 0 0 14px; }
+  .songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  button { background: #1e1618; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; cursor: pointer; text-align: left; }
+  button:hover { border-color: var(--dim); } button.on { border-color: var(--red); color: #fff; background: #3a1418; }
+  .row { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; } small { display: block; color: var(--dim); font-size: 12px; }
+  #now { color: var(--dim); }
+</style></head>
+<body>
+<h1>Specimen 47 jukebox</h1>
+<p>Every track is generated live by <code>src/music.js</code>. Click a song to start; songs change on the next bar, like in the game.</p>
+<div class="row">
+  <button id="fight">Fight: off</button>
+  <button id="loop">Floor loop: 0</button>
+  <button id="stop">Stop</button>
+</div>
+<div class="songs" id="songs"></div>
+<p id="now"></p>
+<script src="../src/gfx.js"></script>
+<script src="../src/audio.js"></script>
+<script src="../src/music.js"></script>
+<script>
+  const NAMES = { title: 'Title', floor0: 'Floor 1: Petri Labs', floor1: 'Floor 2: Cryo Wing', floor2: 'Floor 3: Bio-Weapons', floor3: 'Floor 4: Gene Bank', floor4: "Floor 5: Director's Wing",
+    mother: 'Boss: Mother Culture', colossus: 'Boss: Thawing Colossus', biotank: 'Boss: Specimen Zero', archive: 'Boss: The Archive', director: 'Boss: The Director' };
+  let fight = false, loop = 0, current = null;
+  const box = document.getElementById('songs');
+  for (const id in SONGS) {
+    const b = document.createElement('button'); b.dataset.id = id;
+    b.innerHTML = (NAMES[id] || id) + '<small>' + SONGS[id].bpm + ' bpm, ' + SONGS[id].scale + (SONGS[id].boss ? ', always full' : '') + '</small>';
+    b.onclick = () => { Sfx.init(); current = id; Music.setSong(id, loop); Music.setMood(fight, 1); show(); };
+    box.appendChild(b);
+  }
+  document.getElementById('fight').onclick = () => { fight = !fight; Music.setMood(fight, 1); show(); };
+  document.getElementById('loop').onclick = () => { loop = (loop + 1) % 3; if (current) Music.setSong(current, loop); show(); };
+  document.getElementById('stop').onclick = () => { if (Sfx.ctx) Sfx.ctx.suspend(); current = null; show(); };
+  function show() {
+    if (current && Sfx.ctx && Sfx.ctx.state === 'suspended') Sfx.ctx.resume();
+    document.getElementById('fight').textContent = 'Fight: ' + (fight ? 'on' : 'off');
+    document.getElementById('fight').classList.toggle('on', fight);
+    document.getElementById('loop').textContent = 'Floor loop: ' + loop + (loop ? ' (higher, faster)' : '');
+    for (const b of box.children) b.classList.toggle('on', b.dataset.id === current);
+    document.getElementById('now').textContent = current ? 'Playing ' + (NAMES[current] || current) : '';
+  }
+</script>
+</body></html>

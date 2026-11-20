@@ -1186,6 +1186,28 @@ try {
     Object.defineProperty(navigator, 'getGamepads', { value: real, configurable: true }); Input.pollPad(); Input.padUsed = false; game.menu = null;
     check('unplugged: back to keyboard and mouse', !Input.pad && !Input.padKeys.size);
   }
+  { // 0j1y) Music: a track per floor, a song per boss; every song plays without errors.
+    const floors = FLOORS.map((_, i) => 'floor' + i), bosses = FLOORS.map(f => f.boss).filter(Boolean);
+    check(`every floor has a track and every boss a song (${floors.concat(bosses).filter(id => !SONGS[id]).join(',') || 'all'})`, floors.concat(bosses).every(id => SONGS[id]));
+    const keep = {}; for (const k of ['c', 'out', 'bus', 'delay', 'drive', 'driveOut', 'noiseBuf', 'song', 'songId', 'songKey', 'step', 'combatLevel']) keep[k] = Music[k];
+    const bad = [];
+    try {
+      const ctx = new OfflineAudioContext(1, 44100 * 2, 44100); Music.build(ctx, ctx.destination);
+      for (const id in SONGS) {
+        try { Music.use(id, 0); Music.combatLevel = 1; for (let s = 0; s < 64; s++) Music.playStep(s, 0.01 + s * 0.01, 0.1); Music.combatLevel = 0; for (let s = 64; s < 80; s++) Music.playStep(s, 0.01, 0.1); }
+        catch (e) { bad.push(id + ': ' + e.message); }
+      }
+    } catch (e) { bad.push('setup: ' + e.message); }
+    Object.assign(Music, keep);
+    check(`every song plays through, calm and in a fight (${bad.join('; ') || Object.keys(SONGS).length + ' songs'})`, !bad.length);
+    newRun(); const at = d => { game.depth = d; return songFor().join('@'); };
+    const f1 = at(1), f2 = at(2), f7 = at(7);
+    game.bossName = 'X'; game.bossId = 'colossus'; const boss = at(2); game.bossName = null;
+    game.state = 'title'; const title = songFor()[0]; game.state = 'play';
+    check(`songs follow you (floor 1 ${f1}, floor 2 ${f2}, floor 7 ${f7}, boss ${boss}, title ${title})`, f1 === 'floor0@0' && f2 === 'floor1@0' && f7 === 'floor1@1' && boss === 'colossus@0' && title === 'title');
+    Music.compile(SONGS.floor0, 2).root === SONGS.floor0.root + 2 || bad.push('loop');
+    check('deeper loops come back higher and faster', Music.compile(SONGS.floor0, 2).root > SONGS.floor0.root && Music.compile(SONGS.floor0, 2).bpm > SONGS.floor0.bpm);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

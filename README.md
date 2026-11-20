@@ -89,7 +89,7 @@ A controller works too: any gamepad the browser sees, with an Xbox-style layout 
 | `src/enemies.js` | Enemy stats (`ENEMY_TYPES`) and how each one acts (`ENEMY_BEHAVIOR`: `update`, plus optional `onDeath` / `onHurt`). A new enemy is one row in each, plus a sprite. |
 | `src/status.js` | Status effects (`STATUS`): bleed, stun, slow, web, blind, mark, corrode, pollen, leak, acid mark, chill, net. Apply with `inflict(target, 'bleed', { t: 3, dps: 2 })`, ask with `hasStatus()`. A part makes an attack apply one with `onHit(s, 'lash', 'bleed', { t: 3, dps: 2 })` in its `apply()`. |
 | `src/player.js` | Movement, shooting, dash/charge, bite, tentacles, shield |
-| `src/music.js` | Procedural music: chords, tempo, combat layer |
+| `src/music.js` | Procedural music: a small sequencer and synth. `SONGS` holds a track per floor and a song per boss (tempo, key, chords, bass, drums, lead as scale degrees); a fight brings in drums and the lead. Listen to them all in `tools/jukebox.html` |
 | `src/sprites.js` | All sprites, painted from shaded shapes (blobs, tubes, eyes). Tweak the numbers to reshape a creature. |
 | `src/paint.js` | The pixel painter: shading, outlines, and the color ramps (`RAMPS`) |
 | `src/world.js` | Room obstacle layouts, floor generation, old bloodstains |
