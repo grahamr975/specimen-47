@@ -14,11 +14,13 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | Right click / E | Limb ability (every LIMBS root has one; Tentacles grapple, Grasping Hands grab and throw) |
 | M / P | Mute / pause |
 | J (title screen or paused) | Splice journal: every splice you've found, and hints for the rest (kept between runs) |
+| G (paused) | Gore setting: full, reduced (less blood, nothing flies), or off (dust instead of blood; enemies still lose parts) |
 
 ## How it works
 
 - **Culture Blobs** divide once; the copy can't divide and carries no biomass.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Walk into it to devour it (the biomass goes straight into you), or attack it from range until it bursts and collect the glowing globules of biomass that spill out. Spawnlings and drones never leave one, and rats often don't.
+- **Tear them apart.** Hard hits and badly hurt enemies lose parts, and overkill tears everything off. A rat without legs drags itself, a frostbitten without its arm attacks less often, and anything that loses its head goes blind and bleeds out. Severed parts tumble away bleeding; walk over one to eat it (a little biomass, taken from what its corpse would have held).
 - **Visceral.** Kill something up close and its blood splashes onto you; it wears off as you walk, dripping as you go. Harder hits spurt more blood and tear chunks off enemies that fly, trail blood and splat against the walls; overkill bursts bodies apart; badly wounded enemies drip as they move. The stronger you get, the messier it gets.
 - **Bosses.** Every floor ends in a boss, each with two phases (it changes at half health): the Mother Culture, the Thawing Colossus (ice spikes and frost breath; then it thaws and walks), Specimen Zero (acid mortars, charges, Gas Bloaters; then it ruptures), the Archive (spiraling bullet storms and Clone packs; then it rewrites itself), and the Director (sweeping lasers, volleys, security on call; then LOCKDOWN).
 - **Threat rises.** Every floor, enemies attack more often, their shots fly faster, elites carry more affixes, and health and numbers grow. Past the Director the lab loops, deeper and harder.
@@ -80,6 +82,7 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | `src/paint.js` | The pixel painter: shading, outlines, and the color ramps (`RAMPS`) |
 | `src/world.js` | Room obstacle layouts, floor generation, old bloodstains |
 | `src/gore.js` | Blood spray, gibs, floor stains, corpses |
+| `src/dismember.js` | Severing parts (what losing each costs an enemy), flying and edible limbs. Parts come from `P.part()` layers in the paint functions and `ANATOMY` in sprites.js |
 | `src/lighting.js` | Darkness, dithered lights, flickering, low-HP pulse |
 | `src/ui.js` | HUD, evolution cards, title and game-over screens |
 

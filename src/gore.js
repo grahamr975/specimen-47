@@ -5,6 +5,15 @@
 // so every fight leaves its mark on the room.
 // ---------------------------------------------------------------------------
 
+// The gore setting (pause menu, G): 2 full, 1 reduced (less blood, nothing flies), 0 off
+// (dust instead of blood, no gibs, no limbs). Losing parts still changes how enemies fight.
+let GORE = 2;
+try { const v = localStorage.getItem('s47.gore'); if (v !== null && [0, 1, 2].includes(+v)) GORE = +v; } catch (e) { /* no storage: full */ }
+const GORE_NAMES = ['OFF', 'REDUCED', 'FULL'];
+const GORE_DUST = ['#2a2626', '#3a3434', '#222020'];
+function setGore(v) { GORE = v; try { localStorage.setItem('s47.gore', String(v)); } catch (e) { /* not saved */ } }
+const goreFluid = f => GORE ? f : GORE_DUST;
+
 function decalCtx() {
   return game.room.decals.getContext('2d');
 }
@@ -31,9 +40,10 @@ function wetAt(x, y) {
 function stain(x, y, r, fluid) {
   if (!inRoom(x, y)) return;
   const d = decalCtx();
+  fluid = goreFluid(fluid);
   const col = pick(fluid);
   pxCircle(d, x, y, r, col);
-  if (r >= 1.5) markWet(x, y, r, col);
+  if (r >= 1.5 && GORE) markWet(x, y, r, col);
   for (let i = 0; i < Math.ceil(r) + 1; i++) {
     const a = rand(0, Math.PI * 2), dd = rand(r * 0.4, r * 1.2);
     pxCircle(d, x + Math.cos(a) * dd, y + Math.sin(a) * dd, rand(r * 0.25, r * 0.6), pick(fluid));
@@ -43,13 +53,14 @@ function stain(x, y, r, fluid) {
 function stainPx(x, y, fluid, size = 1) {
   if (!inRoom(x, y)) return;
   const d = decalCtx();
-  d.fillStyle = pick(fluid);
+  d.fillStyle = pick(goreFluid(fluid));
   d.fillRect(Math.round(x), Math.round(y), size, size);
 }
 
 // Droplets that fly out and stain the floor where they land.
 // dirX/dirY = direction of the hit (0,0 for all directions).
 function bloodSpray(x, y, dirX, dirY, n, fluid, speed = 90) {
+  if (GORE < 2) { n = Math.ceil(n / (GORE ? 2 : 3)); fluid = goreFluid(fluid); }
   const hasDir = dirX || dirY;
   const base = Math.atan2(dirY, dirX);
   for (let i = 0; i < n; i++) {
@@ -64,6 +75,8 @@ function bloodSpray(x, y, dirX, dirY, n, fluid, speed = 90) {
 
 // Chunks of flesh/metal that tumble and leave a smear.
 function gibs(x, y, n, colors, fluid) {
+  if (!GORE) return;
+  if (GORE < 2) n = Math.ceil(n / 2);
   for (let i = 0; i < n; i++) {
     const a = rand(0, Math.PI * 2), s = rand(30, 110);
     game.particles.push({
@@ -98,6 +111,7 @@ function leaveCorpse(e, spriteName, fluid) {
 // A heavy hit tears a CHUNK off: it tumbles away trailing blood and splats
 // against whatever wall it hits, running down it. Overkill bursts the body.
 function severChunk(e, dx, dy, speed = 200) {
+  if (!GORE) return;
   const T = ENEMY_TYPES[e.type];
   if (T.robot) { burst(e.x, e.y, '#ffd070', 6, 140, 0.3); return; } // sparks, not meat
   const base = (dx || dy) ? Math.atan2(dy, dx) : rand(0, Math.PI * 2), a = base + rand(-0.5, 0.5), s = rand(speed * 0.7, speed);

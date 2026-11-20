@@ -1152,6 +1152,19 @@ try {
     check(`thrown parts come to rest (${game.limbs.filter(l => l.settled).length} of ${game.limbs.length})`, game.limbs.filter(l => l.settled).length > game.limbs.length * 0.8);
     combatRoom(); check('leaving the room paints them into the floor', game.limbs.length === 0);
   }
+  { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
+    const was = GORE; setGore(2);
+    newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;
+    game.paused = true; Input.pressed.add('g'); update(1 / 60); Input.endFrame(); const g1 = GORE;
+    Input.pressed.add('g'); update(1 / 60); Input.endFrame(); const g0 = GORE; game.paused = false;
+    check(`G while paused cycles the gore setting (FULL -> ${GORE_NAMES[g1]} -> ${GORE_NAMES[g0]})`, g1 === 1 && g0 === 0);
+    render();
+    const r = dummy(-40, 10); r.speed = 40; severPart(r, 'legB'); bloodSpray(r.x, r.y, 1, 0, 20, FLUID.blood); gibs(r.x, r.y, 5, ['#fff'], FLUID.blood);
+    check(`gore off: no limbs or gibs fly, blood is dust, but the rat still lost its leg (${game.limbs.length} limbs, speed ${r.speed.toFixed(1)})`, !game.limbs.length && !game.particles.some(k => k.gib) && game.particles.every(k => GORE_DUST.includes(k.color)) && r.missing.includes('legB') && r.speed < 40);
+    const c = dummy(-40, 5); severPart(c, 'head'); spawnCorpse(c, 'rat');
+    check('gore off: nothing torn off is taken from the corpse', Math.abs(game.room.corpses.at(-1).dna - (ENEMY_TYPES.rat.dna + q.stats.bacteria)) < 0.01);
+    setGore(was);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);
@@ -1267,7 +1280,7 @@ try {
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96;
     const far = dummy(120, 1); damageEnemy(far, 5, 0, 0, true);
     check('a kill across the room leaves you clean', !(q.gore && q.gore.length));
-    const near = dummy(12, 1); damageEnemy(near, 5, 0, 0, true); render();
+    const near = dummy(12, 1); damageEnemy(near, 5, 0, 0, true); game.limbs = []; render(); // (its torn-off parts lie in pools of their own: not what this measures)
     check(`a close kill splatters you (${q.gore ? q.gore.length : 0} splats)`, q.gore && q.gore.length >= 3);
     const n0 = q.gore.length; for (let i = 0; i < 25; i++) { Input.keys.clear(); Input.keys.add('d'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
     check(`...walking starts to clean it off (${n0} -> ${q.gore.reduce((a, g) => a + g.life, 0).toFixed(1)} left)`, q.gore.reduce((a, g) => a + g.life, 0) < n0 * 0.95);

@@ -205,6 +205,7 @@ function updateSetFx(p, dt) {
 // They wear off as you walk (and slowly on their own), dripping a trail as they go.
 const GORE_RANGE = 30, GORE_MAX = 28, GORE_CLEAN_DIST = 260, GORE_FADE_TIME = 45;
 function splatterPlayer(p, e, fluid) {
+  if (!GORE) return; // (gore setting)
   const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
   if (d > GORE_RANGE + e.r) return;
   const side = Math.sign(dx) || 1, n = 3 + Math.round(4 * (1 - d / (GORE_RANGE + e.r)) + e.r / 4); // closer and bigger: messier

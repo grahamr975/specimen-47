@@ -87,10 +87,10 @@ function severOnHurt(e, dx, dy) {
 
 function spawnLimb(e, part, dx, dy, speed) {
   const T = ENEMY_TYPES[e.type], s = limbSprite(e.type, part);
-  if (!s) return null;
+  if (!s || !GORE) return null; // gore off: the part is lost, but nothing flies
   const [ox, oy] = partOffset(e, part);
   const d = Math.hypot(dx, dy), ux = d ? dx / d : Math.sign(ox) || 1, uy = d ? dy / d : 0;
-  const a = Math.atan2(uy, ux) + rand(-0.6, 0.6), v = rand(speed * 0.6, speed);
+  const a = Math.atan2(uy, ux) + rand(-0.6, 0.6), v = rand(speed * 0.6, speed) * (GORE > 1 ? 1 : 0.3);
   const share = T.robot ? 0 : (LIMB_SHARE[ANATOMY[e.type][part]] || LIMB_SHARE_DEFAULT) * (T.dna || 0) * (e.elite ? 3 : 1);
   e.limbDna = (e.limbDna || 0) + share;
   const l = {
@@ -99,8 +99,8 @@ function spawnLimb(e, part, dx, dy, speed) {
     type: e.type, part, kind: ANATOMY[e.type][part], img: s.img, fluid: T.fluid, robot: !!T.robot, dna: share, t: 0,
   };
   game.limbs.push(l);
-  if (T.robot) burst(l.x, l.y, '#ffd070', 6, 120, 0.25);
-  else { bloodSpray(l.x, l.y, ux, uy, 10, T.fluid, 130); bloodSpray(e.x + ox, e.y + oy, -ux, -uy, 4, T.fluid, 60); } // spurts from both ends
+  if (T.robot) burst(l.x, l.y, "#ffd070", 6, 120, 0.25);
+  else if (GORE > 1) { bloodSpray(l.x, l.y, ux, uy, 10, T.fluid, 130); bloodSpray(e.x + ox, e.y + oy, -ux, -uy, 4, T.fluid, 60); } // spurts from both ends
   if (game.limbs.length > LIMB_CAP) bakeLimb(game.limbs.shift());
   return l;
 }
