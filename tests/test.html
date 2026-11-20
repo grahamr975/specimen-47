@@ -1254,6 +1254,23 @@ try {
     const kids = game.allies.filter(a => a.kind === 'spiderling').length;
     check(`spider legs: right-click spits an egg sac: a web (stuck ${stuck}) and a spiderling hatches (${kids})`, stuck && kids >= 1);
   }
+  { // 0j1v5) Creature voices: every voice plays; a room full of them is heard now and then, never all at once.
+    const bad = Object.keys(VOICE_OF).filter(t => !ENEMY_TYPES[t]);
+    check(`every voiced creature exists (${bad.join(',') || 'all'})`, !bad.length);
+    const keep = { ctx: Sfx.ctx, master: Sfx.master, later: Sfx.later }, errs = [];
+    try {
+      const oc = new OfflineAudioContext(1, 44100, 44100); Sfx.ctx = oc; Sfx.master = oc.createGain(); Sfx.master.connect(oc.destination); Sfx.later = (ms, fn) => fn();
+      for (const k of new Set(Object.values(VOICE_OF))) { try { Sfx.voice(k, 1); } catch (e) { errs.push(k + ': ' + e.message); } }
+    } finally { Object.assign(Sfx, keep); }
+    check(`every creature voice plays (${errs.join('; ') || [...new Set(Object.values(VOICE_OF))].join(',')})`, !errs.length);
+    newRun(); combatRoom(); game.enemies = []; const q = game.player; q.inv = 99;
+    for (let i = 0; i < 6; i++) { const e = dummy(-30 + i * 12, 99); e.speed = 0; e.type = ['rat', 'spitter', 'culture', 'drone', 'clone', 'frostbitten'][i]; }
+    const heard = []; const real = Sfx.voice; Sfx.voice = (k, v) => heard.push([k, v, game.time]);
+    for (let i = 0; i < 60 * 20; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
+    Sfx.voice = real;
+    const gaps = heard.slice(1).map((h, i) => h[2] - heard[i][2]);
+    check(`creatures make their noises now and then (${heard.length} in 20s: ${[...new Set(heard.map(h => h[0]))].join(',')}), one at a time (min gap ${Math.min(...gaps).toFixed(2)}s), quietly (max ${Math.max(...heard.map(h => h[1])).toFixed(2)})`, heard.length >= 6 && heard.length <= 40 && Math.min(...gaps) >= VOICE_GAP - 0.02 && heard.every(h => h[1] <= 1));
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

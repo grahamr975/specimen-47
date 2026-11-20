@@ -81,6 +81,45 @@ const Sfx = {
 
   later(ms, fn) { setTimeout(fn, ms); },
 
+  // Creatures making their noises, for ambience: quiet, and quieter the further away (v: 0..1).
+  voice(kind, v = 1) {
+    if (!this.ctx || v <= 0) return;
+    const r = (a, b) => a + Math.random() * (b - a);
+    switch (kind) {
+      case 'squeak': { // a rat: one or two thin squeaks
+        const f = r(2100, 2700);
+        this.tone(f, 0.06, 'sine', 0.018 * v, f * 1.25);
+        if (Math.random() < 0.6) this.later(90, () => this.tone(f * 1.1, 0.05, 'sine', 0.014 * v, f * 0.9));
+        break;
+      }
+      case 'croak': { // a toad: a low, throaty ribbit
+        const f = r(85, 105);
+        [0, 70, 140].forEach((d, i) => this.later(d, () => { this.tone(f - i * 4, 0.07, 'square', 0.02 * v, f * 0.8); this.noise(0.05, 0.012 * v, 400); }));
+        break;
+      }
+      case 'chitter': // a grub, a crawler: dry clicks
+        for (let i = 0; i < 6; i++) this.later(i * r(18, 30), () => this.tone(r(2200, 3200), 0.012, 'square', 0.007 * v));
+        break;
+      case 'gurgle': // cells, sacs, bloated things: wet bubbling
+        this.noise(0.3, 0.025 * v, 320);
+        this.tone(r(120, 160), 0.3, 'sine', 0.025 * v, 70);
+        for (let i = 0; i < 3; i++) this.later(60 + i * r(50, 90), () => this.tone(r(380, 650), 0.03, 'sine', 0.012 * v, 250));
+        break;
+      case 'moan': // the frozen dead: a long low groan
+        this.tone(r(115, 140), 0.9, 'sawtooth', 0.011 * v, r(85, 100));
+        this.noise(0.7, 0.008 * v, 500);
+        break;
+      case 'whimper': // a clone: a small, high whimper
+        this.tone(r(650, 760), 0.18, 'sine', 0.014 * v, 480);
+        this.later(200, () => this.tone(r(560, 640), 0.22, 'sine', 0.01 * v, 420));
+        break;
+      case 'hiss': this.noise(0.35, 0.018 * v, 3200); break; // a mimic, waiting
+      case 'rattle': [0, 35, 70, 100].forEach(d => this.later(d, () => this.tone(r(1100, 1500), 0.015, 'square', 0.008 * v))); break; // urchin spines
+      case 'beep': this.tone(r(1100, 1400), 0.04, 'square', 0.009 * v); this.later(70, () => this.tone(r(800, 1000), 0.05, 'square', 0.008 * v)); break; // a drone
+      case 'radio': this.noise(0.18, 0.02 * v, 3200); this.later(60, () => this.tone(r(900, 1100), 0.04, 'square', 0.006 * v)); break; // static, a click
+    }
+  },
+
   play(name) {
     if (!this.ctx) return;
     // Don't stack the same sound many times in one instant.

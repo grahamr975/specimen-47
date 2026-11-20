@@ -707,6 +707,32 @@ const ENEMY_BEHAVIOR = {
 };
 ENEMY_BEHAVIOR.mini = { update: ENEMY_BEHAVIOR.splitter.update }; // moves the same (but doesn't split again)
 
+// --- Voices: now and then a creature makes its noise (ambience; see Sfx.voice) -----------
+// Each has its own timer, so they are scattered; only one voice at a time, quieter with
+// distance, and nothing you cannot be near. Bosses have their own music instead.
+const VOICE_OF = {
+  rat: 'squeak', spitter: 'croak', chimera: 'croak', scavenger: 'chitter', cryocrawler: 'chitter',
+  culture: 'gurgle', mini: 'gurgle', splitter: 'gurgle', bloater: 'gurgle', carrier: 'gurgle', gunpolyp: 'gurgle',
+  frostbitten: 'moan', jarthing: 'moan', clone: 'whimper', mimic: 'hiss', urchin: 'rattle',
+  drone: 'beep', hunter: 'beep', enforcer: 'radio', handler: 'radio',
+};
+const VOICE_EVERY = [4, 11], VOICE_RANGE = 220, VOICE_GAP = 0.45;
+function updateVoices(dt) {
+  const p = game.player; if (!p) return;
+  game.voiceGap = (game.voiceGap || 0) - dt;
+  for (const e of game.enemies) {
+    const kind = VOICE_OF[e.type];
+    if (!kind || e.dead || e.spawnT > 0) continue;
+    if (e.voiceT === undefined) e.voiceT = rand(1, VOICE_EVERY[1]);
+    if ((e.voiceT -= dt) > 0) continue;
+    e.voiceT = rand(VOICE_EVERY[0], VOICE_EVERY[1]);
+    const d = Math.hypot(e.x - p.x, e.y - p.y);
+    if (d > VOICE_RANGE || game.voiceGap > 0) continue;
+    game.voiceGap = VOICE_GAP;
+    Sfx.voice(kind, 0.35 + 0.65 * (1 - d / VOICE_RANGE));
+  }
+}
+
 function updateEnemies(dt) {
   const p = game.player;
   for (const e of game.enemies) {

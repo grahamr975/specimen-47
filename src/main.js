@@ -234,6 +234,7 @@ function update(dt) {
   let wdt = dt;
   if (game.slowT > 0) { game.slowT -= dt; wdt = dt * 0.35; }
   updateEnemies(wdt);
+  updateVoices(wdt);
   updateBullets(wdt);
   updatePuddles(dt);
   updateDeathFuses(dt);
