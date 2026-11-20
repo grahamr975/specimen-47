@@ -241,7 +241,7 @@ function drawBullets(ctx) {
       pxCircle(ctx, x, y, b.r + 1, PAL.red);
       pxCircle(ctx, x, y, b.r, '#f0e890');
     } else if (b.kind === 'thrown') {
-      const img = b.corpse && SPR[b.corpse.sprite + '_dead'];
+      const img = b.corpse && anatSprite(b.corpse.sprite, b.corpse.missing, '_dead');
       if (img) drawCentered(ctx, img, x, y - 3);
     } else if (b.kind === 'shot' && !b.round) {
       // A bone spike pointing the way it flies: shadow, shaft, bright tip.

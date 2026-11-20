@@ -18,9 +18,9 @@ function spawnCorpse(e, spriteName) {
   const T = ENEMY_TYPES[e.type];
   stain(e.x, e.y + 2, e.r + 1, T.fluid);
   game.room.corpses.push({
-    x: e.x, y: e.y, r: Math.max(5, e.r), sprite: spriteName,
+    x: e.x, y: e.y, r: Math.max(5, e.r), sprite: spriteName, missing: e.missing,
     // Gut Bacteria: richer corpses that take longer to burst.
-    dna: T.dna * (e.elite ? 3 : 1) + game.player.stats.bacteria,
+    dna: Math.max(0, T.dna * (e.elite ? 3 : 1) - (e.limbDna || 0)) + game.player.stats.bacteria, // less whatever was torn off (dismember.js)
     hp: (e.elite ? 6 : 2.5) + game.player.stats.bacteria,
     fluid: T.fluid, gib: T.gib, t: Math.random() * 5, shake: 0,
   });
@@ -158,7 +158,7 @@ function updateCorpses(dt) {
 // Corpses sit in the dark, twitching when hit.
 function drawCorpses(ctx) {
   for (const c of game.room.corpses) {
-    const img = SPR[c.sprite + '_dead'];
+    const img = anatSprite(c.sprite, c.missing, '_dead');
     if (!img || c.held) continue;
     const jx = c.shake > 0 ? (Math.floor(c.t * 40) % 2 ? 1 : -1) : 0;
     drawCentered(ctx, img, c.x + jx, c.y + 1);
@@ -174,9 +174,9 @@ function drawCorpseGlow(ctx) {
     if (c.dead || c.held) continue;
     const ph = (game.time + c.x * 0.037 + c.y * 0.021) % 2.6;
     if (ph > 0.35) continue;
-    const img = SPR[c.sprite + '_dead'];
+    const img = anatSprite(c.sprite, c.missing, '_dead');
     if (!img) continue;
-    const key = c.sprite + '_pulse';
+    const key = c.sprite + (c.missing ? c.missing.join() : '') + '_pulse';
     if (!SPR[key]) SPR[key] = silhouette(img, '#f0b0c8');
     ctx.globalAlpha = 0.45 * Math.sin((ph / 0.35) * Math.PI);
     drawCentered(ctx, SPR[key], c.x, c.y + 1);

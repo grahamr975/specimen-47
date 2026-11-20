@@ -12,7 +12,7 @@ const game = {
   time: 0, depth: 1, kills: 0, overT: 0,
   floor: null, room: null, player: null,
   enemies: [], bullets: [], puddles: [], particles: [], texts: [],
-  fx: [], pendingEvolutions: [], allies: [], clouds: [], shells: [], deathFx: [], decoy: null, webs: [], actShots: [],
+  fx: [], pendingEvolutions: [], allies: [], clouds: [], shells: [], deathFx: [], limbs: [], decoy: null, webs: [], actShots: [],
   telegraphs: [], bombs: [], bossName: null, bossMax: 1, whips: [],
   shake: 0, fade: 0, banner: null, menu: null, paused: false,
 };
@@ -51,6 +51,7 @@ function startFloor() {
 
 // `side` = which door of the new room the player comes through.
 function enterRoom(room, side) {
+  if (game.room && game.limbs) bakeAllLimbs(); // what was torn off stays on the old floor
   game.room = room;
   if (!room.cleared && game.player && game.player.stats && game.player.stats.roomArmor) game.player.armor = Math.max(game.player.armor || 0, 1); // Bone Colossus
   room.visited = true;
@@ -231,6 +232,7 @@ function update(dt) {
   updateHazards(dt);
   updatePickups(dt);
   updateCorpses(dt);
+  updateLimbs(dt);
   updateFx(dt);
   updateExtras(dt);
   updateBossFx(dt);
@@ -349,6 +351,7 @@ function render() {
   ctx.drawImage(game.room.bg, 0, 0);
   ctx.drawImage(game.room.decals, 0, 0);
   drawCorpses(ctx);
+  drawLimbs(ctx);
   drawDoors(ctx);
   drawHatch(ctx);
   drawPuddles(ctx);

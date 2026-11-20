@@ -23,6 +23,7 @@
 <script src="../src/world.js"></script>
 <script src="../src/entities.js"></script>
 <script src="../src/gore.js"></script>
+<script src="../src/dismember.js"></script>
 <script src="../src/status.js"></script>
 <script src="../src/lighting.js"></script>
 <script src="../src/enemies.js"></script>
@@ -1117,6 +1118,39 @@ try {
     check(`every anatomy part paints something (${noPart.join(',') || 'all'})`, !noPart.length);
     check(`a sprite missing a part shows a raw stump (${noStump.join(',') || 'all'})`, !noStump.length);
     check('missing-part sprites are cached and flip/flash', anatSprite('rat', ['tail']) === anatSprite('rat', ['tail']) && anatSprite('rat_L', ['tail'], '_flash').width === SPR.rat.width && anatSprite('rat', []) === SPR.rat);
+  }
+  { // 0j1v) Severing: the struck side comes off, losing parts changes how it fights, parts are edible, capped.
+    newRun(); combatRoom(); game.enemies = []; game.limbs = []; const q = game.player; q.inv = 99;
+    const r = dummy(-40, 50); r.face = 1;
+    for (let i = 0; i < 20 && !(r.missing && r.missing.length); i++) trySever(r, 1, 0, 1); // struck from the left (travelling right)
+    const [ox] = partOffset(r, r.missing[0]);
+    check(`a blow from the left tears off a left-side part (${r.missing[0]} at x${ox.toFixed(1)})`, ox < 0 && game.limbs.length === 1);
+    const a = dummy(30, 50), b = dummy(-30, 50); a.speed = b.speed = 40;
+    severPart(b, 'legB'); severPart(b, 'legF');
+    check(`a rat with no legs is far slower (${b.speed.toFixed(1)} vs ${a.speed}) and drags itself`, b.speed < a.speed * 0.5 && b.legless);
+    const t = spawnEnemy('spitter', q.x + 60, q.y); t.spawnT = 0; t.hp = t.maxHp = 6; severPart(t, 'head');
+    check('a headless toad is blind and bleeding', hasStatus(t, 'blind') && hasStatus(t, 'bleed') && t.headless);
+    for (let i = 0; i < 60 * 8 && !t.dead; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); }
+    check('...and bleeds out', t.dead);
+    const f = spawnEnemy('frostbitten', q.x + 60, q.y + 20); f.spawnT = 0; const r0 = f.rateMul || 1; severPart(f, 'arm');
+    check(`a frostbitten without its arm attacks less often (x${(f.rateMul || 1).toFixed(2)})`, (f.rateMul || 1) < r0);
+    // Eating: the meat it lost comes off its corpse's worth, so nothing is gained by tearing it up.
+    game.enemies = []; game.limbs = []; game.room.corpses = [];
+    const c = dummy(-40, 5); c.elite = false; severPart(c, 'head'); severPart(c, 'tail');
+    const taken = c.limbDna; spawnCorpse(c, 'rat');
+    const corpse = game.room.corpses[0], full = ENEMY_TYPES.rat.dna + q.stats.bacteria;
+    check(`limbs + corpse hold what the whole corpse would (${(corpse.dna + taken).toFixed(2)} of ${full})`, Math.abs(corpse.dna + taken - full) < 0.01 && corpse.missing.length === 2);
+    const l = game.limbs[0]; l.t = 1; l.settled = true; l.x = q.x; l.y = q.y; const eaten = game.limbsEaten || 0, carried = q.limbDna || 0;
+    update(1 / 60); Input.endFrame();
+    check(`walking over a torn-off part eats it (${game.limbs.length} left)`, (game.limbsEaten || 0) === eaten + 1 && (q.limbDna || 0) !== carried || q.dna > 0);
+    // Overkill tears off everything; the cap holds.
+    game.limbs = []; const o = dummy(-40, 4); damageEnemy(o, 40, 1, 0);
+    check(`overkill tears off every part (${game.limbs.length} of ${Object.keys(ANATOMY.rat).length})`, game.limbs.length === Object.keys(ANATOMY.rat).length);
+    for (let i = 0; i < 40; i++) { const z = dummy(-40 + i % 5, 99); severAll(z); game.enemies = []; }
+    check(`loose parts are capped (${game.limbs.length} of ${LIMB_CAP})`, game.limbs.length <= LIMB_CAP);
+    for (let i = 0; i < 90; i++) { update(1 / 60); render(); Input.endFrame(); }
+    check(`thrown parts come to rest (${game.limbs.filter(l => l.settled).length} of ${game.limbs.length})`, game.limbs.filter(l => l.settled).length > game.limbs.length * 0.8);
+    combatRoom(); check('leaving the room paints them into the floor', game.limbs.length === 0);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });

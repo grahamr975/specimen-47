@@ -90,7 +90,7 @@ function landParticle(p) {
 function leaveCorpse(e, spriteName, fluid) {
   stain(e.x, e.y + 2, e.r + 1, fluid);
   if (!inRoom(e.x, e.y)) return;
-  const img = SPR[spriteName + '_dead'];
+  const img = anatSprite(spriteName, e.missing, '_dead');
   if (img) drawCentered(decalCtx(), img, e.x, e.y + 1);
 }
 

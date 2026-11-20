@@ -136,6 +136,14 @@ class Painter {
       if (lost) raw[i] = 1; // a missing part used to cover this: exposed meat
     }
     if (missing.length) {
+      // Exposed meat only near the tear (within 2px of where the part stuck out); further in, the body shows.
+      let near = gone;
+      for (let pass = 0; pass < 2; pass++) {
+        const nx = near.slice();
+        for (let i = 0; i < near.length; i++) if (near[i]) for (const d of [1, -1, W, -W]) if (i + d >= 0 && i + d < near.length) nx[i + d] = 1;
+        near = nx;
+      }
+      for (let i = 0; i < raw.length; i++) if (!near[i]) raw[i] = 0;
       const bone = missing.map(m => this.partCenter(m)), best = bone.map(() => [Infinity, -1]);
       for (let i = 0; i < Q.col.length; i++) {
         if (Q.col[i] === null) continue;

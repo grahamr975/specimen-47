@@ -318,7 +318,8 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
     knock(e, vx, vy, force !== undefined ? force : dmg * KNOCK_PER_DMG);
     bloodSpray(e.x, e.y, vx, vy, 6 + Math.round(16 * Math.min(1, heavy * 2)), T.fluid, 110 + 60 * Math.min(1, heavy)); // spurts out the far side, harder hits spurt more
   }
-  if (heavy >= 0.3 && !T.boss) severChunk(e, vx, vy); // a heavy hit tears a piece off
+  if (heavy >= 0.3 && !T.boss && !trySever(e, vx, vy, 0.35 + heavy * 0.4)) severChunk(e, vx, vy); // a heavy hit tears a part (or a piece) off
+  if (e.hp > 0) severOnHurt(e, vx, vy); // badly hurt: it may lose a limb (dismember.js)
   if (!vx && !vy && Math.random() < 0.3) {
     bloodSpray(e.x, e.y, 0, 0, 1, T.fluid, 30);
   }
@@ -378,7 +379,7 @@ function killEnemy(e) {
   bloodSpray(e.x, e.y, 0, 0, e.elite ? 40 : 22, T.fluid, 130);
   gibs(e.x, e.y, e.elite ? 10 : randInt(3, 6), T.gib, T.fluid);
   // Overkill (lots of damage to spare, or one huge hit) bursts the body.
-  if (!T.robot && !T.boss && (-e.hp >= e.maxHp * 0.6 || (e.lastHeavy || 0) >= 1.5)) goreExplode(e);
+  if (!T.robot && !T.boss && (-e.hp >= e.maxHp * 0.6 || (e.lastHeavy || 0) >= 1.5)) { severAll(e); goreExplode(e); }
   if (T.robot) {
     leaveCorpse(e, enemySpriteName(e), T.fluid); // scrap: nothing to harvest
     burst(e.x, e.y, '#ffd070', 10, 110, 0.35);

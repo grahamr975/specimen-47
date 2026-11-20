@@ -1562,7 +1562,7 @@ function drawPlayer(ctx) {
   ctx.globalAlpha = 1;
   // Whatever you're holding in your hands.
   if (p.held) {
-    const h = p.held, img = h.kind === 'corpse' ? SPR[h.ref.sprite + '_dead'] : SPR[enemySpriteName(h.ref)];
+    const h = p.held, img = h.kind === 'corpse' ? anatSprite(h.ref.sprite, h.ref.missing, '_dead') : anatSprite(enemySpriteName(h.ref), h.ref.missing);
     if (img) drawCentered(ctx, img, h.ref.x, h.ref.y);
   }
 
