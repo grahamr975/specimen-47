@@ -1322,13 +1322,9 @@ try {
     check(`you can't move inside it (${moved.toFixed(1)}px)`, moved < 0.5);
     wait(60);
     check('it splits and the cards appear', !!game.menu && game.menu.title === 'LEVEL UP');
-    // Esc puts it off: the DNA goes back in the bar, and it won't nag you in this room.
+    // Esc can't put it off any more: once the cards are up, you choose.
     game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame();
-    check(`esc puts it off and keeps the DNA (level ${p.level}, dna ${p.dna}/${dnaNeeded(p.level)})`, !game.menu && p.level === lvl && p.dna === need + 1 && evolveReady(p));
-    wait(90);
-    check('...and it does not start again by itself in this room', !game.menu && p.evolveT === 0);
-    wait(90, ['f']);
-    check('hold F in a cleared room to evolve when you like', !!game.menu);
+    check('esc no longer puts an evolution off (the cards stay)', !!game.menu && game.menu.title === 'LEVEL UP');
     autoMenu(); for (let i = 0; i < 5; i++) { update(1 / 60); Input.endFrame(); }
     check(`evolving spends the DNA (level ${lvl} -> ${p.level}, dna ${p.dna} left)`, p.level === lvl + 1 && p.dna === 1 && !evolveReady(p) && !game.evolving);
     // A vial and a full bar, in a fresh cleared room: one cocoon, two card screens.

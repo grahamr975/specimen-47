@@ -37,15 +37,6 @@ function mustChoose(p, menu) {
   return !partAt(p, 'MOUTH') && menu.choices.some(c => c.id !== '_gorge' && MUTATIONS[c.id] && locOf(c.id) === 'MOUTH' && !MUTATIONS[c.id].from);
 }
 
-function putOffEvolution(p, src) {
-  if (src && src.fromDna) { p.level--; p.dna += dnaNeeded(p.level); } // the DNA goes back in the bar
-  else if (src) game.pendingEvolutions.unshift(src);                   // the vial / core waits
-  game.evolving = false;
-  p.snoozeRoom = game.room;
-  closeMenu();
-  emergeFromCocoon(p);
-  floatText(p.x, p.y - 14, 'NOT YET', PAL.slate);
-}
 
 function closeMenu() {
   game.menu = null;
@@ -66,7 +57,6 @@ function updateMenu(dt) {
   if (menu.t < 0.5 || menu.stageT < 0.2) return; // ignore input briefly so a held fire button doesn't pick by accident
 
   // Esc: not now. Everything waiting stays banked; hold F in a cleared room later.
-  if (Input.hit('escape') && !mustChoose(p, menu)) { putOffEvolution(p, menu.src); return; }
 
   let choice = -1;
   for (let i = 0; i < n; i++) if (Input.hit(String(i + 1))) choice = i;
@@ -253,7 +243,7 @@ function drawMenu(ctx) {
     const help = hov && (hov.kind === 'level' ? LEVEL_HELP : !hov.id ? GORGE_HELP : hov.desc + (hov.cost ? ' ' + hov.cost : '') + (hov.setBonus ? ' SET - ' + hov.setBonus.name + ': ' + hov.setBonus.desc : ''));
 
     if (help) fitText(help, VIEW_W - 16, 3).forEach((line, i) => drawText(ctx, line, VIEW_W / 2, 203 + i * 7, '#c8b8a8', 1, 'center'));
-    else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD  -  ESC: NOT YET', VIEW_W / 2, 206, PAL.slate, 1, 'center');
+    else drawText(ctx, mustChoose(p, menu) ? 'PRESS 1-3 OR CLICK A CARD  -  CHOOSE YOUR FIRST WEAPON' : 'PRESS 1-3 OR CLICK A CARD', VIEW_W / 2, 206, PAL.slate, 1, 'center');
   }
 }
 
@@ -646,7 +636,6 @@ function drawTitle(ctx) {
     ['MOUSE / ARROWS', 'AIM + SHOOT'],
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
-    ['ESC ON CARDS', 'EVOLVE LATER (HOLD F)'],
     ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
   ];
   lines.forEach(([k, v], i) => {
