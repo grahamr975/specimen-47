@@ -157,7 +157,7 @@ function updateLimbs(dt) {
   }
   // Walk over meat and you eat it.
   if (p && !p.dead && p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
-    const l = game.limbs.find(l => !l.robot && l.t > 0.3 && Math.hypot(l.x - p.x, l.y - p.y) < LIMB_EAT_R + p.r);
+    const l = game.limbs.find(l => !l.robot && !l.inert && l.t > 0.3 && Math.hypot(l.x - p.x, l.y - p.y) < LIMB_EAT_R + p.r);
     if (l) eatLimb(p, l);
   }
 }
@@ -232,4 +232,89 @@ function drawFlies(ctx) {
       ctx.fillRect(Math.round(c.x + Math.cos(t) * (4 + i * 2)), Math.round(c.y - 4 + Math.sin(t * 1.3) * (2 + i)), 1, 1);
     }
   }
+}
+
+// --- Viscera: devour a corpse and it doesn't just vanish ------------------------------
+// It bursts, and what spills out depends on what it was (VISCERA_BIO): a rat is gut,
+// intestine, ribs and an eye; a culture is jelly and nuclei; a crawler is chitin and goo;
+// a frozen thing is pale meat and ice. Bigger bodies spill more, and bigger pieces.
+// Kept dark (this is floor mess, not loot): nothing in it can be eaten.
+const VISCERA_PAL = { // darkest -> lightest, all held low so it doesn't pull the eye
+  gut:    ['#1c0608', '#3a1218', '#58222a', '#6e343a', '#844a4e'],
+  toad:   ['#121408', '#262a14', '#3e4222', '#525a30', '#6a7244'],
+  pale:   ['#1c181c', '#36303a', '#544a56', '#6a6070', '#82788a'],
+  sick:   ['#141808', '#2a3010', '#46501c', '#5e6a28', '#76843a'],
+  cyst:   ['#1a0812', '#341424', '#4e2238', '#663248', '#7c4458'],
+  purple: ['#140814', '#2a1028', '#421c3e', '#582850', '#6e3864'],
+  jelly:  ['#1c1418', '#342a30', '#4e4248', '#665860', '#7e7078'],
+  goo:    ['#1a1608', '#342c10', '#50441c', '#665a28', '#7c7038'],
+  bone:   ['#1e1a10', '#3a3424', '#5a5038', '#746a4e', '#8c8266'],
+  chitin: ['#0c0806', '#1c140c', '#2e2216', '#423222', '#564430'],
+  ice:    ['#101a26', '#1e3044', '#30506a', '#4a7090', '#6890b0'],
+};
+const VISCERA_PAINT = { // (P, palette) for each kind of piece
+  gut(P, c) { P.tube([[2, 6], [4, 3], [7, 2], [10, 4], [9, 7], [6, 8], [4, 6.5], [6, 5]], 1.4, 1.1, c, { spec: 1, specColor: c[4] }); },
+  strand(P, c) { P.tube([[1, 3], [4, 1.5], [7, 4], [10, 2], [13, 3.5]], 1, 0.9, c); },
+  bone(P) { const b = VISCERA_PAL.bone; P.tube([[2.5, 2.5], [8, 2.5]], 0.8, 0.8, b); P.blob(1.8, 2, 1.3, 1.3, b).blob(8.6, 3, 1.3, 1.3, b); },
+  rib(P) { P.tube([[1, 4], [4, 1.5], [8, 1.2], [11, 2.5]], 0.8, 0.5, VISCERA_PAL.bone); },
+  organ(P, c) { P.blob(3.5, 3, 3, 2.5, c, { shift: -0.1 }); P.vein(2, 3, 3, c[0], 0.4); },
+  eye(P) { P.tube([[1, 4], [2.5, 3]], 0.5, 0.5, VISCERA_PAL.gut); P.blob(3.2, 2.4, 1.8, 1.8, VISCERA_PAL.pale, { noise: 0 }); P.dot(3.6, 2.4, '#3a0a0e'); },
+  egg(P, c) { for (const [x, y] of [[2, 2.5], [4.5, 3], [3, 4.6]]) P.blob(x, y, 1.3, 1.3, c, { shift: 0.1 }); },
+  chitin(P) { P.tube([[1, 4], [6, 1], [8, 3.5]], 1.2, 0.3, VISCERA_PAL.chitin); },
+  goo(P, c) { P.blob(4, 3, 3.4, 2.2, c, { noise: 0.05 }); P.blob(6.5, 4.4, 1.2, 0.8, c); },
+  nucleus(P, c) { P.blob(4, 3.5, 3.4, 3, VISCERA_PAL.jelly, { noise: 0.05 }); P.blob(4.4, 3.4, 1.3, 1.1, c, { noise: 0.2 }); },
+  spine(P) { P.tube([[1, 4], [11, 1]], 0.7, 0.2, VISCERA_PAL.bone); },
+  ice(P) { P.tube([[2, 5], [5, 1], [7, 4]], 1.4, 0.4, VISCERA_PAL.ice); },
+  pus(P) { P.blob(3.5, 3, 2.8, 2.4, VISCERA_PAL.sick, { shift: 0.15 }); P.dot(3, 2.2, '#8a9040'); },
+};
+const VISCERA_SIZE = { gut: [12, 10], strand: [14, 6], bone: [11, 5], rib: [12, 5], organ: [7, 6], eye: [6, 5], egg: [7, 7], chitin: [10, 6], goo: [9, 7], nucleus: [8, 7], spine: [12, 5], ice: [9, 7], pus: [7, 6] };
+// What each creature is made of: a palette for its soft insides, and the pieces it spills.
+const VISCERA_BIO = {
+  flesh:  { pal: 'gut',    kinds: ['gut', 'gut', 'strand', 'strand', 'bone', 'rib', 'rib', 'organ', 'eye'] },
+  toad:   { pal: 'toad',   kinds: ['gut', 'strand', 'strand', 'bone', 'organ', 'egg', 'egg', 'eye'] },
+  bug:    { pal: 'goo',    kinds: ['chitin', 'chitin', 'chitin', 'goo', 'goo', 'strand'] },
+  cell:   { pal: 'jelly',  kinds: ['nucleus', 'nucleus', 'goo', 'goo', 'strand'] },
+  frozen: { pal: 'pale',   kinds: ['gut', 'strand', 'strand', 'rib', 'bone', 'ice', 'ice', 'organ'] },
+  sick:   { pal: 'sick',   kinds: ['gut', 'strand', 'pus', 'pus', 'pus', 'organ', 'bone'] },
+  polyp:  { pal: 'cyst',   kinds: ['gut', 'strand', 'strand', 'organ', 'organ', 'goo'] },
+  urchin: { pal: 'purple', kinds: ['spine', 'spine', 'spine', 'gut', 'strand', 'organ'] },
+};
+const VISCERA_OF = {
+  spitter: 'toad', chimera: 'toad',
+  scavenger: 'bug', cryocrawler: 'bug',
+  culture: 'cell', mini: 'cell', splitter: 'cell', mother: 'cell', motherling: 'cell',
+  frostbitten: 'frozen', jarthing: 'frozen', colossus: 'frozen',
+  carrier: 'sick', bloater: 'sick', biotank: 'sick',
+  gunpolyp: 'polyp', archive: 'polyp',
+  urchin: 'urchin',
+};
+const VISCERA_CACHE = {};
+function visceraSprite(kind, pal) {
+  const v = Math.floor(Math.random() * 2), key = kind + pal + v;
+  if (!VISCERA_CACHE[key]) {
+    const [w, h] = VISCERA_SIZE[kind], P = new Painter(w, h, 300 + v * 17 + kind.length);
+    VISCERA_PAINT[kind](P, VISCERA_PAL[pal]);
+    VISCERA_CACHE[key] = P.outline().toCanvas();
+  }
+  return VISCERA_CACHE[key];
+}
+
+// A body of radius r bursts open: pieces of what it was made of, flung out in a heap.
+function visceraBurst(x, y, fluid, r = 5, type) {
+  if (!GORE) return;
+  const bio = VISCERA_BIO[VISCERA_OF[type] || 'flesh'];
+  const scale = clamp(0.7 + (r - 4) * 0.15, 0.7, 1.6), n = Math.round((GORE > 1 ? 3 + r * 0.6 : 2 + r * 0.2));
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, Math.PI * 2), v = rand(20, 55 + r * 3) * (GORE > 1 ? 1 : 0.4); // (a heap around the body, not across the room)
+    game.limbs.push({
+      x: x + rand(-2, 2), y: y + rand(-2, 2), vx: Math.cos(a) * v, vy: Math.sin(a) * v, z: 3, vz: rand(40, 80),
+      a: rand(0, Math.PI * 2), va: rand(6, 14) * (Math.random() < 0.5 ? -1 : 1), flip: Math.random() < 0.5, scale: scale * rand(0.85, 1.1),
+      img: visceraSprite(pick(bio.kinds), bio.pal), fluid, robot: false, inert: true, dna: 0, t: 0,
+    });
+  }
+  while (game.limbs.length > LIMB_CAP) bakeLimb(game.limbs.shift());
+  // A burst of it on the floor, and a spray.
+  stain(x, y + 1, 2.5 + r * 0.35, fluid);
+  for (let i = 0; i < 3 + Math.round(r * 0.4); i++) { const a = rand(0, Math.PI * 2), d = rand(r, r * 2.5); stain(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.7, rand(1, 2.2), fluid); }
+  bloodSpray(x, y, 0, 0, 14 + r * 3, fluid, 150);
 }

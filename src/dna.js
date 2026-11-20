@@ -122,6 +122,7 @@ function devourCorpse(p, c) {
   hitstop(0.04);
   game.shake = Math.max(game.shake, 2);
   Sfx.play('chomp'); Sfx.play('gulp');
+  visceraBurst(c.x, c.y, c.fluid, c.r, c.type); // it bursts open as you tear in: whatever it was made of (dismember.js)
   burstCorpse(c);
   for (const o of game.room.orbs) if (Math.hypot(o.x - c.x, o.y - c.y) < 3) { o.x = p.x; o.y = p.y; o.t = 0.36; } // straight into you
   if (p.stats.corpseHeal && Math.random() < p.stats.corpseHeal) healPlayer(1); // Gluttonous

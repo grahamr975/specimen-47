@@ -13,7 +13,7 @@ const ENEMY_TYPES = {
   urchin:   { name: 'Bone Urchin',     hp: 6, r: 6, speed: 22, dna: 2, corpse: 0.6, fluid: FLUID.ichor, gib: ['#cfc4a4', '#3a1020', '#6a1a2a'], eyes: [[-2, -1], [2, -1]] },
   splitter: { name: 'Failed Specimen', hp: 8, r: 7, speed: 28, dna: 3, corpse: 1, fluid: FLUID.rot,   gib: ['#5e6a48', '#2e3424', '#7e8a62'], eyes: [[6, 1], [3, 1]] },
   mini:     { name: 'Spawnling',       hp: 2, r: 4, speed: 55, dna: 0, corpse: 0, fluid: FLUID.rot,   gib: ['#5e6a48', '#2e3424'], eyes: [[0, 0]] },
-  spitter:  { name: 'Bloat Toad',      hp: 5, r: 6, speed: 34, dna: 2, corpse: 0.7, fluid: FLUID.bile,  gib: ['#3e4a2a', '#8a9a30', '#232a18'], eyes: [[-4, -4], [4, -4]] },
+  spitter:  { name: 'Bloat Toad',      hp: 5, r: 6, speed: 34, dna: 2, corpse: 0.7, fluid: FLUID.blood, gib: ['#3e4a2a', '#8a1020', '#232a18'], eyes: [[-4, -4], [4, -4]] },
   // --- Floor 1: Petri Labs ---
   culture:  { name: 'Culture Blob',    hp: 4, r: 6, speed: 8,  dna: 1, corpse: 0.4, fluid: FLUID.rot,   gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [] },
   scavenger:{ name: 'Scavenger Maggot', hp: 1, r: 4, speed: 34, dna: 0, corpse: 0,  fluid: FLUID.bile,  gib: ['#9a8c70', '#6a5e48'], eyes: [[4, -1]], harmless: true },

@@ -1234,6 +1234,18 @@ try {
     check(`every fork is between equally rare forms (${uneven.join(',') || 'all'})`, !uneven.length);
     check('nothing is legendary any more', !Object.values(MUTATIONS).some(d => d.rarity === 'legendary'));
   }
+  { // 0j1v3) Devouring a corpse bursts it into viscera (inedible mess); frogs bleed red.
+    newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.room.corpses = []; const q = game.player; setGore(2);
+    const e = dummy(-40, 5); spawnCorpse(e, 'rat'); const c = game.room.corpses[0];
+    devourCorpse(q, c);
+    const v = game.limbs.filter(l => l.inert);
+    check(`devouring a corpse bursts it into viscera (${v.length} pieces of gut, bone and organ)`, v.length >= 5);
+    for (const l of v) { l.t = 1; l.x = q.x; l.y = q.y; } const eaten = game.limbsEaten || 0; update(1 / 60); Input.endFrame();
+    check('...which is just mess: walking through it eats nothing', (game.limbsEaten || 0) === eaten);
+    for (let i = 0; i < 120; i++) { update(1 / 60); render(); Input.endFrame(); }
+    check(`...and it lands and lies there (${game.limbs.filter(l => l.inert && l.settled).length} settled)`, game.limbs.some(l => l.inert && l.settled));
+    check('frogs bleed red', ENEMY_TYPES.spitter.fluid === FLUID.blood);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;
