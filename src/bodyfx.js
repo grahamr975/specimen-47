@@ -498,26 +498,30 @@ function drawCocoonPulse(ctx) {
 
 // A generic walker: each foot plants on the floor and steps (in alternating
 // groups) when the body gets too far ahead. defs: [{ hx, hy, fx, fy, near, g }].
+const LEG_LEAD_MAX = 260; // feet lean ahead by your speed, but no more than this (dashes would fling them into walls)
 function updateWalker(p, key, defs, active, stride, stepTime, dt, onPlant) {
   if (!active) { p[key] = null; return; }
   const k = STAGE_SCALE[p.stage] * 1.1, lx = key + 'LX', ly = key + 'LY';
-  const vx = (p.x - (p[lx] ?? p.x)) / dt, vy = (p.y - (p[ly] ?? p.y)) / dt;
+  const jx = p.x - (p[lx] ?? p.x), jy = p.y - (p[ly] ?? p.y), jump = Math.hypot(jx, jy) > 30; // a teleport (door, grapple, eruption): no lean
+  const raw = jump ? 0 : Math.hypot(jx, jy) / dt, cap = raw > LEG_LEAD_MAX ? LEG_LEAD_MAX / raw : 1;
+  const vx = jump ? 0 : jx / dt * cap, vy = jump ? 0 : jy / dt * cap, spd = raw;
   p[lx] = p.x; p[ly] = p.y;
   const rest = (L, lead) => ({ x: p.x + L.fx * k + vx * lead, y: p.y + 2 + L.fy * k + vy * lead });
-  if (!p[key]) p[key] = defs.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
-  const feet = p[key], stepping = g => feet.some((f, i) => f.t > 0 && defs[i].g === g), fast = Math.hypot(vx, vy) > 150;
+  if (!p[key] || jump) p[key] = defs.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
+  const feet = p[key], stepping = g => feet.some((f, i) => f.t > 0 && defs[i].g === g), fast = spd > 150;
+  const snapAt = 40 + spd * 0.12, quick = fast ? clamp(150 / spd, 0.3, 0.6) : 1; // fast: steps stretch further and come quicker (instead of giving up)
   feet.forEach((f, i) => {
     const L = defs[i];
     if (f.t > 0) {
       f.t = Math.max(0, f.t - dt);
-      const u = 1 - f.t / stepTime;
+      const u = 1 - f.t / (f.dur || stepTime);
       f.x = f.sx + (f.tx - f.sx) * u; f.y = f.sy + (f.ty - f.sy) * u;
       if (f.t === 0 && onPlant) onPlant(f, i);
       return;
     }
     const want = rest(L, 0.12), d = Math.hypot(want.x - f.x, want.y - f.y);
-    if (d > 40) { f.x = want.x; f.y = want.y; return; }
-    if ((d > stride * k && (fast || !stepping(1 - L.g))) || d > stride * 1.8 * k) { f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = stepTime * (fast ? 0.6 : 1); }
+    if (d > snapAt) { f.x = want.x; f.y = want.y; return; }
+    if ((d > stride * k && (fast || !stepping(1 - L.g))) || d > stride * 1.8 * k) { f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = f.dur = stepTime * quick; }
     else if (!p.moving && d > 2) { f.x += (want.x - f.x) * Math.min(1, dt * 6); f.y += (want.y - f.y) * Math.min(1, dt * 6); }
   });
 }

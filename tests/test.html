@@ -1045,6 +1045,18 @@ try {
     newRun(); combatRoom(); game.enemies = []; const m = spawnEnemy('mother', 160, 96); m.spawnT = 0; damageEnemy(m, 99999, 0, 0, true);
     check(`one huge hit can't skip the Mother Culture's split (${game.enemies.filter(e => e.type === 'motherling' && !e.dead).length} motherlings)`, game.enemies.filter(e => e.type === 'motherling' && !e.dead).length === 3);
   }
+  { // 0j1p) Legs: a teleport doesn't fling spider legs at a wall; fast crab legs keep stepping.
+    newRun(); combatRoom(); let q = game.player; grow(q, 'spider'); q.x = 80; q.y = 96;
+    for (let i = 0; i < 10; i++) updateSpiderLegs(q, 1 / 60);
+    q.x = 260; updateSpiderLegs(q, 1 / 60); // a door / grapple: 180px in one frame
+    const far = Math.max(...q.legs.map(f => Math.hypot(f.x - q.x, f.y - q.y)));
+    check(`spider legs stay under you through a teleport (furthest foot ${far.toFixed(0)}px)`, far < 30);
+    newRun(); combatRoom(); q = game.player; grow(q, 'crablegs'); q.x = 40; q.y = 96; q.moving = true;
+    let steps = 0, snaps = 0;
+    for (let i = 0; i < 60; i++) { const before = q.crab ? q.crab.map(f => [f.x, f.y, f.t]) : null; q.x += 300 / 60; updateWalker(q, 'crab', CRAB_LEGS, true, 10, 0.07, 1 / 60);
+      if (before) q.crab.forEach((f, k) => { if (f.t > 0 && before[k][2] === 0) steps++; if (f.t === 0 && Math.hypot(f.x - before[k][0], f.y - before[k][1]) > 12) snaps++; }); }
+    check(`fast crab legs keep stepping instead of snapping forward (${steps} steps, ${snaps} snaps)`, steps > 10 && snaps <= 2);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

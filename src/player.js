@@ -1595,27 +1595,29 @@ function spiderLegsActive(p) {
 function updateSpiderLegs(p, dt) {
   if (!spiderLegsActive(p)) { p.legs = null; return; }
   const k = STAGE_SCALE[p.stage] * 1.1;
-  const vx = (p.x - (p.lastLegX ?? p.x)) / dt, vy = (p.y - (p.lastLegY ?? p.y)) / dt;
+  const jx = p.x - (p.lastLegX ?? p.x), jy = p.y - (p.lastLegY ?? p.y), jump = Math.hypot(jx, jy) > 30; // a teleport: no lean (legs used to fling into a wall for a frame)
+  const spd = jump ? 0 : Math.hypot(jx, jy) / dt, cap = spd > LEG_LEAD_MAX ? LEG_LEAD_MAX / spd : 1;
+  const vx = jump ? 0 : jx / dt * cap, vy = jump ? 0 : jy / dt * cap;
   p.lastLegX = p.x; p.lastLegY = p.y;
   const rest = (L, lead) => ({ x: p.x + L.fx * k + vx * lead, y: p.y + 2 + L.fy * k + vy * lead });
-  if (!p.legs) p.legs = SPIDER_LEGS.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
+  if (!p.legs || jump) p.legs = SPIDER_LEGS.map(L => { const r = rest(L, 0); return { x: r.x, y: r.y, sx: r.x, sy: r.y, tx: r.x, ty: r.y, t: 0 }; });
   const stepping = g => p.legs.some((f, i) => f.t > 0 && SPIDER_LEGS[i].g === g);
-  const fast = Math.hypot(vx, vy) > 160;
+  const fast = spd > 160, snapAt = 40 + spd * 0.12, quick = fast ? clamp(160 / spd, 0.3, 0.6) : 1;
   p.legs.forEach((f, i) => {
     const L = SPIDER_LEGS[i];
     if (f.t > 0) { // mid-step: swing toward the target
       f.t = Math.max(0, f.t - dt);
       if (f.t === 0) { if (Math.random() < 0.35) stainPx(f.tx, f.ty, ['#141010'], 1); if (Math.random() < 0.3) Sfx.play('skitter'); } // pinprick footprints
-      const u = 1 - f.t / LEG_STEP_TIME;
+      const u = 1 - f.t / (f.dur || LEG_STEP_TIME);
       f.x = f.sx + (f.tx - f.sx) * u; f.y = f.sy + (f.ty - f.sy) * u;
       return;
     }
     const want = rest(L, 0.12);
     const d = Math.hypot(want.x - f.x, want.y - f.y);
-    if (d > 40) { f.x = want.x; f.y = want.y; return; } // teleported (doors, grapples)
+    if (d > snapAt) { f.x = want.x; f.y = want.y; return; } // badly left behind
     // Step when stretched too far, and only while the other group is planted.
     if ((d > LEG_STRIDE * k && (fast || !stepping(1 - L.g))) || d > LEG_STRIDE * 1.8 * k) { // (a badly stretched leg steps anyway)
-      f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = LEG_STEP_TIME * (fast ? 0.6 : 1);
+      f.sx = f.x; f.sy = f.y; f.tx = want.x; f.ty = want.y; f.t = f.dur = LEG_STEP_TIME * quick;
     } else if (!p.moving && d > 2) { // standing still: feet settle back under you
       f.x += (want.x - f.x) * Math.min(1, dt * 6); f.y += (want.y - f.y) * Math.min(1, dt * 6);
     }
