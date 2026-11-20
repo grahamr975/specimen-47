@@ -169,8 +169,16 @@ function drawEnemyMutations(ctx, e, img, x, y) {
     if (id === 'eyed') for (let i = 0; i < 3; i++) { // extra eyes, blinking out of step
       const spots = [[-0.55, -0.15], [0.0, -0.5], [0.45, 0.1]]; // spread over the body (a little jitter each)
       const ex = Math.round(x + (spots[i][0] + (h(i, 6) - 0.5) * 0.25) * r), ey = Math.round(y + (spots[i][1] + (h(i, 7) - 0.5) * 0.25) * r);
-      ctx.fillStyle = '#100808'; ctx.fillRect(ex - 1, ey - 1, 4, 4);
-      if (hash2(i, Math.floor(game.time * 1.3 + i), sd % 53) > 0.12) { ctx.fillStyle = '#f0d838'; ctx.fillRect(ex, ey, 2, 2); ctx.fillStyle = '#100808'; ctx.fillRect(ex + (e.face || 1 > 0 ? 1 : 0), ey + 1, 1, 1); } // open: a yellow eye, its pupil on you
+      // Grown into the flesh, like your Abomination body's: a dark socket, a pale
+      // eyeball whose pupil follows you, and a lid that blinks shut now and then.
+      const p = game.player, lx = Math.sign((p ? p.x : x) - ex) || 1;
+      const open = hash2(i, Math.floor(game.time * 1.4 + i * 0.7), sd % 53) > 0.18;
+      ctx.fillStyle = '#1a0a10'; ctx.fillRect(ex - 1, ey - (open ? 1 : 0), 3, open ? 3 : 1); // socket (or a shut lid)
+      if (open) {
+        ctx.fillStyle = '#e8dcc8'; ctx.fillRect(ex - 1, ey, 3, 1);                          // the eyeball
+        ctx.fillStyle = '#2a0a0e'; ctx.fillRect(ex + lx, ey, 1, 1); // its pupil, looking your way
+        ctx.fillStyle = '#c87070'; ctx.fillRect(ex - 1, ey - 1, 3, 1);                      // a raw lid above
+      }
     }
     if (id === 'flayed') { ctx.fillStyle = '#3e0a12'; for (let i = 0; i < 2; i++) for (let k = 0; k < r * 1.4; k++) ctx.fillRect(Math.round(x - r * 0.7 + k), Math.round(y + (h(i, 8) - 0.5) * r + Math.sin(k * 0.9 + i * 2) * 1.2), 1, 1); } // veins
     if (id === 'plated') for (let i = 0; i < 3; i++) { // grey chitin plates down its back
