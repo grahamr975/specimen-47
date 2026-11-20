@@ -336,13 +336,32 @@ function circleHitsWall(room, x, y, r, flying) {
 // Move an entity, sliding along walls. Returns true if it bumped something.
 function moveEntity(room, e, dx, dy) {
   let bumped = false;
+  const you = typeof game !== 'undefined' && e === game.player;
   if (dx) {
-    if (!circleHitsWall(room, e.x + dx, e.y, e.r, e.flying)) e.x += dx; else bumped = true;
+    if (!circleHitsWall(room, e.x + dx, e.y, e.r, e.flying)) e.x += dx;
+    else { bumped = true; if (you && Math.abs(dx) >= Math.abs(dy)) cornerSlide(room, e, dx, 0); }
   }
   if (dy) {
-    if (!circleHitsWall(room, e.x, e.y + dy, e.r, e.flying)) e.y += dy; else bumped = true;
+    if (!circleHitsWall(room, e.x, e.y + dy, e.r, e.flying)) e.y += dy;
+    else { bumped = true; if (you && Math.abs(dy) > Math.abs(dx)) cornerSlide(room, e, 0, dy); }
   }
   return bumped;
+}
+
+// Clip the edge of a doorway or a crate by a few pixels and you slide around it instead
+// of sticking: if a small sidestep would clear the way, ease that way.
+const CORNER_SLIDE = 6;
+function cornerSlide(room, e, dx, dy) {
+  const step = Math.min(1.5, Math.max(0.6, Math.abs(dx || dy)));
+  for (let off = 1; off <= CORNER_SLIDE; off++) for (const side of [1, -1]) {
+    const ox = dy ? side * off : 0, oy = dx ? side * off : 0;
+    if (circleHitsWall(room, e.x + ox + dx, e.y + oy + dy, e.r, e.flying)) continue; // still blocked from there
+    const sx = Math.sign(ox) * step, sy = Math.sign(oy) * step;
+    if (circleHitsWall(room, e.x + sx, e.y + sy, e.r, e.flying)) continue;
+    e.x += sx; e.y += sy;
+    return true;
+  }
+  return false;
 }
 
 // --- Hazmat seals --------------------------------------------------------------------

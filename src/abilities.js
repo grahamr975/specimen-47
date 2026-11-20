@@ -1101,6 +1101,23 @@ const ACTIVES = {
   leap:        { name: 'LEAP',         key: 'limb', cd: l => 3.4 - 0.3 * l },
 };
 
+// How far a leap along (ux, uy) can go before it would land inside an enemy: it stops
+// short, at striking distance (your bite's reach, or a body-length), so the landing
+// shockwave hits it and you're not left standing in it.
+function leapStop(p, ux, uy, d) {
+  const gap = p.r + Math.max(6, (p.stats.biteReach || 0) * 0.45);
+  let best = d;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0) continue;
+    const ex = e.x - p.x, ey = e.y - p.y, along = ex * ux + ey * uy;
+    if (along <= 0 || along > d + e.r + gap) continue;
+    const side = Math.abs(ex * uy - ey * ux), reach = e.r + gap;
+    if (side >= reach) continue; // not in the way
+    best = Math.min(best, Math.max(0, along - Math.sqrt(reach * reach - side * side)));
+  }
+  return best;
+}
+
 // Where you're pointing, at most `range` away (mouse, or the arrow-key aim).
 function aimPoint(p, range) {
   let tx = p.x + p.aimX * range, ty = p.y + p.aimY * range;
@@ -1287,9 +1304,15 @@ function useActive(p, a, target) {
       Sfx.play('bite'); Sfx.play('ram');
       return true;
     }
-    case 'leap': { // Haunches: spring to where you point; you land with a shockwave
-      const pt = aimPoint(p, s.leapRange || 85), dx = pt.x - p.x, dy = pt.y - p.y, d = Math.hypot(dx, dy) || 1;
-      p.dashX = dx / d; p.dashY = dy / d; p.dashT = Math.max(0.1, Math.min(0.32, d / Math.max(150, s.dashSpeed)));
+    case 'leap': { // Haunches: spring the way you're moving (standing still: where you point); land with a shockwave
+      const range = s.leapRange || 85, mvL = Math.hypot(p.inX || 0, p.inY || 0);
+      let ux, uy, d;
+      if (mvL > 0.1) { ux = p.inX / mvL; uy = p.inY / mvL; d = range; }
+      else { const pt = aimPoint(p, range), dx = pt.x - p.x, dy = pt.y - p.y; d = Math.hypot(dx, dy) || 1; ux = dx / d; uy = dy / d; }
+      d = leapStop(p, ux, uy, d); // never land inside something: stop at striking distance
+      p.dashX = ux; p.dashY = uy;
+      p.dashT = Math.max(0.04, Math.min(0.32, d / Math.max(60, s.dashSpeed))); // covers d (the dash moves at dashSpeed)
+      p.leaping = true;
       p.inv = Math.max(p.inv, p.dashT + (s.leapInv ? 0.35 : 0.05)); p.dashHit.clear();
       burst(p.x, p.y + 4, '#3a3230', 6, 50, 0.3);
       Sfx.play('dash');

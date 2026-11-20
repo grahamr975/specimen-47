@@ -775,6 +775,23 @@ try {
     check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
     q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
+    { // ...but moving, it leaps the way you move; at an enemy, it lands just short, hits it, and you're safe a moment.
+      q = arena(); grow(q, 'haunches'); const xa = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y;
+      Input.keys.clear(); Input.keys.add('a'); update(1 / 60); Input.endFrame(); Input.mouse.rightClicked = true; for (let i = 0; i < 25; i++) { q.inv = 0.01; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`haunches: moving, the leap goes the way you move, not at the mouse (${(q.x - xa).toFixed(0)}px)`, q.x < xa - 30);
+      q = arena(); grow(q, 'haunches'); const e = dummy(60, 99); e.speed = 0; Input.mouse.x = e.x; Input.mouse.y = e.y + ROOM_Y; q.inv = 0; q.limbCd = 0;
+      Input.mouse.rightClicked = true; let landedInv = 0; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); if (q.landT !== undefined && !landedInv && q.dashT <= 0) landedInv = q.inv; }
+      const gap = Math.hypot(e.x - q.x, e.y - q.y) - e.r - q.r;
+      check(`haunches: leaping at an enemy lands at striking distance (gap ${gap.toFixed(1)}px), the shockwave hits it (${(99 - e.hp).toFixed(1)}), and you're safe a moment (${landedInv.toFixed(2)}s)`, gap > 0 && e.hp < 99 && landedInv > 0.15);
+      q = arena(); grow(q, 'haunches'); Input.keys.clear(); Input.keys.add('d'); for (let i = 0; i < 8; i++) { update(1 / 60); Input.endFrame(); }
+      Input.keys.clear(); Input.keys.add('a'); for (let i = 0; i < 20; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`haunches: turning hops at once and steers mid-air (hop dir ${q.hopX.toFixed(2)})`, q.hopX < -0.5);
+      // Clip a block's corner by a few pixels and you slide round it instead of sticking.
+      q = arena(); grow(q, 'crablegs'); const tx = 7, ty = 4; game.room.tiles[ty * ROOM_W + tx] = T_BLOCK;
+      q.x = (tx + 1) * TILE + q.r - 3; q.y = (ty + 1) * TILE + q.r + 6; const y0 = q.y;
+      Input.keys.clear(); Input.keys.add('w'); for (let i = 0; i < 40; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      check(`walking into a corner you clip slides you round it (moved ${(y0 - q.y).toFixed(0)}px up, ${(q.x - ((tx + 1) * TILE + q.r - 3)).toFixed(0)}px over)`, q.y < ty * TILE);
+    }
     // You wake sealed in a containment cell with your first weapon's vial; eating it breaks you out.
     { newRun(); const z = game.player, c = game.room.cage, v = game.room.pickups.find(k => k.kind === 'vial');
       check('you start sealed in a containment cell, with the vial inside it', !!c && v && v.x > c.x0 && v.x < c.x1 && v.y > c.y0 && v.y < c.y1 && z.x > c.x0 && z.x < c.x1);

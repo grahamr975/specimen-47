@@ -191,6 +191,8 @@ function setProc(x, y) {
 }
 
 const STAGE_AT = [0, 2, 4, 7, 11];
+const HOP_STEER = 12; // Haunches: how hard a hop bends toward your keys mid-air
+const LEAP_LAND_INV = 0.3; // Haunches: safe for a moment after a leap lands
 const POUNCE_RANGE = 130, POUNCE_CONE = 0.87; // Huntsman: prey within ~30 degrees of your leap
 
 // --- Parasite Brain: a passenger that helps you aim --------------------------------------
@@ -480,10 +482,18 @@ function updatePlayer(dt) {
       vx = p.mvx; vy = p.mvy;
     } else if (mv.hop) {
       // Hind legs: bursts of hopping.
+      // Holding a direction keeps you hopping; a new direction hops at once (no waiting out the
+      // pause), and you can bend a hop while you're in the air.
       p.hopT -= dt;
-      if (il && p.hopT <= 0 && p.hopAir <= 0) { p.hopT = mv.hop; p.hopAir = 0.2; p.hopX = ix; p.hopY = iy; }
+      const turned = il && (ix * (p.hopX || 0) + iy * (p.hopY || 0)) < 0.5 && p.hopT <= mv.hop * 0.6;
+      if (il && p.hopAir <= 0 && (p.hopT <= 0 || turned)) { p.hopT = mv.hop; p.hopAir = 0.2; p.hopX = ix; p.hopY = iy; }
       if (p.hopAir > 0) {
         p.hopAir -= dt;
+        if (il) { // steer
+          const k = Math.min(1, dt * HOP_STEER);
+          p.hopX += (ix - p.hopX) * k; p.hopY += (iy - p.hopY) * k;
+          const l = Math.hypot(p.hopX, p.hopY) || 1; p.hopX /= l; p.hopY /= l;
+        }
         vx = p.hopX * top; vy = p.hopY * top;
         if (p.hopAir <= 0) landing(p, 0.5); // squash, dust, thump
       } else { vx = ix * 18; vy = iy * 18; }
@@ -1243,8 +1253,10 @@ function chargeHits(p) {
 }
 
 function slam(p) {
-  const s = p.stats, k0 = game.kills;
+  const s = p.stats, k0 = game.kills, leapt = p.leaping;
+  p.leaping = false;
   landing(p, 1);
+  if (leapt) p.inv = Math.max(p.inv, LEAP_LAND_INV); // a beat to strike before anything can hit back
   if (s.landCloud) game.clouds.push({ x: p.x, y: p.y, r: 18, life: 3, corrode: true }); // Spore Pounce
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: s.slamR, t: 0.25 });
   strikeSeal(p.x, p.y, s.slamR);
@@ -1252,7 +1264,7 @@ function slam(p) {
     if (e.dead || e.spawnT > 0) continue;
     const d = Math.hypot(e.x - p.x, e.y - p.y);
     if (d < s.slamR + e.r) {
-      damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, 260); // shockwave flings them outward
+      damageEnemy(e, s.slamDmg, (e.x - p.x) || 1, e.y - p.y, true, d < p.r + e.r + 8 ? 380 : 260); // shockwave flings them outward (hardest at point blank, so you're never left inside them)
       applyHitEffects(e, 'slam'); // Impaler, ...
     }
   }

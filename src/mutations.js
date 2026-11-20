@@ -1607,7 +1607,8 @@ const MUTATIONS = {
 
   haunches: {
     name: 'Haunches', slot: 'LIMBS', rarity: 'uncommon', icon: ['hindlegs', 'feral'],
-    desc: 'Powerful hopping legs; your dash is a pounce. Right-click: leap to where you point and land with a shockwave.',
+    desc: 'Powerful hopping legs; your dash is a pounce. Right-click: leap the way you are moving (standing still, where you point), landing just short of anything in the way with a shockwave.',
+    short: 'Hop, pounce, and leap in with a shockwave.',
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.limbActive = { kind: 'leap', l }; },
   },
   pouncer: {
