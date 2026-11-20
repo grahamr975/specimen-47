@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+  Specimen 47 balance simulator. Plays many seeded bot runs with the real game
+  scripts and reports how parts, sets, set pairs and splices do.
+  Run headless with tools/run-balance.ps1 (saves tools/balance-report.html), or
+  open this file in a browser: tools/balance.html?runs=40&seed=1&strategies=random,focus,mix,splice
+  (the page freezes while it plays; a few minutes for the default).
+-->
+<html><head><meta charset="utf-8"><title>Balance Report</title>
+<style>
+  :root { --bg: #120d0f; --fg: #e0d4cc; --dim: #8a7c78; --line: #2e2627; --strong: #9ad070; --weak: #e06060; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 980px; }
+  h1 { color: #e05060; margin: 8px 0; } h2 { margin: 28px 0 6px; color: #d9cfa0; font-size: 17px; }
+  .note { color: var(--dim); margin: 2px 0 8px; } .err { color: var(--weak); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); } th:first-child, td:first-child { text-align: left; }
+  th { color: var(--dim); font-weight: 600; }
+  tr.strong td { color: var(--strong); } tr.weak td { color: var(--weak); } tr.few td { color: #554a48; }
+  #out { display: none; }
+</style></head>
+<body>
+<canvas id="game" width="320" height="256"></canvas>
+<div id="report">Simulating... (this page is busy until it finishes)</div>
+<pre id="out"></pre>
+<script>
+  window.__errs = [];
+  window.onerror = (m, s, l, c, e) => { window.__errs.push('ERR ' + m + ' @' + s + ':' + l + ' ' + (e && e.stack)); };
+</script>
+<script src="../src/gfx.js"></script>
+<script src="../src/paint.js"></script>
+<script src="../src/sprites.js"></script>
+<script src="../src/audio.js"></script>
+<script src="../src/music.js"></script>
+<script src="../src/input.js"></script>
+<script src="../src/mutations.js"></script>
+<script src="../src/world.js"></script>
+<script src="../src/entities.js"></script>
+<script src="../src/gore.js"></script>
+<script src="../src/status.js"></script>
+<script src="../src/lighting.js"></script>
+<script src="../src/enemies.js"></script>
+<script src="../src/player.js"></script>
+<script src="../src/dna.js"></script>
+<script src="../src/abilities.js"></script>
+<script src="../src/bodyfx.js"></script>
+<script src="../src/floors.js"></script>
+<script src="../src/bosses.js"></script>
+<script src="../src/ui.js"></script>
+<script src="../src/main.js"></script>
+<script src="balance.js"></script>
+<script>
+  try { runBalance(); }
+  catch (e) { document.getElementById('report').innerHTML = '<p class="err">The simulator crashed:</p><pre>' + String(e && e.stack || e).replace(/</g, '&lt;') + '</pre>'; }
+  if (window.__errs.length) document.getElementById('report').insertAdjacentHTML('afterbegin', '<pre class="err">' + window.__errs.join('\n').replace(/</g, '&lt;') + '</pre>');
+</script>
+</body></html>

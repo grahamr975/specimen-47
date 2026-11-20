@@ -4,3 +4,7 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Balance simulator output (regenerate with tools/run-balance.ps1)
+tools/balance-report.html
+tools/balance-runs.json
