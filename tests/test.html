@@ -1246,6 +1246,14 @@ try {
     check(`...and it lands and lies there (${game.limbs.filter(l => l.inert && l.settled).length} settled)`, game.limbs.some(l => l.inert && l.settled));
     check('frogs bleed red', ENEMY_TYPES.spitter.fluid === FLUID.blood);
   }
+  { // 0j1v4) Spider Legs: right-click spits an egg sac: a sticky web, and a spiderling hatches from it.
+    newRun(); combatRoom(); game.enemies = []; game.allies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    const q = game.player; q.x = 120; q.y = 96; q.inv = 99; grow(q, 'spider'); Input.keys.clear();
+    const r = dummy(40, 99); r.speed = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; q.aimX = 1; q.aimY = 0; q.limbCd = 0;
+    Input.mouse.rightClicked = true; let stuck = false; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); if (hasStatus(r, 'web')) stuck = true; }
+    const kids = game.allies.filter(a => a.kind === 'spiderling').length;
+    check(`spider legs: right-click spits an egg sac: a web (stuck ${stuck}) and a spiderling hatches (${kids})`, stuck && kids >= 1);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

@@ -1018,8 +1018,8 @@ const MUTATIONS = {
   // Empty LIMBS = a slow, inching slug.
   spider: {
     name: 'Spider Legs', slot: 'LIMBS', overlay: ['spiderlegs'],
-    desc: 'Eight skittering legs. Quick, responsive movement. Right-click: spit a web that sticks enemies in place.',
-    short: 'Quick legs. Right-click: spit a sticky web.',
+    desc: 'Eight skittering legs. Quick, responsive movement. Right-click: spit an egg sac. It bursts into a web that sticks enemies in place, and a spiderling hatches from it.',
+    short: 'Quick legs. Right-click: a web and a spiderling.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 76 + 8 * l); s.limbActive = { kind: 'web', l }; },
   },
   huntsman: {

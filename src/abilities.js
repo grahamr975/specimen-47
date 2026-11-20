@@ -1087,7 +1087,7 @@ function updateExtras(dt) {
 // keep their own right-click (grapple / grab).
 // ---------------------------------------------------------------------------
 const ACTIVES = {
-  web:         { name: 'WEB SNARE',    key: 'limb', cd: l => 3.6 - 0.3 * l },
+  web:         { name: 'EGG SAC',      key: 'limb', cd: l => 4.2 - 0.3 * l }, // (a web, and a spiderling)
   gust:        { name: 'WING GUST',    key: 'limb', cd: l => 4.2 - 0.3 * l },
   tremor:      { name: 'TREMOR',       key: 'limb', cd: l => 5.2 - 0.4 * l },
   slimewave:   { name: 'SLIME WAVE',   key: 'limb', cd: l => 3.6 - 0.3 * l },
@@ -1183,7 +1183,7 @@ function useActive(p, a, target) {
   const s = p.stats, l = a.l, dmg = s.damage;
   const ang = Math.atan2(p.aimY, p.aimX);
   switch (a.kind) {
-    case 'web': // Spider Legs: a glob of silk that bursts into a sticky web
+    case 'web': // Spider Legs: an egg sac that bursts into a sticky web, and a spiderling hatches from it
       game.actShots.push({ kind: 'web', x: p.x, y: p.y - 2, vx: p.aimX * 200, vy: p.aimY * 200, life: 0.6, r: 3, l });
       Sfx.play('spine');
       return true;
@@ -1373,11 +1373,17 @@ function webBurst(b) {
   }
   game.fx.push({ kind: 'act', what: 'web', x: b.x, y: b.y, r: R, t: 0.6, max: 0.6 });
   Sfx.play('splat');
+  // It was an egg sac: a spiderling hatches out of the web (stepped back off a wall it hit).
+  let hx = b.x, hy = b.y;
+  for (let k = 0; k < 6 && circleHitsWall(game.room, hx, hy, 3); k++) { hx -= b.vx * 0.012; hy -= b.vy * 0.012; }
+  spawnAlly('spiderling', hx, hy);
+  burst(hx, hy, '#c8c08e', 6, 40, 0.3);
+  Sfx.play('hatch');
 }
 
 function drawActShots(ctx) {
   for (const b of game.actShots) {
-    if (b.kind === 'web') { pxCircle(ctx, b.x, b.y, 2.5, '#3a3436'); pxCircle(ctx, b.x, b.y, 1.8, '#e0d8d0'); }
+    if (b.kind === 'web') { pxCircle(ctx, b.x, b.y, 2.8, '#3a3436'); pxCircle(ctx, b.x, b.y, 2.1, '#e0d8d0'); pxCircle(ctx, b.x + 0.5, b.y + 0.5, 1, '#c8c08e'); } // a silk egg sac
     else { pxCircle(ctx, b.x, b.y, 5 + Math.sin(game.time * 30) * 1, '#2a3a2a'); pxCircle(ctx, b.x, b.y, 3.5, '#9aae8a'); }
   }
 }
