@@ -298,6 +298,31 @@ function update(dt) {
 }
 
 // --- Rendering -----------------------------------------------------------------
+// A sealed vault door says "hit me": target brackets close in on it, and pips just
+// inside show how many hits it has taken (and how many it needs).
+const SEAL_PULSE = 2.2;
+function drawSealCue(ctx, dir, seal, fighting) {
+  const c = doorCenter(dir), ix = -DIRS[dir].dx, iy = -DIRS[dir].dy; // (pointing into the room)
+  const cx = clamp(c.x + ix * 13, TILE + 6, ROOM_PX_W - TILE - 6), cy = clamp(c.y + iy * 13, TILE + 6, ROOM_PX_H - TILE - 6);
+  if (!fighting) { // brackets, closing in on it over and over
+    const k = (game.time % 1.1) / 1.1, s = Math.round(15 - k * 6), col = k < 0.75 ? '#e8c020' : '#fff0a0';
+    ctx.globalAlpha = 0.6 + 0.4 * k;
+    ctx.fillStyle = col;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const bx = Math.round(c.x + sx * s), by = Math.round(c.y + sy * s);
+      ctx.fillRect(sx < 0 ? bx : bx - 2, by, 3, 1); ctx.fillRect(bx, sy < 0 ? by : by - 2, 1, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Hit pips: one per hit it can take, filled as it gives.
+  const n = SEAL_HITS, along = iy ? [1, 0] : [0, 1];
+  for (let i = 0; i < n; i++) {
+    const o = (i - (n - 1) / 2) * 4, px = Math.round(cx + along[0] * o) - 1, py = Math.round(cy + along[1] * o) - 1;
+    ctx.fillStyle = '#1a1408'; ctx.fillRect(px - 1, py - 1, 4, 4);
+    ctx.fillStyle = i < seal.hits ? '#ffd070' : '#5a4a18'; ctx.fillRect(px, py, 2, 2);
+  }
+}
+
 function drawDoors(ctx) {
   const room = game.room;
   for (const name in room.doors) {
@@ -309,7 +334,12 @@ function drawDoors(ctx) {
       const dmg = Math.min(2, Math.floor(seal.hits * 3 / SEAL_HITS));
       let img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmat' + dmg];
       if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash']; }
-      ctx.drawImage(img, tx * TILE, ty * TILE);
+      // Every couple of seconds (out of a fight) it rattles and flashes white, like anything you can hurt.
+      const ph = (game.time + seal.hits * 0.3) % SEAL_PULSE, pulse = !room.locked && ph < 0.3;
+      const rx = pulse && Math.floor(game.time * 30) % 2 ? (horiz ? 1 : 0) : 0, ry = pulse && Math.floor(game.time * 30) % 2 ? (horiz ? 0 : 1) : 0;
+      ctx.drawImage(img, tx * TILE + rx, ty * TILE + ry);
+      if (pulse) { ctx.globalAlpha = 0.55 * (1 - ph / 0.3); ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash'], tx * TILE + rx, ty * TILE + ry); ctx.globalAlpha = 1; }
+
       const behind = room.doors[name]; // a glint of the vial waiting behind the seal
       if (behind && behind.vialLoc && Math.floor(game.time * 2) % 2) { const c = doorCenter(name); ctx.fillStyle = vialColor(behind.vialLoc); ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3); }
       continue;
@@ -376,6 +406,7 @@ function render() {
   // ...and everything that glows through it.
   drawPickups(ctx);
   drawCorpseGlow(ctx);
+  for (const name in game.room.doors) { const seal = sealAt(game.room, name); if (seal) drawSealCue(ctx, name, seal, game.room.locked); } // "hit me", even in the dark
   drawPuddleGlow(ctx);
   drawHazardGlow(ctx);
   drawEnemyGlow(ctx);
