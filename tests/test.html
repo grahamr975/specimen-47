@@ -1067,6 +1067,16 @@ try {
     for (const e of game.enemies.slice()) damageEnemy(e, 9999, 0, 0, true); nextWave(room);
     check(`...and the next wave pours in before the doors open (${game.enemies.filter(e => !e.dead).length} new, room locked ${room.locked})`, game.enemies.some(e => !e.dead) && room.locked && room.wavesLeft === 0);
   }
+  { // 0j1r) Enemy mutations: none on floor 1, two or three on floor 5; they change how it fights and how it looks.
+    newRun(); combatRoom(); game.enemies = [];
+    game.depth = 1; let f1 = 0; for (let i = 0; i < 30; i++) f1 += (spawnEnemy('rat', 100, 96).muts || []).length;
+    game.depth = 5; const deep = []; for (let i = 0; i < 30; i++) deep.push((spawnEnemy('rat', 100, 96).muts || []).length);
+    check(`floor 1 rats are plain, floor 5 rats are mutated (${f1} mutations on 30 floor-1 rats; floor 5: ${Math.min(...deep)}-${Math.max(...deep)} each)`, f1 === 0 && Math.min(...deep) >= 2);
+    const realRandom0 = Math.random; const e = makeEnemy('rat', 100, 96); e.muts = []; game.depth = 5; const base = { hp: e.maxHp, r: e.r };
+    e.muts = null; Math.random = (() => { let k = 0; return () => [0.9, 0, 0.5, 0.3][k++ % 4]; })(); mutateEnemy(e); Math.random = realRandom0;
+    check(`mutations change the creature (${e.muts.join('+')}: hp ${base.hp.toFixed(1)} -> ${e.maxHp.toFixed(1)})`, e.muts.length >= 2 && (e.maxHp > base.hp || e.armorMul || e.rateMul || e.speed !== makeEnemy('rat', 0, 0).speed));
+    game.depth = 1; render(); check('mutated enemies draw without errors', true);
+  }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });
     check(`every part name fits a full bar's cell (${tooWide.slice(0, 3).join(', ') || 'all fit'})`, !tooWide.length);

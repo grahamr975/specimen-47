@@ -199,8 +199,9 @@ function tintedSprite(img, color) {
 // Drawn right over the body (under the darkness): the status hue, pulsing gently, and the DoT flash.
 function drawStatusTint(ctx, e, img, x, y) {
   const h = statusHue(e);
-  if (h) { ctx.globalAlpha = h.k * (0.38 + 0.1 * Math.sin(game.time * 5 + e.x)); drawCentered(ctx, tintedSprite(img, h.hue), x, y); }
-  if (game.time - (e.dotFlashAt || -9) < 0.07) { ctx.globalAlpha = 0.85; drawCentered(ctx, tintedSprite(img, e.dotFlashColor), x, y); }
+  const sc = e.drawScale || 1;
+  if (h) { ctx.globalAlpha = h.k * (0.38 + 0.1 * Math.sin(game.time * 5 + e.x)); drawEnemyImg(ctx, tintedSprite(img, h.hue), x, y, sc); }
+  if (game.time - (e.dotFlashAt || -9) < 0.07) { ctx.globalAlpha = 0.85; drawEnemyImg(ctx, tintedSprite(img, e.dotFlashColor), x, y, sc); }
   ctx.globalAlpha = 1;
 }
 

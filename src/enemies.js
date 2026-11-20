@@ -80,8 +80,109 @@ function makeEnemy(type, x, y, elite = false) {
 
 function spawnEnemy(type, x, y, elite) {
   const e = makeEnemy(type, x, y, elite);
+  mutateEnemy(e);
   game.enemies.push(e);
   return e;
+}
+
+// --- Enemy mutations: deeper down, the lab's creatures have been changing too ---------------
+// None on floor 1; one now and then on floor 2; one on 3; one or two on 4; two or
+// three from 5 (elites one more). Bosses keep their own designs. Each mutation
+// changes how it fights AND how it looks, drawn procedurally over its sprite from
+// its own seed (so no two floor-5 rats look alike).
+const ENEMY_MUTS = {
+  swollen:  { hp: 1.35, scale: 1.18 },              // bigger and tougher: raw tumors bulge off it
+  spined:   { hp: 1.1, contact: 1 },                 // bone spikes: its body hits harder
+  eyed:     { hp: 1.1, rate: 1.12 },                 // extra eyes: it acts a little sooner
+  flayed:   { speed: 1.25, tint: '#b02838' },        // skinless and raw: faster
+  plated:   { armor: 0.8, tint: '#8a8a98' },         // chitin plates: takes less damage
+  frenzied: { rate: 1.25 },                          // foaming at the mouth: attacks more often
+};
+function enemyMutationCount(e) {
+  const d = game.depth, r = Math.random();
+  let n = d >= 5 ? 2 + (r < 0.5 ? 1 : 0) : d >= 4 ? 1 + (r < 0.5 ? 1 : 0) : d >= 3 ? 1 : d >= 2 ? (r < 0.4 ? 1 : 0) : 0;
+  if (e.elite && d >= 2) n++;
+  return n;
+}
+function mutateEnemy(e) {
+  const T = ENEMY_TYPES[e.type];
+  if (T.boss || T.harmless) return;
+  const pool = Object.keys(ENEMY_MUTS), n = Math.min(pool.length, enemyMutationCount(e));
+  e.muts = [];
+  while (e.muts.length < n) { const m = pick(pool); if (!e.muts.includes(m)) e.muts.push(m); }
+  if (!e.muts.length) return;
+  e.mutSeed = Math.floor(Math.random() * 1e6);
+  // The more mutated, the bigger (and no two quite the same size).
+  const grow = 1 + 0.07 * e.muts.length + rand(-0.04, 0.05);
+  e.r *= grow; e.drawScale = grow;
+  for (const id of e.muts) {
+    const M = ENEMY_MUTS[id];
+    if (M.hp) { e.hp *= M.hp; e.maxHp *= M.hp; }
+    if (M.scale) { e.r *= M.scale; e.drawScale = (e.drawScale || 1) * M.scale; }
+    if (M.speed) e.speed *= M.speed;
+    if (M.armor) e.armorMul = (e.armorMul || 1) * M.armor;
+    if (M.rate) e.rateMul = (e.rateMul || 1) * M.rate;
+    if (M.contact) e.contactDmg = (e.contactDmg || 1) + M.contact;
+    if (M.tint) e.mutTint = M.tint;
+  }
+}
+const hasMut = (e, id) => !!(e.muts && e.muts.includes(id));
+
+// A sprite drawn at the enemy's size (swollen ones are bigger).
+function drawEnemyImg(ctx, img, x, y, s = 1) {
+  if (s === 1) { drawCentered(ctx, img, x, y); return; }
+  const w = Math.round(img.width * s), h = Math.round(img.height * s);
+  ctx.drawImage(img, Math.round(x - w / 2), Math.round(y - h / 2), w, h);
+}
+
+// The growths, drawn over the body (under the darkness).
+function drawEnemyMutations(ctx, e, img, x, y) {
+  if (!e.muts || !e.muts.length) return;
+  const s = e.drawScale || 1, r = e.r, sd = e.mutSeed || 0, h = (i, k) => hash2(sd % 997 + i, k, sd % 131);
+  if (e.mutTint) { ctx.globalAlpha = 0.38; drawEnemyImg(ctx, tintedSprite(img, e.mutTint), x, y, s); ctx.globalAlpha = 1; }
+  const n = e.muts.length;
+  if (n >= 2) { // corruption: dark veins crawl over the badly mutated, pulsing with its heartbeat
+    const beat = Math.max(0, Math.sin(game.time * 4 + sd)) ** 4;
+    ctx.fillStyle = beat > 0.5 ? '#6a1020' : '#3e0a12';
+    for (let i = 0; i < 1 + n; i++) {
+      let vx = x + (h(i, 20) - 0.5) * r * 1.4, vy = y + (h(i, 21) - 0.5) * r, a = h(i, 22) * Math.PI * 2;
+      for (let k = 0; k < r * 1.1; k++) { ctx.fillRect(Math.round(vx), Math.round(vy), 1, 1); a += (h(i * 7 + k, 23) - 0.5) * 1.1; vx += Math.cos(a); vy += Math.sin(a) * 0.7; }
+    }
+  }
+  if (n >= 3) { // and blisters, swelling and shrinking, and eyes that glow red
+    for (let i = 0; i < 3; i++) {
+      const bx = x + (h(i, 30) - 0.5) * r * 1.2, by = y + (h(i, 31) - 0.4) * r, br = 0.8 + Math.max(0, Math.sin(game.time * 3 + i * 2 + sd)) * 1.1;
+      pxCircle(ctx, bx, by, br + 0.6, '#2a0a0e'); pxCircle(ctx, bx, by, br, '#c8a050');
+    }
+    if (Math.floor(game.time * 3 + sd) % 4) { ctx.fillStyle = '#ff2030'; ctx.fillRect(Math.round(x + (e.face || 1) * r * 0.55), Math.round(y - r * 0.25), 1, 1); }
+  }
+  for (const id of e.muts) {
+    if (id === 'swollen') for (let i = 0; i < 3; i++) { // raw tumors bulging off it
+      const a = h(i, 1) * Math.PI * 2, d = r * (0.45 + 0.35 * h(i, 2)), lr = 1.4 + h(i, 3) * 1.6 + Math.max(0, Math.sin(game.time * 5 + i)) * 0.4;
+      const cx = x + Math.cos(a) * d, cy = y + Math.sin(a) * d * 0.8;
+      pxCircle(ctx, cx, cy, lr + 0.8, '#1a0608'); pxCircle(ctx, cx, cy, lr, '#8a2234'); ctx.fillStyle = '#d06070'; ctx.fillRect(Math.round(cx - lr * 0.4), Math.round(cy - lr * 0.5), 1, 1);
+    }
+    if (id === 'spined') for (let i = 0; i < 5; i++) { // bone spikes jutting off its back
+      const a = -Math.PI / 2 + (h(i, 4) - 0.5) * 2.2, len = 3 + h(i, 5) * 3, bx = x + Math.cos(a) * r * 0.6, by = y + Math.sin(a) * r * 0.6;
+      for (let k = 0; k < len; k++) { ctx.fillStyle = k < len - 1 ? '#d8ccb0' : '#fff4dc'; ctx.fillRect(Math.round(bx + Math.cos(a) * k), Math.round(by + Math.sin(a) * k), 1, 1); }
+    }
+    if (id === 'eyed') for (let i = 0; i < 3; i++) { // extra eyes, blinking out of step
+      const spots = [[-0.55, -0.15], [0.0, -0.5], [0.45, 0.1]]; // spread over the body (a little jitter each)
+      const ex = Math.round(x + (spots[i][0] + (h(i, 6) - 0.5) * 0.25) * r), ey = Math.round(y + (spots[i][1] + (h(i, 7) - 0.5) * 0.25) * r);
+      ctx.fillStyle = '#100808'; ctx.fillRect(ex - 1, ey - 1, 4, 4);
+      if (hash2(i, Math.floor(game.time * 1.3 + i), sd % 53) > 0.12) { ctx.fillStyle = '#f0d838'; ctx.fillRect(ex, ey, 2, 2); ctx.fillStyle = '#100808'; ctx.fillRect(ex + (e.face || 1 > 0 ? 1 : 0), ey + 1, 1, 1); } // open: a yellow eye, its pupil on you
+    }
+    if (id === 'flayed') { ctx.fillStyle = '#3e0a12'; for (let i = 0; i < 2; i++) for (let k = 0; k < r * 1.4; k++) ctx.fillRect(Math.round(x - r * 0.7 + k), Math.round(y + (h(i, 8) - 0.5) * r + Math.sin(k * 0.9 + i * 2) * 1.2), 1, 1); } // veins
+    if (id === 'plated') for (let i = 0; i < 3; i++) { // grey chitin plates down its back
+      const px = Math.round(x - r * 0.5 + i * r * 0.5), py = Math.round(y - r * 0.55 + (i % 2));
+      ctx.fillStyle = '#2a2a32'; ctx.fillRect(px - 1, py - 1, 4, 3); ctx.fillStyle = '#9a9aa8'; ctx.fillRect(px, py, 2, 1);
+    }
+    if (id === 'frenzied') { // foam flecking its mouth, and a string of drool
+      const mx = Math.round(x + (e.face || 1) * r * 0.75), my = Math.round(y + r * 0.15);
+      ctx.fillStyle = '#f4f4ec'; ctx.fillRect(mx, my, 2, 1); if (Math.floor(game.time * 6 + sd) % 2) { ctx.fillRect(mx - (e.face || 1), my + 1, 1, 1); ctx.fillRect(mx + (e.face || 1), my - 1, 1, 1); }
+      ctx.fillStyle = '#c8d0c0'; ctx.fillRect(mx, my + 1, 1, 2 + (Math.floor(game.time * 2 + sd) % 3));
+    }
+  }
 }
 
 // One wave of the floor's enemies, warping in one after another, away from you.
@@ -194,6 +295,7 @@ function damageEnemy(e, dmg, vx, vy, quiet, force) {
   if (ps && ps.setPrey) { const mk = hasStatus(e, 'mark'), bl = hasStatus(e, 'bleed'); if (mk && bl && ps.setPreyBoth) { dmg *= 1 + ps.setPreyBoth; setProc(e.x, e.y); } else if (mk || bl) { dmg *= 1 + ps.setPrey; setProc(e.x, e.y); } }
   dmg *= statusDamageMul(e, ps); // marked, corroded, pollen-dusted; and your synergies with its bleeding / stun / blindness
   dmg *= marrowMul(game.player); // Dense Marrow: fed by every block
+  if (e.armorMul) dmg *= e.armorMul; // a plated mutant
   if (ENEMY_BEHAVIOR[e.type].onHurt) dmg = ENEMY_BEHAVIOR[e.type].onHurt(e, dmg, vx, vy); // (the Enforcer's riot plate)
   dmg = affixDamage(e, dmg); // shielded / shelled elites
   if (dmg <= 0) return;
@@ -601,7 +703,7 @@ function updateEnemies(dt) {
   for (const e of game.enemies) {
     if (e.dead) continue;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
-    e.t += dt; e.flash -= dt; e.timer -= dt * threatRate(); // deeper floors: they attack more often
+    e.t += dt; e.flash -= dt; e.timer -= dt * threatRate() * (e.rateMul || 1); // deeper floors (and frenzied mutants) attack more often
     if (e.barbT > 0 && (e.barbT -= dt) <= 0) ripBarbs(e); // barbs tear out
     if (e.hp < e.maxHp * 0.5 && !ENEMY_TYPES[e.type].robot && Math.random() < dt * 4) stainPx(e.x + rand(-2, 2), e.y + e.r * 0.6, ENEMY_TYPES[e.type].fluid, 1); // badly hurt: it drips
     // Held in your hands, flying through the air, or stunned: no thinking.
@@ -681,7 +783,7 @@ function updateEnemies(dt) {
         damageEnemy(e, p.stats.thorns, e.x - p.x, e.y - p.y, true);
         if (e.dead) continue;
       }
-      if (hurtPlayer(1) && hasAffix(e, 'vampiric')) { e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.3); floatText(e.x, e.y - 12, 'IT FEEDS', PAL.red); }
+      if (hurtPlayer(e.contactDmg || 1) && hasAffix(e, 'vampiric')) { e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.3); floatText(e.x, e.y - 12, 'IT FEEDS', PAL.red); }
     }
     if (e.thornT > 0) e.thornT -= dt;
     if (e.pusT > 0) e.pusT -= dt;
@@ -741,10 +843,11 @@ function drawEnemies(ctx) {
 
     if (e.elite) {
       const outline = SPR[name + '_elite'];
-      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawCentered(ctx, outline, x + ox, y + oy);
+      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawEnemyImg(ctx, outline, x + ox, y + oy, e.drawScale || 1);
     }
     const flash = e.flash > 0 || (winding && Math.floor(e.t * 20) % 2);
-    drawCentered(ctx, SPR[flash ? name + '_flash' : name], x, y);
+    drawEnemyImg(ctx, SPR[flash ? name + '_flash' : name], x, y, e.drawScale || 1);
+    if (!flash) drawEnemyMutations(ctx, e, SPR[name], x, y); // tumors, spikes, extra eyes... (deeper floors)
     if (!flash) drawStatusTint(ctx, e, SPR[name], x, y); // status hue, DoT flash (status.js)
 
   }
