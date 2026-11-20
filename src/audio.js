@@ -2,7 +2,7 @@
 // Tiny synth for sound effects + a droning ambience — no audio files needed.
 
 // How loud creature voices are, over all (they sit just under combat sounds).
-const VOICE_GAIN = 3;
+const VOICE_GAIN = 7;
 
 const Sfx = {
   ctx: null,
@@ -92,8 +92,8 @@ const Sfx = {
     switch (kind) {
       case 'squeak': { // a rat: one or two thin squeaks
         const f = r(2100, 2700);
-        this.tone(f, 0.06, 'sine', 0.018 * v, f * 1.25);
-        if (Math.random() < 0.6) this.later(90, () => this.tone(f * 1.1, 0.05, 'sine', 0.014 * v, f * 0.9));
+        this.tone(f, 0.1, 'triangle', 0.018 * v, f * 1.25);
+        if (Math.random() < 0.6) this.later(120, () => this.tone(f * 1.1, 0.09, 'triangle', 0.014 * v, f * 0.9));
         break;
       }
       case 'croak': { // a toad: a low, throaty ribbit
@@ -102,7 +102,7 @@ const Sfx = {
         break;
       }
       case 'chitter': // a grub, a crawler: dry clicks
-        for (let i = 0; i < 6; i++) this.later(i * r(18, 30), () => this.tone(r(2200, 3200), 0.012, 'square', 0.007 * v));
+        for (let i = 0; i < 7; i++) this.later(i * r(22, 36), () => this.tone(r(1800, 2800), 0.022, 'square', 0.009 * v));
         break;
       case 'gurgle': // cells, sacs, bloated things: wet bubbling
         this.noise(0.3, 0.025 * v, 320);

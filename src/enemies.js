@@ -730,7 +730,7 @@ function updateVoices(dt) {
     const d = Math.hypot(e.x - p.x, e.y - p.y);
     if (d > VOICE_RANGE || game.voiceGap > 0) continue;
     game.voiceGap = VOICE_GAP;
-    Sfx.voice(kind, 0.35 + 0.65 * (1 - d / VOICE_RANGE));
+    Sfx.voice(kind, 0.55 + 0.45 * (1 - d / VOICE_RANGE)); // (gently quieter with distance)
   }
 }
 

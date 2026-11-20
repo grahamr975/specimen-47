@@ -24,6 +24,9 @@
 </div>
 <div class="songs" id="songs"></div>
 <p id="now"></p>
+<h1 style="font-size:17px;margin-top:22px">Creature voices</h1>
+<p>What enemies sound like now and then (src/audio.js, Sfx.voice; overall level is VOICE_GAIN).</p>
+<div class="songs" id="voices"></div>
 <script src="../src/gfx.js"></script>
 <script src="../src/audio.js"></script>
 <script src="../src/music.js"></script>
@@ -41,6 +44,8 @@
   document.getElementById('fight').onclick = () => { fight = !fight; Music.setMood(fight, 1); show(); };
   document.getElementById('loop').onclick = () => { loop = (loop + 1) % 3; if (current) Music.setSong(current, loop); show(); };
   document.getElementById('stop').onclick = () => { if (Sfx.ctx) Sfx.ctx.suspend(); current = null; show(); };
+  const VOICES = { squeak: "Rat: squeak", croak: "Toad: croak", chitter: "Grub: chitter", gurgle: "Culture: gurgle", moan: "Frozen: moan", whimper: "Clone: whimper", hiss: "Mimic: hiss", rattle: "Urchin: rattle", beep: "Drone: beep", radio: "Guard: radio" };
+  for (const k in VOICES) { const b = document.createElement("button"); b.textContent = VOICES[k]; b.onclick = () => { Sfx.init(); if (Sfx.ctx.state === "suspended") Sfx.ctx.resume(); Sfx.voice(k, 1); }; document.getElementById("voices").appendChild(b); }
   function show() {
     if (current && Sfx.ctx && Sfx.ctx.state === 'suspended') Sfx.ctx.resume();
     document.getElementById('fight').textContent = 'Fight: ' + (fight ? 'on' : 'off');
