@@ -194,6 +194,7 @@ function onPlayerBulletHit(b, enemy) {
   if (b.blind && !enemy.dead) inflict(enemy, 'blind', { t: b.blind });                              // Spore Sneeze
   if (b.mirrorStun && !enemy.dead) inflict(enemy, 'stun', { t: b.mirrorStun }); // Blinding Lens
   if (b.bleed) { inflict(enemy, 'bleed', { t: 3, dps: b.bleed }); }
+  if (b.rot && !enemy.dead) inflict(enemy, 'corrode', corrodeOpts(game.player.stats)); // Rot Leeches
   if (b.slow && !enemy.dead) inflict(enemy, 'slow', { t: b.slow }); // sticky slime
   if (b.split > 0) spawnFragments(b.x, b.y, Math.atan2(b.vy, b.vx), b.split, b.dmg * 0.5, b.homing, b.acid ? b.acid * 0.6 : 0, enemy);
 }

@@ -98,7 +98,7 @@ function ensureTwin() {
 
 const allyDmg = () => game.player.stats.allyDmg || 1;
 function allyBite(a, e, dmg) {
-  damageEnemy(e, dmg * allyDmg(), e.x - a.x, e.y - a.y, true);
+  damageEnemy(e, dmg * allyDmg() * (game.player.broodFedT > 0 ? 1.6 : 1), e.x - a.x, e.y - a.y, true); // (Blood Queen: fed on your blood)
   if (a.kind === 'spiderling' && game.player.stats.venomBrood) spawnPuddle(e.x, e.y, 7, 1.5, 'player'); // Venom Brood
   if (game.player.stats.broodSlow && !e.dead) inflict(e, 'slow', { t: 1.2 }); // Pheromone Glands
   bloodSpray(e.x, e.y, e.x - a.x, e.y - a.y, 3, ENEMY_TYPES[e.type].fluid, 60);
@@ -625,7 +625,7 @@ function hostBurst(e) {
     game.shake = Math.max(game.shake, 3);
   }
   if (!e.dead) damageEnemy(e, s.ovi.burstDmg + (s.oviBurst ? s.oviBurst * s.damage : 0), 0, 0, true); // tearing its way out
-  if (s.oviMaggots) spawnAlly('maggot', e.x, e.y); // Plaguebearer
+  if (s.oviMaggots) spawnAlly('flesh', e.x, e.y); // Plaguebearer: hosts burst into pieces of you
   const spiders = s.oviSpider ? Math.ceil(n / 2) : 0;
   for (let i = 0; i < spiders; i++) spawnAlly('spiderling', e.x + rand(-3, 3), e.y + rand(-3, 3));
   for (let i = 0; i < n - spiders; i++) {
@@ -1226,7 +1226,6 @@ function useActive(p, a, target) {
       }
       if (hit) { hitstop(0.05); game.shake = Math.max(game.shake, 3); }
       if (s.skullRing) fireRing(p, s.skullRing);           // Bone Echo: your skull rings
-      if (s.dashHowl && s.howl) howl(p, 1, true);          // Resonance: the headbutt howls too
       if (s.boneCannon) { // Bone Cannon: a huge lance out of your skull
         spawnBullet({ x: p.x + ux * 8, y: p.y - 2 + uy * 8, vx: ux * 260, vy: uy * 260, r: 3.5, dmg: 6 * dmg, life: 0.9, pierce: 6, kind: 'shot', color: PAL.white });
         game.shake = Math.max(game.shake, 4); Sfx.play('blast');
@@ -1422,6 +1421,7 @@ function updateDefense(p, dt) {
   const s = p.stats;
   // Brood Crest's swarm call wears off (the call itself is a head ability: see 'swarmcall').
   if (p.broodRushT > 0) p.broodRushT -= dt;
+  if (p.broodFedT > 0) p.broodFedT -= dt; // Blood Queen
   // Hive Womb: in a fight, spiderlings keep hatching (only into room under the cap: it never culls your brood).
   if (s.wombHatch && game.room.locked && (p.wombT = (p.wombT ?? s.wombHatch) - dt) <= 0) {
     p.wombT = s.wombHatch;

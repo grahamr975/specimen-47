@@ -357,6 +357,7 @@ function updatePlayer(dt) {
     if (s.echo) scream(p);
     if (s.skullRing) fireRing(p, s.skullRing);          // Bone Echo: your skull rings
     if (s.ventCloud) ventCloud(p);                      // Spore Vents
+    if (s.dashHowl && s.howl) howl(p, 1, true);         // Resonance: your hump howls when you dash
     if (s.dashSpike) dropBoneSpike(p, p.x, p.y + 2, 4); // Scuttle: a spike left behind
     if (mv.burrow) { startBurrow(p); return; }
     p.dashT = s.dashTime;
@@ -731,6 +732,7 @@ function fireGun(p, g, mul = 1) {
       acid: g.acidChance && Math.random() > g.acidChance ? 0 : g.acid,
       venom: g.id === 'spike' && s.venomSpike,      // Venom Lance: drips bile as it flies
       venomBurst: g.id === 'spike' && s.venomBarrage, // Venom Barrage: bursts into bile
+      rot: g.id === 'leech' && !!s.leechCorrode,      // Rot Leeches: they corrode what they latch onto
       eatShots: g.id === 'spike' && !!s.spikeEat,     // Bone Lance: shatters enemy shots it crosses
       killRing: g.id === 'spike' ? s.spikeKillRing || 0 : 0, // Splinter: a kill bursts into shards
       barb: g.barb ? g.barb * s.damage * mul : 0, blind: g.blind || 0, pollen: g.pollen || undefined, mucus: !!g.mucus, // Barb Flinger, Spore Sneeze, Mucus
@@ -824,6 +826,7 @@ function drainOne(p, target, dmg, fromX, fromY) {
   if (Math.random() < 0.3) bloodSpray(target.x, target.y, p.x - target.x, p.y - target.y, 2, ENEMY_TYPES[target.type].fluid, 60);
   game.fx.push({ kind: 'beam', x1: fromX, y1: fromY, x2: target.x, y2: target.y, t: 0.1 });
   p.drained = (p.drained || 0) + dmg;
+  if (s.drainFeedsBrood) p.broodFedT = 2.5; // Blood Queen: what you drink feeds your brood
   if (s.drainDna && (p.bloodDna += dmg) >= s.drainDna) { p.bloodDna = 0; gainDna(1); floatText(p.x, p.y - 22, '+BIOMASS', VIAL_COLOR); } // Blood Pump
   if (p.drained >= (s.drainHeal || 12)) { p.drained = 0; healPlayer(1); }
   // Bloat: drained to death, it bursts.
@@ -1217,6 +1220,7 @@ function chargeHits(p) {
 function slam(p) {
   const s = p.stats, k0 = game.kills;
   landing(p, 1);
+  if (s.landCloud) game.clouds.push({ x: p.x, y: p.y, r: 18, life: 3, corrode: true }); // Spore Pounce
   game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 4, max: s.slamR, t: 0.25 });
   strikeSeal(p.x, p.y, s.slamR);
   for (const e of game.enemies) {
