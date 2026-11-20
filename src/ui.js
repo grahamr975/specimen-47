@@ -608,48 +608,175 @@ function drawCrosshair(ctx) {
   ctx.fillRect(x, y - 3, 1, 2); ctx.fillRect(x, y + 2, 1, 2);
 }
 
+// --- Title screen ------------------------------------------------------------------------
+// Specimen 47 in its containment tank. It mutates as you watch; the glass cracks,
+// the alarm comes on, and it starts over. The logo glitches now and then, a heart
+// monitor traces its pulse, and the controls panel shows whatever you last touched
+// (keyboard or gamepad).
+const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
+const TANK = { x0: VIEW_W / 2 - 36, x1: VIEW_W / 2 + 36, y0: 72, y1: 146 };
+
+function bakeTitleScene() {
+  const c = makeCanvas(VIEW_W, VIEW_H), g = c.getContext('2d');
+  g.drawImage(bakeTitleBg(), 0, 0);
+  g.fillStyle = 'rgba(6,3,5,0.55)'; g.fillRect(0, 0, VIEW_W, VIEW_H); // a dark room...
+  const v = g.createRadialGradient(VIEW_W / 2, 104, 30, VIEW_W / 2, 120, 230); // ...lit only by the tank
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.85)');
+  g.fillStyle = v; g.fillRect(0, 0, VIEW_W, VIEW_H);
+  for (let y = 0; y < VIEW_H; y += 2) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, y, VIEW_W, 1); } // faint scanlines
+  return c;
+}
+
+// The logo, baked once: ABERRANT in blood red over a dark drop, STRAIN stamped beneath between rules.
+function bakeTitleLogo() {
+  const c = makeCanvas(VIEW_W, 56), g = c.getContext('2d');
+  drawText(g, 'ABERRANT', VIEW_W / 2 + 1, 6, '#2a0408', 4, 'center', null); // deep shadow
+  drawText(g, 'ABERRANT', VIEW_W / 2, 4, '#a01424', 4, 'center', '#3a060c');
+  const tw = textWidth('ABERRANT', 4), left = Math.round(VIEW_W / 2 - tw / 2);
+  g.fillStyle = '#d83040'; for (let x = left; x < left + tw; x++) if (g.getImageData(x, 5, 1, 1).data[3]) g.fillRect(x, 5, 1, 1); // a wet top edge
+  // S T R A I N, letter-spaced, with rules either side.
+  const word = 'STRAIN', sp = 7, w = word.length * 4 * 2 + (word.length - 1) * sp;
+  let x = Math.round(VIEW_W / 2 - w / 2);
+  for (const ch of word) { drawText(g, ch, x, 36, '#d8ccb4', 2, 'left', '#160507'); x += 8 + sp; }
+  g.fillStyle = '#5a1a22';
+  g.fillRect(VIEW_W / 2 - w / 2 - 34, 41, 26, 1); g.fillRect(VIEW_W / 2 + w / 2 + 8, 41, 26, 1);
+  g.fillStyle = '#a01424'; g.fillRect(VIEW_W / 2 - w / 2 - 10, 40, 3, 3); g.fillRect(VIEW_W / 2 + w / 2 + 7, 40, 3, 3);
+  return { img: c, left, tw };
+}
+
+// One beat of a heart monitor, 0..1 through the beat -> height in px.
+function ecgShape(ph) {
+  if (ph < 0.06) return Math.sin(ph / 0.06 * Math.PI) * 1.5;           // P
+  if (ph > 0.12 && ph < 0.15) return -(ph - 0.12) / 0.03 * 2;          // Q
+  if (ph >= 0.15 && ph < 0.19) return -2 + (ph - 0.15) / 0.04 * 12;    // R (up)
+  if (ph >= 0.19 && ph < 0.23) return 10 - (ph - 0.19) / 0.04 * 13;    // S (down)
+  if (ph >= 0.23 && ph < 0.26) return -3 + (ph - 0.23) / 0.03 * 3;
+  if (ph > 0.34 && ph < 0.48) return Math.sin((ph - 0.34) / 0.14 * Math.PI) * 2.5; // T
+  return 0;
+}
+
 function drawTitle(ctx) {
-  ctx.fillStyle = PAL.black;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  if (!SPR.titleBg) SPR.titleBg = bakeTitleBg();
-  ctx.drawImage(SPR.titleBg, 0, 0);
+  const t = game.time;
+  if (!SPR.titleScene) SPR.titleScene = bakeTitleScene();
+  if (!SPR.titleLogo) SPR.titleLogo = bakeTitleLogo();
+  ctx.fillStyle = PAL.black; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.drawImage(SPR.titleScene, 0, 0);
 
-  // Title dripping blood.
-  const tw = textWidth('SPECIMEN', 4), left = Math.round(VIEW_W / 2 - tw / 2);
-  for (let i = 0; i < tw; i++) {
-    if ((i * 7919) % 11 > 1) continue;
-    const len = Math.floor((game.time * 5 + i * 3.7) % 26);
-    ctx.fillStyle = '#5a0a12';
-    ctx.fillRect(left + i, 46, 1, len);
-    if (len > 3) { ctx.fillStyle = '#8a1020'; ctx.fillRect(left + i, 46 + len, 1, 2); }
-  }
-  drawText(ctx, 'SPECIMEN', VIEW_W / 2, 28, '#8a1020', 4, 'center');
-  drawText(ctx, '47', VIEW_W / 2, 54, PAL.white, 4, 'center');
-
-  // The pure specimen degenerates as it grows new parts, then starts over.
+  // The specimen's cycle: pure -> five mutations -> the glass gives -> start over.
   const showcase = ['', 'eyes', 'mandibles', 'spines', 'tentacles', 'horns'];
-  const n = Math.floor(game.time / 1.3) % showcase.length;
-  const st = SPR.stages[Math.min(4, n)];
-  const bx = VIEW_W / 2 - 36, by = 76 + Math.round(Math.sin(game.time * 3) * 2);
-  ctx.drawImage(Math.floor(game.time * 1.6) % 2 ? st.body2 : st.body, bx, by, 72, 72);
+  const n = Math.floor(t / TITLE_CYCLE) % showcase.length, within = (t % TITLE_CYCLE) / TITLE_CYCLE;
+  const alarm = n >= 4, bpm = 60 + n * 22, beat = (t * bpm / 60) % 1, pulse = Math.max(0, 1 - beat * 4);
+  const T = TANK, cx = VIEW_W / 2, tw = T.x1 - T.x0, th = T.y1 - T.y0;
+
+  // Its glow on the floor and walls, pulsing with its heart (red once the alarm is on).
+  const glow = ctx.createRadialGradient(cx, 110, 4, cx, 110, 90);
+  glow.addColorStop(0, alarm ? `rgba(200,40,40,${0.22 + pulse * 0.12})` : `rgba(90,190,120,${0.16 + pulse * 0.08})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 20, VIEW_W, 200);
+
+  // Hoses from the cap up into the dark.
+  ctx.fillStyle = '#1c1a1e';
+  for (const [x, dir] of [[T.x0 + 8, -1], [T.x1 - 8, 1]]) for (let y = T.y0 - 8; y > 52; y--) ctx.fillRect(Math.round(x + dir * (T.y0 - 8 - y) * 1.6), y, 3, 1);
+  // The fluid, with the specimen floating in it.
+  const lvl = T.y0 + 6;
+  ctx.fillStyle = alarm ? '#1a0c0e' : '#0c1a14'; ctx.fillRect(T.x0, T.y0, tw, th);
+  ctx.fillStyle = alarm ? 'rgba(120,30,30,0.35)' : 'rgba(50,120,80,0.35)'; ctx.fillRect(T.x0, lvl, tw, T.y1 - lvl);
+  for (let x = T.x0; x < T.x1; x++) { ctx.fillStyle = alarm ? '#7a3030' : '#4a9a70'; ctx.fillRect(x, Math.round(lvl + Math.sin(x * 0.35 + t * 3) * 0.8), 1, 1); } // the surface
+  const st = SPR.stages[Math.min(4, n)], sz = 64;
+  const bx = cx - sz / 2 + Math.round(Math.sin(t * 0.9) * 2), by = 80 + Math.round(Math.sin(t * 1.7) * 3);
+  ctx.save(); ctx.beginPath(); ctx.rect(T.x0, T.y0, tw, th); ctx.clip();
+  ctx.drawImage(Math.floor(t * 1.6) % 2 ? st.body2 : st.body, bx, by, sz, sz);
   const shown = new Set(showcase.slice(1, n + 1));
-  for (const ov of OVERLAY_ORDER) if (shown.has(ov)) ctx.drawImage(st.overlay[ov], bx, by, 72, 72);
+  for (const ov of OVERLAY_ORDER) if (shown.has(ov)) ctx.drawImage(st.overlay[ov], bx, by, sz, sz);
+  if (within < 0.12 && n > 0) { ctx.globalAlpha = 1 - within / 0.12; ctx.drawImage(tintedSprite(st.body, '#f0e0d0'), bx, by, sz, sz); ctx.globalAlpha = 1; } // a new part bursts out
+  ctx.fillStyle = alarm ? 'rgba(90,20,20,0.28)' : 'rgba(30,90,60,0.28)'; ctx.fillRect(T.x0, lvl, tw, T.y1 - lvl); // the fluid in front of it
+  for (let i = 0; i < 14; i++) { // bubbles
+    const sp = 14 + hash2(i, 1, 7) * 22, bx2 = T.x0 + 4 + hash2(i, 2, 7) * (tw - 8) + Math.sin(t * 2 + i) * 1.5;
+    const by2 = T.y1 - 4 - ((t * sp + hash2(i, 3, 7) * th) % (T.y1 - lvl - 6));
+    ctx.fillStyle = hash2(i, 4, 7) > 0.5 ? 'rgba(200,240,220,0.55)' : 'rgba(160,220,190,0.35)';
+    ctx.fillRect(Math.round(bx2), Math.round(by2), hash2(i, 5, 7) > 0.7 ? 2 : 1, hash2(i, 5, 7) > 0.7 ? 2 : 1);
+  }
+  ctx.restore();
+  // The glass: highlights, and cracks spreading as it outgrows the tank.
+  ctx.fillStyle = 'rgba(220,240,235,0.22)'; ctx.fillRect(T.x0 + 4, T.y0 + 2, 2, th - 4); ctx.fillRect(T.x0 + 8, T.y0 + 2, 1, th - 4);
+  ctx.fillStyle = 'rgba(220,240,235,0.08)'; ctx.fillRect(T.x1 - 6, T.y0 + 2, 3, th - 4);
+  const cracks = [[0.75, 0.3], [0.2, 0.55], [0.6, 0.75], [0.35, 0.2]];
+  for (let k = 0; k < Math.max(0, n - 2) + (n === 5 ? 1 : 0); k++) {
+    let x = T.x0 + cracks[k][0] * tw, y = T.y0 + cracks[k][1] * th;
+    ctx.fillStyle = 'rgba(235,245,240,0.7)';
+    for (let s = 0; s < 3; s++) {
+      let a = hash2(k, s, 11) * Math.PI * 2, px = x, py = y;
+      for (let j = 0; j < 9; j++) { ctx.fillRect(Math.round(px), Math.round(py), 1, 1); a += (hash2(k * 9 + j, s, 13) - 0.5) * 1.2; px += Math.cos(a) * 1.3; py += Math.sin(a) * 1.3; }
+    }
+  }
+  // Metal cap and base, with rivets and a warning light.
+  const metal = (y, h) => { ctx.fillStyle = '#2e2c32'; ctx.fillRect(T.x0 - 5, y, tw + 10, h); ctx.fillStyle = '#4a4850'; ctx.fillRect(T.x0 - 5, y, tw + 10, 1); ctx.fillStyle = '#16141a'; ctx.fillRect(T.x0 - 5, y + h - 1, tw + 10, 1); ctx.fillStyle = '#6a6870'; for (let x = T.x0 - 2; x < T.x1 + 4; x += 8) ctx.fillRect(x, y + Math.floor(h / 2), 1, 1); };
+  metal(T.y0 - 7, 7); metal(T.y1, 9);
+  ctx.fillStyle = alarm && Math.floor(t * 4) % 2 ? '#ff3030' : alarm ? '#601010' : '#3a8a50'; ctx.fillRect(cx - 1, T.y0 - 5, 3, 2);
+  drawText(ctx, 'SUBJ. 47', cx, T.y1 + 2, alarm ? '#c04040' : '#8a9a90', 1, 'center', null);
 
-  if (Math.floor(game.time * 2) % 2) drawText(ctx, 'CLICK OR PRESS SPACE TO ESCAPE', VIEW_W / 2, 156, PAL.white, 1, 'center');
-  drawText(ctx, 'CONSUME. EVOLVE. ESCAPE.', VIEW_W / 2, 172, PAL.slate, 1, 'center');
+  // The logo: glitches for a moment every few seconds.
+  const L = SPR.titleLogo, gl = (t % 4.2) < 0.18 || (alarm && (t % 1.3) < 0.06);
+  for (let i = 0; i < L.tw; i++) { // blood running off the letters
+    if ((i * 7919) % 11 > 1) continue;
+    const len = Math.floor((t * 4 + i * 3.7) % 22);
+    ctx.fillStyle = '#4a0810'; ctx.fillRect(L.left + i, 26, 1, len);
+    if (len > 3) { ctx.fillStyle = '#a01424'; ctx.fillRect(L.left + i, 26 + len, 1, 2); }
+  }
+  if (!gl) ctx.drawImage(L.img, 0, 10);
+  else {
+    ctx.globalAlpha = 0.5; ctx.drawImage(tintedSprite(L.img, '#30c0c8'), -2, 10); ctx.globalAlpha = 1; // the color splits
+    for (let y = 0; y < L.img.height; y += 4) { // sliced and shoved sideways
+      const dx = Math.round((hash2(y, Math.floor(t * 30), 3) - 0.5) * 8);
+      ctx.drawImage(L.img, 0, y, VIEW_W, 4, dx, 10 + y, VIEW_W, 4);
+    }
+  }
 
-  const lines = [
-    ['WASD', 'MOVE'],
-    ['MOUSE / ARROWS', 'AIM + SHOOT'],
-    ['SPACE / SHIFT', 'DASH'],
-    ['RIGHT CLICK / E', 'LIMB ABILITY'],
-    ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
-    ['GAMEPAD', 'STICKS, RT FIRE, A DASH, RB LIMB'],
+  // Lab readouts in the corners.
+  drawText(ctx, 'CONTAINMENT 4-B', 6, 5, '#5a6460', 1, 'left', null);
+  drawText(ctx, alarm ? 'BREACH' : 'STABLE', VIEW_W - 6, 5, alarm ? (Math.floor(t * 3) % 2 ? '#ff4040' : '#801818') : '#4a8a60', 1, 'right', null);
+  drawText(ctx, 'BPM ' + bpm, VIEW_W - 6, 14, '#5a6460', 1, 'right', null);
+
+  // The heart monitor: a trace that sweeps across and fades behind itself.
+  const mx0 = 40, mx1 = VIEW_W - 40, my = 168, head = (t * 90) % (mx1 - mx0);
+  ctx.fillStyle = '#141c18'; ctx.fillRect(mx0, my, mx1 - mx0, 1);
+  let prev = null;
+  for (let x = 0; x < mx1 - mx0; x++) { // a connected line, so the spikes read as spikes
+    const age = (head - x + (mx1 - mx0)) % (mx1 - mx0); if (age > 120) { prev = null; continue; }
+    const ph = ((t - age / 90) * bpm / 60) % 1, y = Math.round(my - ecgShape(ph < 0 ? ph + 1 : ph));
+    const a = prev === null ? y : prev, top = Math.min(a, y), bot = Math.max(a, y);
+    ctx.globalAlpha = 1 - age / 120;
+    ctx.fillStyle = alarm ? "#ff4a4a" : "#5aff8a";
+    ctx.fillRect(mx0 + x, top, age < 2 ? 2 : 1, bot - top + 1);
+    prev = y;
+  }
+  ctx.globalAlpha = 1;
+
+  // The prompt, breathing in and out.
+  const pad = Input.padUsed;
+  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 3);
+  drawText(ctx, pad ? 'PRESS A TO BREAK OUT' : 'CLICK OR PRESS SPACE TO BREAK OUT', cx, 176, PAL.white, 1, 'center');
+  ctx.globalAlpha = 1;
+
+  // Controls, in a framed panel: whichever you're holding.
+  const lines = pad ? [
+    ['LEFT STICK', 'MOVE'], ['RIGHT STICK / RT', 'AIM + FIRE'], ['A / LB', 'DASH'], ['RB / X', 'LIMB ABILITY'], ['START / BACK', 'PAUSE / JOURNAL'],
+  ] : [
+    ['WASD', 'MOVE'], ['MOUSE / ARROWS', 'AIM + SHOOT'], ['SPACE / SHIFT', 'DASH'], ['RIGHT CLICK / E', 'LIMB ABILITY'], ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
   ];
+  const py0 = 188, ph = lines.length * 9 + 7;
+  ctx.fillStyle = 'rgba(10,6,8,0.78)'; ctx.fillRect(56, py0, VIEW_W - 112, ph);
+  ctx.fillStyle = '#3a1a20'; ctx.fillRect(56, py0, VIEW_W - 112, 1); ctx.fillRect(56, py0 + ph - 1, VIEW_W - 112, 1);
+  ctx.fillStyle = '#a01424'; for (const [x, y] of [[56, py0], [VIEW_W - 58, py0], [56, py0 + ph - 2], [VIEW_W - 58, py0 + ph - 2]]) ctx.fillRect(x, y, 2, 2);
   lines.forEach(([k, v], i) => {
-    drawText(ctx, k, VIEW_W / 2 - 6, 188 + i * 10, PAL.red, 1, 'right');
-    drawText(ctx, v, VIEW_W / 2 + 6, 188 + i * 10, PAL.white);
+    drawText(ctx, k, cx - 5, py0 + 5 + i * 9, '#c04050', 1, 'right', null);
+    drawText(ctx, v, cx + 5, py0 + 5 + i * 9, '#c8bca8', 1, 'left', null);
   });
+  drawText(ctx, 'CONSUME. EVOLVE. ESCAPE.', cx, VIEW_H - 9, '#4a4044', 1, 'center', null);
+
+  // The lab's lights: an alarm wash once it's breaking out, and a fluorescent flicker now and then.
+  if (alarm) { ctx.fillStyle = `rgba(200,20,30,${0.05 + 0.05 * Math.sin(t * 8)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+  if ((t % 7.3) < 0.12 && Math.floor(t * 40) % 2) { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
 }
 
 function drawGameOver(ctx) {

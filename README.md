@@ -1,6 +1,6 @@
-# Specimen 47
+# Aberrant Strain
 
-A pixel-art horror twin-stick roguelike. You're an escaped lab specimen: kill what hunts you, devour the corpses for biomass, and evolve into something worse.
+A pixel-art horror twin-stick roguelike. You're Specimen 47, an escaped lab experiment: kill what hunts you, devour the corpses for biomass, and evolve into something worse.
 
 ## Play
 

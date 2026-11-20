@@ -266,7 +266,7 @@ function renderReport(sum, el) {
   };
   const table = (title, rows, note) => `<h2>${title}</h2>${note ? `<p class="note">${note}</p>` : ''}<table><tr><th></th><th>runs</th><th>avg floor</th><th>vs. similar runs</th><th>survived</th><th>kills/min</th><th>hearts lost</th><th>stalls</th><th>z</th><th></th></tr>${rows.map(x => row(x)).join('')}</table>`;
   el.innerHTML = `
-    <h1>Specimen 47: balance report</h1>
+    <h1>Aberrant Strain: balance report</h1>
     <p>${sum.runs} runs. Average floor reached <b>${sum.depth}</b> (sd ${sum.sd}); ${sum.survive}% reached floor 6 alive. ${sum.stalls} fights stalled (bot couldn't finish them in a minute).</p>
     <p class="note">Stalls = fights per run the bot couldn't finish in a minute (the harness clears them, which flatters slow builds: a high stall count means the floor reached is optimistic). "vs. similar runs" is the fair baseline: for a part, runs that also filled that slot (late slots only exist in runs that went deep); for a set bonus, runs with 3+ parts; for a pair, 4+ parts. z = how far above or below that baseline, in standard deviations. STRONG (z &ge; 0.75) and WEAK (z &le; -0.75) are worth a look; grey rows have too few runs (&lt; ${MIN_N}) to trust. A part appears in every run that ended with it on the body.</p>
     <h2>What hurts the bot</h2><p class="note">Hearts lost, by the game function that dealt the hit and the nearest enemy. Big numbers here are either a dangerous enemy or a gap in the bot.</p>
@@ -334,7 +334,7 @@ function runAutotune(runsPer, rounds, seed0) {
 
 function renderAutotune(res, el) {
   const name = id => MUTATIONS[id].name, rows = res.roots.map(r => ({ r, a: res.start[r], b: res.end[r], t: res.tune[r] || 1 })).sort((x, y) => x.t - y.t);
-  el.innerHTML = `<h1>Specimen 47: weapon auto-tune</h1>
+  el.innerHTML = `<h1>Aberrant Strain: weapon auto-tune</h1>
     <p>Each weapon tree, scored by how far its first-evolution forms got (forced builds, same seeds every round), then its damage nudged toward the median weapon. Took ${res.seconds}s.</p>
     <table><tr><th>round</th><th>median score</th><th>best - worst</th></tr>${res.history.map(h => `<tr><td>${h.round}</td><td>${h.target}</td><td>${h.spread}</td></tr>`).join('')}</table>
     <h2>Per weapon</h2><table><tr><th>weapon tree</th><th>floor before</th><th>floor after</th><th>damage tune</th></tr>
