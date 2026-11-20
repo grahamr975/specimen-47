@@ -249,6 +249,7 @@ function update(dt) {
   }
 
   // Room cleared?
+  nextWave(room); // deeper floors: the next wave comes before the doors open
   // Room cleared? (Harmless scavengers don't keep the doors shut.)
   if (room.locked && !game.enemies.some(e => !ENEMY_TYPES[e.type].harmless && e.state !== 'disguise')) { // (a disguised Mimic waits for you after)
     room.locked = false;

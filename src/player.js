@@ -1263,6 +1263,7 @@ function hurtPlayer(dmg) {
   const p = game.player, s = p.stats;
   if (p.inv > 0 || p.dashT > 0 || p.burrowT > 0 || game.state !== 'play') return false;
   if (s.parasiteInv && p.controlT > 0) return false; // Rider: nothing touches you while it drives
+  dmg = Math.min(4, dmg * threatDamage()); // deeper floors hit harder (at most two hearts a hit)
 
   // Withdrawn into your snail shell: nothing gets through.
   if (p.withdrawn) {

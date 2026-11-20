@@ -712,7 +712,7 @@ try {
       game.depth = 6; startFloor(); check(`past the Director the lab loops deeper ("${game.banner.text}")`, /\+/.test(game.banner.text)); }
   }
   { // 0zf) Floors 2-5: their own enemies and hazards.
-    const at = (depth) => { newRun(); game.depth = depth; startFloor(); const room = game.floor.rooms.find(r => r.type === 'combat'); enterRoom(room, 'up'); game.enemies = []; game.bullets = []; game.puddles = []; room.hazards = []; room.tiles = room.tiles.map(x => x === T_BLOCK ? T_FLOOR : x); const q = game.player; q.x = 120; q.y = 96; return q; };
+    const at = (depth) => { newRun(); game.depth = depth; startFloor(); const room = game.floor.rooms.find(r => r.type === 'combat'); enterRoom(room, 'up'); room.wavesLeft = 0; game.enemies = []; game.bullets = []; game.puddles = []; room.hazards = []; room.tiles = room.tiles.map(x => x === T_BLOCK ? T_FLOOR : x); const q = game.player; q.x = 120; q.y = 96; return q; };
     const foe = (type, dx, dy = 0) => { const e = spawnEnemy(type, game.player.x + dx, game.player.y + dy); e.spawnT = 0; e.affixes = []; return e; };
     const run = (n, keepHp = true) => { for (let i = 0; i < n; i++) { if (keepHp) game.player.hp = game.player.maxHp; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; } };
     for (let d = 2; d <= 5; d++) check(`floor ${d} (${floorDef(d).name}) has its own enemies, hazard and color`, floorDef(d).pool.some(k => !['rat', 'drone', 'urchin', 'splitter', 'spitter'].includes(k)) && floorDef(d).hazard && floorDef(d).tint);
@@ -1056,6 +1056,16 @@ try {
     for (let i = 0; i < 60; i++) { const before = q.crab ? q.crab.map(f => [f.x, f.y, f.t]) : null; q.x += 300 / 60; updateWalker(q, 'crab', CRAB_LEGS, true, 10, 0.07, 1 / 60);
       if (before) q.crab.forEach((f, k) => { if (f.t > 0 && before[k][2] === 0) steps++; if (f.t === 0 && Math.hypot(f.x - before[k][0], f.y - before[k][1]) > 12) snaps++; }); }
     check(`fast crab legs keep stepping instead of snapping forward (${steps} steps, ${snaps} snaps)`, steps > 10 && snaps <= 2);
+  }
+  { // 0j1q) Difficulty by depth (never by your build): harder hits, tougher enemies, waves.
+    const hit = depth => { newRun(); game.depth = depth; const q = game.player; q.armor = 0; q.inv = 0; const h = q.hp; hurtPlayer(1); return h - q.hp; };
+    check(`a hit costs more the deeper you are (half hearts: floor 1 ${hit(1)}, floor 3 ${hit(3)}, floor 5 ${hit(5)})`, hit(1) === 1 && hit(3) === 2 && hit(5) === 3);
+    newRun(); game.depth = 1; const hp1 = makeEnemy('rat', 0, 0).maxHp; game.depth = 5; const hp5 = makeEnemy('rat', 0, 0).maxHp;
+    check(`enemies are much tougher deeper down (rat ${hp1} -> ${hp5.toFixed(1)})`, hp5 >= hp1 * 2.7);
+    newRun(); game.depth = 3; startFloor(); const room = game.floor.rooms.find(r => r.type === 'combat'); enterRoom(room, 'up');
+    const first = game.enemies.length; check(`floor 3 fights come in two waves (${room.wavesLeft} more after this)`, room.wavesLeft === 1);
+    for (const e of game.enemies.slice()) damageEnemy(e, 9999, 0, 0, true); nextWave(room);
+    check(`...and the next wave pours in before the doors open (${game.enemies.filter(e => !e.dead).length} new, room locked ${room.locked})`, game.enemies.some(e => !e.dead) && room.locked && room.wavesLeft === 0);
   }
   { // 0j2) Slot bar names always fit their cell, even with all six slots full (27px of text).
     const tooWide = Object.values(MUTATIONS).map(d => d.name).filter(n => { const ls = fitText(n, 27, 2); return ls.length > 2 || ls.some(l => textWidth(l) > 27); });

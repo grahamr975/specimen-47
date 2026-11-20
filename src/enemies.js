@@ -54,13 +54,16 @@ const ENEMY_POOL = ['rat', 'rat', 'drone', 'urchin', 'splitter', 'spitter'];
 // Director, as the lab loops deeper). Enemies attack more often and their shots
 // fly faster; elites carry more affixes; health and numbers keep growing (makeEnemy,
 // spawnRoomEnemies).
+// Difficulty rises with depth only, never with your build (finding a strong combo should feel strong).
 function threatRate() { return 1 + 0.12 * (game.depth - 1); }            // how much faster they act
+function threatDamage() { return game.depth >= 5 ? 3 : game.depth >= 3 ? 2 : 1; } // a hit's half hearts: x1 / x2 / x3
+function threatWaves() { return game.depth >= 5 ? 3 : game.depth >= 3 ? 2 : 1; }  // waves per fight
 function threatShotSpeed() { return Math.min(1.45, 1 + 0.06 * (game.depth - 1)); }
 
 function makeEnemy(type, x, y, elite = false) {
   const T = ENEMY_TYPES[type];
   const depth = game.depth;
-  const hp = T.hp * (1 + (depth - 1) * 0.3) * (elite ? 3 : 1);
+  const hp = T.hp * (1 + (depth - 1) * 0.45) * (elite ? 3 : 1); // (was +30% a floor: strong builds blew through)
   return {
     type, x, y, r: T.r, hp, maxHp: hp, elite,
     speed: T.speed * (1 + (depth - 1) * 0.05),
@@ -81,6 +84,30 @@ function spawnEnemy(type, x, y, elite) {
   return e;
 }
 
+// One wave of the floor's enemies, warping in one after another, away from you.
+function spawnWave(n) {
+  const fd = floorDef(game.depth), room = game.room;
+  for (let i = 0; i < n; i++) {
+    const spot = randomFloorSpot(room, game.player, 70);
+    const type = pick(fd.pool), e = spawnEnemy(type, spot.x, spot.y);
+    e.spawnT += i * 0.08;
+    if (type === 'clone') for (let c = 0; c < 2 && i < n - 1; c++, i++) { // clones come in packs
+      const o = spawnEnemy('clone', spot.x + rand(-10, 10), spot.y + rand(-8, 8)); o.spawnT = e.spawnT + 0.05 * (c + 1);
+    }
+  }
+}
+
+// Waves: when the fight is down to a third of its wave (or less), the next one comes.
+function nextWave(room) {
+  if (!room.locked || !(room.wavesLeft > 0)) return;
+  const alive = game.enemies.filter(e => !e.dead && !ENEMY_TYPES[e.type].harmless).length;
+  if (alive > Math.floor(room.waveSize / 3)) return;
+  room.wavesLeft--;
+  spawnWave(room.waveSize);
+  game.banner = { text: room.wavesLeft ? 'MORE ARE COMING' : 'THE LAST OF THEM', color: PAL.red, t: 1.6 };
+  Sfx.play('door');
+}
+
 function spawnRoomEnemies(room) {
   const fd = floorDef(game.depth);
   // The floor's last room holds its boss (if it has one yet).
@@ -90,14 +117,9 @@ function spawnRoomEnemies(room) {
   let n = game.depth === 1 ? randInt(3, 4) : 3 + Math.min(game.depth, 6) + randInt(0, 2);
   if (room.type === 'exit') n += 1;
   n = Math.min(n, 13);
-  for (let i = 0; i < n; i++) {
-    const spot = randomFloorSpot(room, game.player, 70);
-    const type = pick(fd.pool), e = spawnEnemy(type, spot.x, spot.y);
-    e.spawnT += i * 0.08;
-    if (type === 'clone') for (let c = 0; c < 2 && i < n - 1; c++, i++) { // clones come in packs
-      const o = spawnEnemy('clone', spot.x + rand(-10, 10), spot.y + rand(-8, 8)); o.spawnT = e.spawnT + 0.05 * (c + 1);
-    }
-  }
+  spawnWave(n);
+  // Deeper floors come in waves: the next one pours in when this one is down to a third (see nextWave).
+  room.wavesLeft = threatWaves() - 1; room.waveSize = n;
   // An elite with affixes: always in the exit room, sometimes elsewhere.
   if (room.type === 'exit' || Math.random() < 0.08 + 0.07 * game.depth) {
     const spot = randomFloorSpot(room, game.player, 90);
