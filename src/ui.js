@@ -614,6 +614,15 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
+// What it might become: each cycle a different strain (a set's body form) grows five parts.
+const TITLE_BUILDS = [
+  { name: 'PURE', form: null, color: '#c8b8b0', parts: ['eyes', 'mandibles', 'spines', 'tentacles', 'horns'] },
+  { name: 'BONE', form: 'BONE', color: '#d8ccb0', parts: ['ribs', 'spiderlegs', 'calcified', 'gorehorns', 'scythes'] },
+  { name: 'FUNGAL', form: 'FUNGAL', color: '#9ab83a', parts: ['sporepods', 'pustules', 'tentlimbs', 'drool', 'compound'] },
+  { name: 'HIVE', form: 'HIVE', color: '#d8b040', parts: ['chitin', 'wings', 'eggs', 'antennae', 'mandibles'] },
+  { name: 'PREDATOR', form: 'PREDATOR', color: '#d04040', parts: ['hindlegs', 'fangs', 'claws', 'thirdeye', 'barbs'] },
+  { name: 'ABOMINATION', form: 'ABOMINATION', color: '#b060c0', parts: ['tumor', 'bigheart', 'tentacles', 'mitosis', 'hands'] },
+];
 const TANK = { x0: VIEW_W / 2 - 36, x1: VIEW_W / 2 + 36, y0: 72, y1: 146 };
 
 function bakeTitleScene() {
@@ -663,9 +672,10 @@ function drawTitle(ctx) {
   ctx.drawImage(SPR.titleScene, 0, 0);
 
   // The specimen's cycle: pure -> five mutations -> the glass gives -> start over.
-  const showcase = ['', 'eyes', 'mandibles', 'spines', 'tentacles', 'horns'];
+  // A different strain each cycle: the body form of one set, growing five of its parts.
+  const build = TITLE_BUILDS[Math.floor(t / (TITLE_CYCLE * 6)) % TITLE_BUILDS.length], showcase = [''].concat(build.parts);
   const n = Math.floor(t / TITLE_CYCLE) % showcase.length, within = (t % TITLE_CYCLE) / TITLE_CYCLE;
-  const alarm = n >= 4, bpm = 60 + n * 22, beat = (t * bpm / 60) % 1, pulse = Math.max(0, 1 - beat * 4);
+  const alarm = n >= 5, bpm = 60 + n * 22, beat = (t * bpm / 60) % 1, pulse = Math.max(0, 1 - beat * 4);
   const T = TANK, cx = VIEW_W / 2, tw = T.x1 - T.x0, th = T.y1 - T.y0;
 
   // Its glow on the floor and walls, pulsing with its heart (red once the alarm is on).
@@ -682,14 +692,15 @@ function drawTitle(ctx) {
   ctx.fillStyle = alarm ? '#1a0c0e' : '#0c1a14'; ctx.fillRect(T.x0, T.y0, tw, th);
   ctx.fillStyle = alarm ? 'rgba(120,30,30,0.35)' : 'rgba(50,120,80,0.35)'; ctx.fillRect(T.x0, lvl, tw, T.y1 - lvl);
   for (let x = T.x0; x < T.x1; x++) { ctx.fillStyle = alarm ? '#7a3030' : '#4a9a70'; ctx.fillRect(x, Math.round(lvl + Math.sin(x * 0.35 + t * 3) * 0.8), 1, 1); } // the surface
-  const st = SPR.stages[Math.min(4, n)], sz = 64;
-  const bx = cx - sz / 2 + Math.round(Math.sin(t * 0.9) * 2), by = 80 + Math.round(Math.sin(t * 1.7) * 3);
+  const st = SPR.stages[Math.min(4, n)], body = build.form ? SPR.forms[build.form][Math.min(4, n)] : st, sz = 64;
+  const bx = cx - sz / 2 + Math.round(Math.sin(t * 0.9) * 2), by = 76 + Math.round(Math.sin(t * 1.7) * 3);
   ctx.save(); ctx.beginPath(); ctx.rect(T.x0, T.y0, tw, th); ctx.clip();
-  ctx.drawImage(Math.floor(t * 1.6) % 2 ? st.body2 : st.body, bx, by, sz, sz);
   const shown = new Set(showcase.slice(1, n + 1));
-  for (const ov of OVERLAY_ORDER) if (shown.has(ov)) ctx.drawImage(st.overlay[ov], bx, by, sz, sz);
-  if (within < 0.12 && n > 0) { ctx.globalAlpha = 1 - within / 0.12; ctx.drawImage(tintedSprite(st.body, '#f0e0d0'), bx, by, sz, sz); ctx.globalAlpha = 1; } // a new part bursts out
-  ctx.fillStyle = alarm ? 'rgba(90,20,20,0.28)' : 'rgba(30,90,60,0.28)'; ctx.fillRect(T.x0, lvl, tw, T.y1 - lvl); // the fluid in front of it
+  for (const ov of BEHIND_ORDER) if (shown.has(ov) && st.overlay[ov]) ctx.drawImage(st.overlay[ov], bx, by, sz, sz); // legs and wings behind
+  ctx.drawImage(Math.floor(t * 1.6) % 2 ? body.body2 : body.body, bx, by, sz, sz);
+  for (const ov of OVERLAY_ORDER) if (shown.has(ov) && st.overlay[ov]) ctx.drawImage(st.overlay[ov], bx, by, sz, sz);
+  if (within < 0.12 && n > 0) { ctx.globalAlpha = 1 - within / 0.12; ctx.drawImage(tintedSprite(body.body, '#f0e0d0'), bx, by, sz, sz); ctx.globalAlpha = 1; } // a new part bursts out
+  ctx.fillStyle = alarm ? 'rgba(90,20,20,0.22)' : 'rgba(30,90,60,0.14)'; ctx.fillRect(T.x0, lvl, tw, T.y1 - lvl); // the fluid in front of it
   for (let i = 0; i < 14; i++) { // bubbles
     const sp = 14 + hash2(i, 1, 7) * 22, bx2 = T.x0 + 4 + hash2(i, 2, 7) * (tw - 8) + Math.sin(t * 2 + i) * 1.5;
     const by2 = T.y1 - 4 - ((t * sp + hash2(i, 3, 7) * th) % (T.y1 - lvl - 6));
@@ -734,6 +745,7 @@ function drawTitle(ctx) {
 
   // Lab readouts in the corners.
   drawText(ctx, 'CONTAINMENT 4-B', 6, 5, '#5a6460', 1, 'left', null);
+  drawText(ctx, 'STRAIN: ' + build.name, 6, 14, build.color, 1, 'left', null);
   drawText(ctx, alarm ? 'BREACH' : 'STABLE', VIEW_W - 6, 5, alarm ? (Math.floor(t * 3) % 2 ? '#ff4040' : '#801818') : '#4a8a60', 1, 'right', null);
   drawText(ctx, 'BPM ' + bpm, VIEW_W - 6, 14, '#5a6460', 1, 'right', null);
 
