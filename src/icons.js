@@ -78,7 +78,7 @@ const ICON_RULES = [
 // What it does -> marks painted over the motif (at most two).
 const ICON_MARKS = [
   ['acid',  /acid|bile|caustic|corrod|melt|digest/],
-  ['blood', /blood|bleed|leech|hemorr|flay|gore|rend|frenzy/],
+  ['blood', /blood|bleed|leech|hemorr|flay|gore|rend|frenzy|vampir/],
   ['venom', /venom|plague|toxic|poison/],
   ['spore', /spore|pollen|fung|mycel|rot|fruit|itch|allergen|hay|sneez/],
   ['silk',  /silk|web|cocoon|tripwire|spinner/],

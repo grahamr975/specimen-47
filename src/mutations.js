@@ -49,12 +49,11 @@ function bodyPower(p) {
 }
 
 const RARITY = {
-  common:    { label: 'COMMON',    color: '#9a9284', weight: 60 },
-  uncommon:  { label: 'UNCOMMON',  color: '#8fb04a', weight: 27 },
-  rare:      { label: 'RARE',      color: '#5a8ae0', weight: 18 },
-  legendary: { label: 'LEGENDARY', color: '#e8a020', weight: 5 },
+  common:    { label: 'COMMON',    color: '#9a9284' }, // a root
+  uncommon:  { label: 'UNCOMMON',  color: '#8fb04a' }, // evolved once
+  rare:      { label: 'RARE',      color: '#5a8ae0' }, // an end form
 };
-const RARITY_ORDER = ['common', 'uncommon', 'rare', 'legendary'];
+const RARITY_ORDER = ['common', 'uncommon', 'rare']; // (set from how evolved a part is: TIER_RARITY)
 
 // MALIGNANT mutations are extra strong but carry a `cost` (shown in red).
 // Most can be cured by combining with the right partner.
@@ -183,52 +182,52 @@ const MUTATIONS = {
   // You're born spitting little slime blobs. It never branches: your first
   // MOUTH pick replaces it with a real root.
   slime: {
-    name: 'Slime Gland', slot: 'MOUTH', part: true, rarity: 'common',
+    name: 'Slime Gland', slot: 'MOUTH', part: true,
     desc: 'Spit little globs of sticky slime. Whatever they hit is slowed for a moment.',
     apply(s) { gun(s, { id: 'slime', dmg: 1, delay: 0.5, speed: 135, range: 0.55, r: 2.5, slow: 1.2, round: true, color: '#9aae8a', sound: 'splat' }); },
   },
   spike: {
-    name: 'Bone Spike', slot: 'MOUTH', rarity: 'common',
+    name: 'Bone Spike', slot: 'MOUTH',
     desc: 'Fire a fast bone spike. Harder and faster as it grows; twin spikes at full growth.',
     apply(s, l) { gun(s, { id: 'spike', dmg: 1.4 + 0.4 * (l - 1), delay: 0.6 - 0.08 * (l - 1), speed: 170, count: l >= 3 ? 2 : 1 }); },
   },
   shotgun: {
-    name: 'Splintering Jaw', from: 'spike', rarity: 'uncommon', icon: ['spike', 'marrow'],
+    name: 'Splintering Jaw', from: 'spike', icon: ['spike', 'marrow'],
     desc: 'Hold fire to charge, release to blast a spray of bone shrapnel.',
     short: 'Hold to charge, release a spray of bone shrapnel.',
     apply(s) { s.charge = true; },
   },
   bonewall: {
-    name: 'Spike Gums', from: 'shotgun', rarity: 'rare', icon: ['spike', 'chitin'],
+    name: 'Spike Gums', from: 'shotgun', icon: ['spike', 'chitin'],
     desc: 'A full-charge blast leaves a wall of bone spikes for a few seconds. It cuts whatever touches it and stops enemy shots.',
     short: 'Full charges leave a wall of spikes that stops shots.',
     apply(s) { s.boneWall = true; },
   },
   shrapnel: {
-    name: 'Shrapnel Teeth', from: 'shotgun', rarity: 'rare', icon: ['spike', 'mitosis'],
+    name: 'Shrapnel Teeth', from: 'shotgun', icon: ['spike', 'mitosis'],
     desc: 'Half again as much shrapnel, and every piece shatters into fragments on a hit.',
     short: 'More shrapnel, and it shatters on a hit.',
     apply(s) { s.chargeBonus = true; s.blastSplit = 2; },
   },
   lance: {
-    name: 'Bone Lance', from: 'spike', rarity: 'uncommon', icon: ['spike', 'eyes'],
+    name: 'Bone Lance', from: 'spike', icon: ['spike', 'eyes'],
     desc: 'Longer spikes that punch through one enemy and shatter any enemy shot they cross.',
     short: 'Longer spikes that pierce, and shatter enemy shots.',
     apply(s) { s.rangeAdd += 0.25; s.pierce += 1; s.spikeEat = true; },
   },
   splinter: {
-    name: 'Splinter Bone', from: 'lance', rarity: 'rare', icon: ['spike', 'mitosis'],
+    name: 'Splinter Bone', from: 'lance', icon: ['spike', 'mitosis'],
     desc: 'A spike that kills bursts into a ring of bone shards.',
     apply(s) { s.spikeKillRing = 6; },
   },
   venomspike: {
-    name: 'Venom Fang', from: 'lance', rarity: 'rare', overlay: ['acid'], icon: ['spike', 'bile'],
+    name: 'Venom Fang', from: 'lance', overlay: ['acid'], icon: ['spike', 'bile'],
     desc: 'Spikes drip burning bile along their whole flight.',
     apply(s) { s.venomSpike = true; },
   },
 
   bile: {
-    name: 'Bile Spit', slot: 'MOUTH', rarity: 'uncommon', overlay: ['acid'],
+    name: 'Bile Spit', slot: 'MOUTH', overlay: ['acid'],
     desc: 'Flamethrower. Hold fire to spray a fast, short-range stream of burning bile.',
     short: 'Flamethrower. Spray a short stream of burning bile.',
     apply(s, l) {
@@ -239,118 +238,118 @@ const MUTATIONS = {
     },
   },
   sporefire: {
-    name: 'Spore Lungs', from: 'bile', rarity: 'rare', overlay: ['sporepods'], icon: ['bile', 'mitosis'],
+    name: 'Spore Lungs', from: 'bile', overlay: ['sporepods'], icon: ['bile', 'mitosis'],
     desc: 'A spore mortar too, and your bile flame ignites spore clouds into burning blasts.',
     short: 'A spore mortar too. Your flame ignites the clouds.',
     apply(s, l) { MUTATIONS.spores.apply(s, l); s.sporeFire = true; },
   },
   rotbloom: {
-    name: 'Rotting Lungs', from: 'sporefire', rarity: 'rare', icon: ['mitosis', 'regrow'],
+    name: 'Rotting Lungs', from: 'sporefire', icon: ['mitosis', 'regrow'],
     desc: 'Spore clouds are bigger and slowly eat whatever is lost inside them.',
     short: 'Bigger spore clouds that slowly eat their prey.',
     apply(s) { s.cloudDps = 1.2; s.cloudMul = 1.4; },
   },
   bilemortar: {
-    name: 'Spore Cysts', from: 'sporefire', rarity: 'rare', icon: ['bile', 'spike'],
+    name: 'Spore Cysts', from: 'sporefire', icon: ['bile', 'spike'],
     desc: 'Mortar shells burrow in where they land and keep coughing up spore clouds for a few seconds.',
     short: 'Mortar shells keep coughing spore clouds.',
     apply(s) { s.lobLinger = 3; },
   },
   acidmaw: {
-    name: 'Acid Maw', from: 'bile', rarity: 'rare', overlay: ['mandibles'], icon: ['mandibles', 'bile'],
+    name: 'Acid Maw', from: 'bile', overlay: ['mandibles'], icon: ['mandibles', 'bile'],
     desc: 'Mandibles too: anything you bite rots inside, and bursts into bile when it dies.',
     short: 'Mandibles too. Bitten prey rots and bursts into bile.',
     apply(s, l) { MUTATIONS.mandibles.apply(s, l); onHit(s, 'bite', 'acidMark', { t: Infinity }); },
   },
   vomit: {
-    name: 'Purging Stomach', from: 'acidmaw', rarity: 'uncommon', icon: ['bile', 'hemophage'],
+    name: 'Purging Stomach', from: 'acidmaw', icon: ['bile', 'hemophage'],
     desc: 'When you are hurt, you vomit a ring of burning bile around you that shoves everything back.',
     short: 'Hurt: vomit a ring of bile that shoves them back.',
     apply(s, l) { s.purge = 6 + 2 * l; },
   },
   meltbite: {
-    name: 'Melting Teeth', from: 'acidmaw', rarity: 'rare', icon: ['mandibles', 'toxic'],
+    name: 'Melting Teeth', from: 'acidmaw', icon: ['mandibles', 'toxic'],
     desc: 'Bites deal triple damage to anything standing in your bile.',
     short: 'Triple bite damage on prey in your bile.',
     apply(s) { s.meltBite = true; },
   },
 
   mandibles: {
-    name: 'Mandibles', slot: 'MOUTH', rarity: 'common', overlay: ['mandibles'],
+    name: 'Mandibles', slot: 'MOUTH', overlay: ['mandibles'],
     desc: 'Melee. Fire bites whatever is in a wide arc in front of you, hard and fast, and what you bite reels.',
     short: 'Melee. Bite hard and fast in a wide arc.',
     apply(s, l) { s.bite = true; s.biteDmg += 2 + 1.2 * l; s.biteDelay = Math.min(s.biteDelay, 0.42 - 0.04 * l); },
   },
   feral: {
-    name: 'Lunging Jaw', from: 'mandibles', rarity: 'rare', overlay: ['fangs'],
+    name: 'Lunging Jaw', from: 'mandibles', overlay: ['fangs'],
     desc: 'Fire also leaps the way you are moving (untouchable for the leap) and savages everything ahead when you land.',
     short: 'Fire also leaps forward and savages the way ahead.',
     apply(s, l) { s.lunge = true; s.lungeDmg += 5 + 2 * l; s.lungeDelay = Math.min(s.lungeDelay, 0.5); },
   },
   apexjaws: {
-    name: 'Apex Jaws', from: 'feral', rarity: 'legendary', icon: ['feral', 'mandibles'],
+    name: 'Apex Jaws', from: 'feral', icon: ['feral', 'mandibles'],
     desc: 'Every lunge bites twice, and a lunge that kills lets you lunge again at once.',
     short: 'Lunges bite twice. A kill lunges again.',
     apply(s) { s.doubleBite = true; s.lungeChain = true; },
   },
   rending: {
-    name: 'Rending Fangs', from: 'feral', rarity: 'rare', overlay: ['drool'], icon: ['feral', 'horns'],
+    name: 'Rending Fangs', from: 'feral', overlay: ['drool'], icon: ['feral', 'horns'],
     desc: 'Lunges leave deep bleeding wounds, and biting a bleeding enemy can heal you.',
     short: 'Lunges leave bleeding wounds that feed you.',
     apply(s) { onHit(s, 'lunge', 'bleed', { t: 3, dps: 3 }); s.bleedFeed = 0.12; },
   },
   mawtendrils: {
-    name: 'Maw Tendrils', from: 'mandibles', rarity: 'rare', overlay: ['tentacles'], icon: ['mandibles', 'tentacles'],
+    name: 'Maw Tendrils', from: 'mandibles', overlay: ['tentacles'], icon: ['mandibles', 'tentacles'],
     desc: 'Mouths grow on tendrils from your throat. Every bite sends two after the nearest other prey around you, and they bite too (half damage).',
     short: 'Each bite sends two mouths after other prey.',
     apply(s) { s.mawTendrils = 2; },
   },
   leech: {
-    name: 'Leech Mouth', from: 'mawtendrils', rarity: 'uncommon', overlay: ['leech'], icon: ['mandibles', 'hemophage'],
+    name: 'Leech Mouth', from: 'mawtendrils', overlay: ['leech'], icon: ['mandibles', 'hemophage'],
     desc: 'Rapid little bites. Every few bites heal you.',
     short: 'Rapid little bites. Every few bites heal you.',
     apply(s, l) { s.biteDelay = Math.min(s.biteDelay, 0.26); s.leech = 7 - l; },
   },
   devour: {
-    name: 'Unhinged Jaw', from: 'mawtendrils', rarity: 'legendary', overlay: ['fangs'], icon: ['mandibles', 'starving'],
+    name: 'Unhinged Jaw', from: 'mawtendrils', overlay: ['fangs'], icon: ['mandibles', 'starving'],
     desc: 'Biting a badly wounded enemy swallows it whole.',
     apply(s) { s.devour = 0.35; },
   },
 
   tentacles: {
-    name: 'Tendrils', slot: 'MOUTH', rarity: 'uncommon', overlay: ['tentacles'],
+    name: 'Tendrils', slot: 'MOUTH', overlay: ['tentacles'],
     desc: 'Melee. Fire lashes enemies in front of you at mid range: 1 / 2 / 3 targets.',
     short: 'Melee. Lash the enemies in front of you.',
     apply(s, l) { s.lash = true; s.lashDmg += 1.5 + 0.8 * l; s.lashTargets = Math.max(s.lashTargets, l); s.lashDelay = Math.min(s.lashDelay, 0.6 - 0.05 * l); },
   },
   caustic: {
-    name: 'Caustic Tendrils', from: 'tentacles', rarity: 'rare', overlay: ['acid'], icon: ['tentacles', 'bile'],
+    name: 'Caustic Tendrils', from: 'tentacles', overlay: ['acid'], icon: ['tentacles', 'bile'],
     desc: 'Lashed enemies leak burning bile wherever they crawl.',
     apply(s) { onHit(s, 'lash', 'leak', { t: 3 }); },
   },
   writhing: {
-    name: 'Writhing Mass', from: 'caustic', rarity: 'rare', icon: ['tentacles', 'grapple'],
+    name: 'Writhing Mass', from: 'caustic', icon: ['tentacles', 'grapple'],
     desc: 'Many more tendrils: +2 targets and longer reach. The mass makes you bigger, stronger, and easier to hit.',
     short: 'More targets, longer reach. You grow bigger.',
     apply(s) { s.lashTargets += 2; s.lashRange += 15; s.bulk += 1; },
   },
   strangle: {
-    name: 'Constrictor Tendrils', from: 'caustic', rarity: 'rare', icon: ['tentacles', 'echo'],
+    name: 'Constrictor Tendrils', from: 'caustic', icon: ['tentacles', 'echo'],
     desc: 'Lashed enemies are held fast for a moment.',
     apply(s) { onHit(s, 'lash', 'stun', { t: 0.6 }); },
   },
   hooks: {
-    name: 'Bone Hooks', from: 'tentacles', rarity: 'uncommon', icon: ['tentacles', 'spike'],
+    name: 'Bone Hooks', from: 'tentacles', icon: ['tentacles', 'spike'],
     desc: 'Hooked tendrils: much longer reach, and wounds bleed.',
     apply(s) { s.lashRange += 25; onHit(s, 'lash', 'bleed', { t: 3, dps: 2 }); },
   },
   lashdrain: {
-    name: 'Sucker Tips', from: 'hooks', rarity: 'rare', icon: ['tentacles', 'hemophage'],
+    name: 'Vampiric Tendrils', from: 'hooks', icon: ['tentacles', 'hemophage'],
     desc: 'Tendrils drink as they lash. Enough blood heals you.',
     apply(s) { s.lashDrain = true; },
   },
   flay: {
-    name: 'Flaying Suckers', from: 'hooks', rarity: 'rare', icon: ['tentacles', 'barbs'],
+    name: 'Flaying Suckers', from: 'hooks', icon: ['tentacles', 'barbs'],
     desc: 'Lashing a bleeding enemy tears it open into a spray of shards.',
     short: 'Lashing a bleeding enemy tears it into shards.',
     apply(s) { s.flay = true; },
@@ -358,325 +357,325 @@ const MUTATIONS = {
 
   proboscis: {
     requires: { set: 'PREDATOR', label: 'A PREDATOR PART' },
-    name: 'Proboscis', slot: 'MOUTH', rarity: 'rare', overlay: ['proboscis'],
+    name: 'Proboscis', slot: 'MOUTH', overlay: ['proboscis'],
     desc: 'Hold fire to latch a draining beam onto prey. Drained blood heals you. The tube takes a moment to reach its prey, and to pull back before it can go for another; it cannot reach through walls.',
     short: 'Hold fire to latch on and drain. Blood heals you.',
     apply(s, l) { s.beam += 0.25 + 0.1 * l; },
   },
   siphon: {
-    name: 'Forked Proboscis', from: 'proboscis', rarity: 'rare', icon: ['proboscis', 'tentacles'],
+    name: 'Forked Proboscis', from: 'proboscis', icon: ['proboscis', 'tentacles'],
     desc: 'The beam forks into a second victim nearby.',
     apply(s) { s.beamChain = true; },
   },
   hemorrhage: {
-    name: 'Bleeding Saliva', from: 'siphon', rarity: 'rare', icon: ['proboscis', 'horns'],
+    name: 'Bleeding Saliva', from: 'siphon', icon: ['proboscis', 'horns'],
     desc: 'Drained enemies keep bleeding after you let go.',
     apply(s) { onHit(s, 'beam', 'bleed', { t: 2, dps: 2 }); },
   },
   bloodbattery: {
-    name: 'Blood Bladder', from: 'siphon', rarity: 'rare', icon: ['proboscis', 'hide'],
+    name: 'Blood Bladder', from: 'siphon', icon: ['proboscis', 'hide'],
     desc: 'You need half as much blood to heal.',
     apply(s) { s.drainHeal = 6; },
   },
   bloat: {
-    name: 'Venom Sac', from: 'proboscis', rarity: 'rare', icon: ['proboscis', 'overgrown'],
+    name: 'Venom Sac', from: 'proboscis', icon: ['proboscis', 'overgrown'],
     desc: 'Enemies drained to death swell and burst, spraying everything near them.',
     short: 'Enemies you drain to death burst on their friends.',
     apply(s) { s.drainBurst = true; },
   },
   sporesac: {
-    name: 'Spore Sac', from: 'bloat', rarity: 'rare', overlay: ['sporepods'], icon: ['proboscis', 'mitosis'],
+    name: 'Spore Sac', from: 'bloat', overlay: ['sporepods'], icon: ['proboscis', 'mitosis'],
     desc: 'Bursting victims release blinding spore clouds.',
     apply(s) { s.burstSpores = true; },
   },
   longtube: {
-    name: 'Gorging Tube', from: 'bloat', rarity: 'rare', icon: ['proboscis', 'eyes'],
+    name: 'Gorging Tube', from: 'bloat', icon: ['proboscis', 'eyes'],
     desc: 'A longer, hungrier proboscis: much more reach and drain.',
     apply(s) { s.beamRange += 32; s.beam *= 1.5; },
   },
   // ---- Playstyle roots: they replace shooting with something else entirely ----
   ovipositor: {
     requires: { any: ['eggsac', 'brood'], label: 'EGG SAC OR BROOD' },
-    name: 'Ovipositor', slot: 'MOUTH', boss: true, rarity: 'rare', overlay: ['proboscis'],
+    name: 'Ovipositor', slot: 'MOUTH', boss: true, overlay: ['proboscis'],
     desc: 'Slowly launch a larva. It burrows into a host, eats it from inside, then bursts out to find new hosts.',
     short: 'Launch a larva that eats its host from inside.',
     apply(s, l) { s.ovi = { delay: 1.5 - 0.15 * (l - 1), dps: 0.5 + 0.25 * l, brood: l >= 3 ? 3 : 2, burstDmg: 2 + l, time: 4 }; },
   },
   broodhost: {
-    name: 'Egg Duct', from: 'ovipositor', rarity: 'uncommon', icon: ['ovipositor', 'spider'],
+    name: 'Egg Duct', from: 'ovipositor', icon: ['ovipositor', 'spider'],
     desc: 'Half of what bursts out of a host hatches as spiderlings that fight for you.',
     short: 'Hosts burst into spiderlings that fight for you.',
     apply(s) { s.oviSpider = true; },
   },
   swarmqueen: {
-    name: 'Queen Gland', from: 'broodhost', rarity: 'legendary', icon: ['ovipositor', 'parasite'],
+    name: 'Queen Gland', from: 'broodhost', icon: ['ovipositor', 'parasite'],
     desc: 'Infested hosts turn on their own kind until they burst.',
     apply(s) { s.oviCharm = true; },
   },
   gestation: {
-    name: 'Gestation Sac', from: 'broodhost', rarity: 'rare', icon: ['ovipositor', 'hide'],
+    name: 'Gestation Sac', from: 'broodhost', icon: ['ovipositor', 'hide'],
     desc: 'Hosts carry the larva longer, and the longer they carry it, the bigger the brood.',
     short: 'Hosts carry longer, and burst into bigger broods.',
     apply(s) { s.ovi.time = 6; s.oviGrow = true; },
   },
   bloodworm: {
-    name: 'Bloodworm', from: 'ovipositor', rarity: 'uncommon', icon: ['ovipositor', 'hemophage'],
+    name: 'Bloodworm', from: 'ovipositor', icon: ['ovipositor', 'hemophage'],
     desc: 'The larva feeds far harder, and hosts burst sooner.',
     apply(s) { s.ovi.dps *= 2.5; s.ovi.time = 3; },
   },
   chestburster: {
-    name: 'Chestburster', from: 'bloodworm', rarity: 'rare', icon: ['ovipositor', 'overgrown'],
+    name: 'Chestburster', from: 'bloodworm', icon: ['ovipositor', 'overgrown'],
     desc: 'The brood tears its host apart, hurting everything near it.',
     apply(s, l) { s.oviBurst = 4 + l; },
   },
   puppetlarva: {
-    name: 'Puppet Nerve', from: 'bloodworm', rarity: 'rare', icon: ['ovipositor', 'echo'],
+    name: 'Puppet Nerve', from: 'bloodworm', icon: ['ovipositor', 'echo'],
     desc: 'Hosts stagger around blind and slow while it eats them.',
     apply(s) { onHit(s, 'ovi', 'blind', { t: 0.4 }); onHit(s, 'ovi', 'slow', { t: 0.3 }); },
   },
 
   miasma: {
     requires: { any: ['toxic', 'bacteria', 'fins'], label: 'TOXIC BLOOD, BACTERIA OR PSEUDOPODS' },
-    name: 'Miasma Pores', slot: 'MOUTH', boss: true, rarity: 'rare',
+    name: 'Miasma Pores', slot: 'MOUTH', boss: true,
     desc: 'No attack. You leak a toxic cloud that eats everything near you. Hold fire to vent it wider, but you slow down.',
     apply(s, l) { s.miasma = { r: 30 + 4 * (l - 1), dps: 1.6 + 0.6 * (l - 1) }; },
   },
   shroud: {
-    name: 'Shroud Pores', from: 'miasma', rarity: 'uncommon', icon: ['miasma', 'eyes'],
+    name: 'Shroud Pores', from: 'miasma', icon: ['miasma', 'eyes'],
     desc: 'Enemies inside your gas lose track of you.',
     apply(s) { onHit(s, 'gas', 'blind', { t: 0.4 }); },
   },
   rothalo: {
-    name: 'Rotting Breath', from: 'shroud', rarity: 'rare', icon: ['miasma', 'mitosis'],
+    name: 'Rotting Breath', from: 'shroud', icon: ['miasma', 'mitosis'],
     desc: 'Anything that dies in your gas leaves a lingering toxic cloud of its own.',
     short: 'Kills in your gas leave toxic clouds of their own.',
     apply(s) { s.gasDeathCloud = true; },
   },
   phantom: {
-    name: 'Phantom Skin', from: 'shroud', rarity: 'rare', icon: ['miasma', 'nighteyes'],
+    name: 'Phantom Skin', from: 'shroud', icon: ['miasma', 'nighteyes'],
     desc: 'While you vent, you vanish: nothing can find you.',
     apply(s) { s.gasInvis = true; },
   },
   causticlungs: {
-    name: 'Caustic Lungs', from: 'miasma', rarity: 'uncommon', icon: ['miasma', 'toxic'],
+    name: 'Caustic Lungs', from: 'miasma', icon: ['miasma', 'toxic'],
     desc: 'The longer something stays in your gas, the faster it dissolves.',
     short: 'The longer they breathe your gas, the faster they melt.',
     apply(s) { s.gasRamp = true; },
   },
   corrode: {
-    name: 'Corroding Breath', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'bile'],
+    name: 'Corroding Breath', from: 'causticlungs', icon: ['miasma', 'bile'],
     desc: 'Your gas corrodes too, and everything Corroded takes +50% damage (instead of +25%) and burns twice as fast.',
     short: 'Your gas corrodes too, and harder.',
     apply(s) { s.gasCorrode = true; s.corrodeMul = 0.5; s.corrodeDps = CORRODE_DPS * 2; },
   },
   choke: {
-    name: 'Choking Breath', from: 'causticlungs', rarity: 'rare', icon: ['miasma', 'twitch'],
+    name: 'Choking Breath', from: 'causticlungs', icon: ['miasma', 'twitch'],
     desc: 'Your gas slows enemies, and their shots crawl through it.',
     short: 'Your gas slows enemies and their shots.',
     apply(s) { s.gasChoke = true; onHit(s, 'gas', 'slow', { t: 0.3 }); }, // (gasChoke also slows bullets in your gas)
   },
 
   howl: {
-    name: 'Howling Throat', slot: 'MOUTH', boss: true, rarity: 'uncommon',
+    name: 'Howling Throat', slot: 'MOUTH', boss: true,
     desc: 'A sonic cone that barely hurts but hurls enemies into walls and each other, and shreds their shots out of the air.',
     short: 'A sonic cone that hurls enemies and shreds shots.',
     apply(s, l) { s.howl = { delay: 0.8 - 0.05 * (l - 1), dmg: 0.3 * l, force: 300 + 40 * l, range: 62, cone: 0.55, slam: 2 + 1.2 * l }; },
   },
   shockwave: {
-    name: 'Booming Chest', from: 'howl', rarity: 'uncommon', icon: ['howl', 'slam'],
+    name: 'Booming Chest', from: 'howl', icon: ['howl', 'slam'],
     desc: 'The howl bursts out all around you instead of ahead.',
     apply(s) { s.howl.cone = -1; s.howl.range *= 0.85; },
   },
   concussion: {
-    name: 'Concussive Larynx', from: 'shockwave', rarity: 'rare', icon: ['howl', 'echo'],
+    name: 'Concussive Larynx', from: 'shockwave', icon: ['howl', 'echo'],
     desc: 'Whatever the howl hits is stunned.',
     apply(s) { onHit(s, 'howl', 'stun', { t: 0.8 }); },
   },
   avalanche: {
-    name: 'Thundering Lungs', from: 'shockwave', rarity: 'rare', icon: ['howl', 'skull'],
+    name: 'Thundering Lungs', from: 'shockwave', icon: ['howl', 'skull'],
     desc: 'Anything flung into another enemy flings that one too.',
     apply(s) { s.howlChain = true; },
   },
   soniclance: {
-    name: 'Bone Larynx', from: 'howl', rarity: 'uncommon', icon: ['howl', 'spike'],
+    name: 'Bone Larynx', from: 'howl', icon: ['howl', 'spike'],
     desc: 'A narrower, longer howl that carries a spray of bone shards with it.',
     short: 'A long, narrow howl that carries bone shards.',
     apply(s) { s.howl.cone = 0.85; s.howl.range *= 1.5; s.howlShards = 5; },
   },
   wallbreaker: {
-    name: 'Pounding Diaphragm', from: 'soniclance', rarity: 'rare', icon: ['howl', 'marrow'],
+    name: 'Pounding Diaphragm', from: 'soniclance', icon: ['howl', 'marrow'],
     desc: 'Enemies you slam into walls take far more and burst into bone shards.',
     short: 'Enemies slammed into walls burst into shards.',
     apply(s) { s.wallSlamMul = 2.5; },
   },
   rupture: {
-    name: 'Rupturing Voicebox', from: 'soniclance', rarity: 'rare', icon: ['howl', 'horns'],
+    name: 'Rupturing Voicebox', from: 'soniclance', icon: ['howl', 'horns'],
     desc: 'The howl ruptures them inside: they bleed.',
     apply(s) { onHit(s, 'howl', 'bleed', { t: 3, dps: 2.5 }); },
   },
 
   polyp: {
-    name: 'Polyp Womb', slot: 'MOUTH', boss: true, rarity: 'uncommon',
+    name: 'Polyp Womb', slot: 'MOUTH', boss: true,
     desc: 'Fire plants a fleshy polyp that spits at anything nearby. Only a few can grow at once.',
     apply(s, l) { s.polyp = { delay: 1.1, max: 1 + l, dmg: 0.7 + 0.25 * l, rate: 0.9, life: 14 }; },
   },
   sporepolyp: {
-    name: 'Spore Polyp', from: 'polyp', rarity: 'uncommon', icon: ['polyp', 'mitosis'],
+    name: 'Spore Polyp', from: 'polyp', icon: ['polyp', 'mitosis'],
     desc: 'Polyps spit spores that burst into blinding clouds.',
     apply(s) { s.polypCloud = true; },
   },
   fruiting: {
-    name: 'Fruiting Bodies', from: 'sporepolyp', rarity: 'rare', icon: ['polyp', 'overgrown'],
+    name: 'Fruiting Bodies', from: 'sporepolyp', icon: ['polyp', 'overgrown'],
     desc: 'Polyps burst in burning bile when something touches them, or when they wither.',
     short: 'Polyps burst into burning bile when touched.',
     apply(s) { s.polypBurst = true; },
   },
   mycelialweb: {
-    name: 'Mycelial Veins', from: 'sporepolyp', rarity: 'rare', icon: ['polyp', 'silk'],
+    name: 'Mycelial Veins', from: 'sporepolyp', icon: ['polyp', 'silk'],
     desc: 'Your polyps are joined by threads that eat whatever crosses them.',
     short: 'Threads join your polyps and eat what crosses.',
     apply(s) { s.polypLink = true; },
   },
   tendrilpolyp: {
-    name: 'Tendril Polyp', from: 'polyp', rarity: 'uncommon', icon: ['polyp', 'tentacles'],
+    name: 'Tendril Polyp', from: 'polyp', icon: ['polyp', 'tentacles'],
     desc: 'Polyps lash whatever comes close instead of spitting, much harder.',
     short: 'Polyps lash nearby enemies instead of spitting.',
     apply(s) { s.polypLash = true; },
   },
   graspingbed: {
-    name: 'Grasping Polyps', from: 'tendrilpolyp', rarity: 'rare', icon: ['polyp', 'grapple'],
+    name: 'Grasping Polyps', from: 'tendrilpolyp', icon: ['polyp', 'grapple'],
     desc: 'Polyp tendrils drag prey in and hold it.',
     apply(s) { s.polypGrab = true; },
   },
   feedingpolyps: {
-    name: 'Feeding Polyps', from: 'tendrilpolyp', rarity: 'rare', icon: ['polyp', 'hemophage'],
+    name: 'Feeding Polyps', from: 'tendrilpolyp', icon: ['polyp', 'hemophage'],
     desc: 'More polyps, living longer, and what they kill feeds you.',
     apply(s) { s.polyp.max += 1; s.polyp.life *= 1.5; s.polypFeed = 5; },
   },
 
   tongue: {
-    name: 'Frog Tongue', slot: 'MOUTH', boss: true, rarity: 'uncommon',
+    name: 'Frog Tongue', slot: 'MOUTH', boss: true,
     desc: 'Hold fire to coil a long tongue, release to lash it out (further the longer you hold). Small prey is swallowed whole; tap fire to spit it back out.',
     short: 'Hold to coil, release to lash. Swallow small prey.',
     apply(s, l) { s.tongue = { delay: 0.55, range: 70 + 10 * l, dmg: 1.5 + 0.8 * l, spit: 3 + 1.5 * l, max: 3, size: 6 }; },
   },
   bottomlessgut: {
-    name: 'Bottomless Gut', from: 'tongue', rarity: 'uncommon', icon: ['tongue', 'starving'],
+    name: 'Bottomless Gut', from: 'tongue', icon: ['tongue', 'starving'],
     desc: 'Swallow bigger prey, and hold far more of it.',
     apply(s) { s.tongue.max = 6; s.tongue.size = 7.5; },
   },
   acidgut: {
-    name: 'Acid Gut', from: 'bottomlessgut', rarity: 'rare', icon: ['tongue', 'bile'],
+    name: 'Acid Gut', from: 'bottomlessgut', icon: ['tongue', 'bile'],
     desc: 'What you spit back is half-digested and bursts into burning bile.',
     short: 'Spat-out prey bursts into burning bile.',
     apply(s) { s.spitAcid = 16; },
   },
   regurgitate: {
-    name: 'Bone Gizzard', from: 'bottomlessgut', rarity: 'rare', icon: ['tongue', 'spike'],
+    name: 'Bone Gizzard', from: 'bottomlessgut', icon: ['tongue', 'spike'],
     desc: 'What you spit back shatters into bone shards on impact.',
     apply(s) { s.spitSplit = 5; },
   },
   barbedtongue: {
-    name: 'Barbed Tongue', from: 'tongue', rarity: 'uncommon', icon: ['tongue', 'barbs'],
+    name: 'Barbed Tongue', from: 'tongue', icon: ['tongue', 'barbs'],
     desc: 'The tongue tears through everything along its length.',
     apply(s) { s.tongue.dmg *= 1.6; s.tonguePierce = true; },
   },
   grappletongue: {
-    name: 'Grapple Tongue', from: 'barbedtongue', rarity: 'rare', icon: ['tongue', 'grapple'],
+    name: 'Grapple Tongue', from: 'barbedtongue', icon: ['tongue', 'grapple'],
     desc: 'Lash anything too big to swallow, or a wall, and the tongue reels YOU in (never into a boss).',
     short: 'Lash a wall or big prey and the tongue reels you in.',
     apply(s) { s.tongueYank = true; },
   },
   venomtongue: {
-    name: 'Venom Tongue', from: 'barbedtongue', rarity: 'rare', icon: ['tongue', 'toxic'],
+    name: 'Venom Tongue', from: 'barbedtongue', icon: ['tongue', 'toxic'],
     desc: 'The tongue leaves venom: what it touches bleeds and slows.',
     short: 'What the tongue touches bleeds and slows.',
     apply(s) { onHit(s, 'tongue', 'bleed', { t: 3, dps: 2 }); onHit(s, 'tongue', 'slow', { t: 1.5 }); },
   },
 
   silk: {
-    name: 'Spinnerets', slot: 'MOUTH', rarity: 'uncommon',
+    name: 'Spinnerets', slot: 'MOUTH',
     desc: 'Fire spins a line of sticky web across the floor. Anything caught in it is stuck, and the silk cuts.',
     apply(s, l) { s.silk = { delay: 0.8, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.2 + 0.6 * l }; },
   },
   stickyweb: {
-    name: 'Glue Glands', from: 'silk', rarity: 'uncommon', icon: ['silk', 'hide'],
+    name: 'Glue Glands', from: 'silk', icon: ['silk', 'hide'],
     desc: 'The first time something touches a web, it is held completely.',
     short: 'The first touch on a web holds it completely.',
     apply(s) { onHit(s, 'silk', 'stun', { t: 1.4 }, { say: ['STUCK', '#e0d8d0'] }); },
   },
   webbrood: {
-    name: 'Cocoon Glands', from: 'stickyweb', rarity: 'rare', icon: ['silk', 'spider'],
+    name: 'Cocoon Glands', from: 'stickyweb', icon: ['silk', 'spider'],
     desc: 'Anything that dies in your web is wrapped up, and spiderlings hatch from it.',
     short: 'Kills in your web hatch spiderlings.',
     apply(s) { s.webBrood = 2; },
   },
   tripwire: {
-    name: 'Tripwire Spinnerets', from: 'stickyweb', rarity: 'rare', icon: ['silk', 'spines'],
+    name: 'Tripwire Spinnerets', from: 'stickyweb', icon: ['silk', 'spines'],
     desc: 'A web snaps when something hits it, firing bone shards all along its length.',
     short: 'Webs snap when hit, firing shards along them.',
     apply(s) { s.webSnap = true; },
   },
   razorsilk: {
-    name: 'Razor Spinnerets', from: 'silk', rarity: 'uncommon', icon: ['silk', 'horns'],
+    name: 'Razor Spinnerets', from: 'silk', icon: ['silk', 'horns'],
     desc: 'The silk is sharp: it cuts three times as deep.',
     apply(s) { s.silk.dmg *= 3; },
   },
   acidsilk: {
-    name: 'Acid Spinnerets', from: 'razorsilk', rarity: 'rare', icon: ['silk', 'bile'],
+    name: 'Acid Spinnerets', from: 'razorsilk', icon: ['silk', 'bile'],
     desc: 'Whatever touches your web leaks burning bile as it crawls.',
     short: 'What touches your web leaks burning bile.',
     apply(s) { onHit(s, 'silk', 'leak', { t: 3 }); },
   },
   lair: {
-    name: 'Silk Glands', from: 'razorsilk', rarity: 'rare', icon: ['silk', 'chitin'],
+    name: 'Silk Glands', from: 'razorsilk', icon: ['silk', 'chitin'],
     desc: 'More webs that last far longer, and you run faster along your own silk.',
     short: 'More webs that last longer; run fast on silk.',
     apply(s) { s.silk.max += 3; s.silk.life *= 2; s.webLair = true; },
   },
   // Not offered on its own: Spore Fire grows it.
   spores: {
-    name: 'Spore Cough', slot: 'MOUTH', part: true, rarity: 'uncommon', overlay: ['sporepods'],
+    name: 'Spore Cough', slot: 'MOUTH', part: true, overlay: ['sporepods'],
     desc: 'Mortar. Lob spores over cover to where you aim; they burst into blinding clouds.',
     apply(s, l) { gun(s, { id: 'spores', dmg: 0.8, delay: 0.9, lob: true, cloud: 20 + 4 * l, r: 3, color: '#7a8a52', sound: 'splat' }); },
   },
 
   // ================= HEAD =================
   eyes: {
-    name: 'Extra Eyes', slot: 'HEAD', rarity: 'uncommon', overlay: ['eyes'],
+    name: 'Extra Eyes', slot: 'HEAD', overlay: ['eyes'],
     desc: 'Shots curve toward prey. Melee reaches further. Every few seconds it marks the toughest prey in sight; it takes more damage from everything.',
     apply(s, l) { s.homing += 2 + 1.5 * l; s.headActive = { kind: 'mark', l }; s.rangeAdd += 0.1 * l; s.reach += 3 * l; },
   },
   compound: {
-    name: 'Compound Eyes', from: 'eyes', rarity: 'uncommon', overlay: ['compound'], icon: ['eyes', 'chitin'],
+    name: 'Compound Eyes', from: 'eyes', overlay: ['compound'], icon: ['eyes', 'chitin'],
     desc: 'A wider light, and enemy shots slow down near you.',
     apply(s, l) { s.lightMul *= 1.3; s.compound = l >= 3 ? 0.4 : 0.55; },
   },
   hivesight: {
-    name: 'Hive Eyes', from: 'compound', rarity: 'rare', overlay: ['antennae'], icon: ['eyes', 'spider'],
+    name: 'Hive Eyes', from: 'compound', overlay: ['antennae'], icon: ['eyes', 'spider'],
     desc: 'Feel them in the dark, and their shots nearly stop near you.',
     apply(s) { s.antennae = true; s.compound = 0.25; },
   },
   glare: {
-    name: 'Glaring Eyes', from: 'compound', rarity: 'rare', icon: ['eyes', 'abyssal'],
+    name: 'Glaring Eyes', from: 'compound', icon: ['eyes', 'abyssal'],
     desc: 'Every few seconds your eyes flash, blinding everything close to you.',
     short: 'Your eyes flash, blinding everything close.',
     apply(s) { s.glare = 3; },
   },
   abyssal: {
-    name: 'Abyssal Eye', from: 'eyes', rarity: 'legendary', overlay: ['thirdeye'],
+    name: 'Abyssal Eye', from: 'eyes', overlay: ['thirdeye'],
     desc: 'It sees through flesh. Shots pierce 2 enemies and seek. +30% damage.',
     short: 'Shots pierce and seek. Much more damage.',
     apply(s) { s.pierce += 2; s.homing += 3; s.damageMul *= 1.3; },
   },
   evileye: {
-    name: 'Evil Eye', from: 'abyssal', rarity: 'rare', icon: ['abyssal', 'nighteyes'],
+    name: 'Evil Eye', from: 'abyssal', icon: ['abyssal', 'nighteyes'],
     desc: 'Your marks last twice as long, and when marked prey dies, the mark jumps to the next toughest prey nearby.',
     short: 'Marks last longer, and jump to new prey.',
     apply(s) { s.markTime = 2; s.markSpread = true; },
   },
   fractured: {
-    name: 'Fractured Eye', from: 'abyssal', rarity: 'rare', malignant: true, overlay: ['mitosis'], icon: ['abyssal', 'mitosis'],
+    name: 'Fractured Eye', from: 'abyssal', malignant: true, overlay: ['mitosis'], icon: ['abyssal', 'mitosis'],
     desc: 'Your shots and bites hit much harder, but your eye will not hold still: your aim drifts and wobbles off target.',
     costShort: 'Your eye will not hold still.',
     cost: 'Your aim drifts and wobbles off target.',
@@ -685,46 +684,46 @@ const MUTATIONS = {
   },
 
   skull: {
-    name: 'Battering Skull', slot: 'HEAD', rarity: 'common', overlay: ['horns'],
+    name: 'Battering Skull', slot: 'HEAD', overlay: ['horns'],
     desc: 'Your dash becomes a charge that rams enemies for heavy damage. Anything that gets in your face takes a brutal, stunning headbutt.',
     short: 'Your dash rams for heavy damage. Headbutts stun.',
     apply(s, l) { s.dashDmg += 2 + 2 * l; s.headActive = { kind: 'headbutt', l }; },
   },
   horns: {
-    name: 'Gore Horns', from: 'skull', rarity: 'uncommon', overlay: ['gorehorns'],
+    name: 'Gore Horns', from: 'skull', overlay: ['gorehorns'],
     desc: 'Charge further. Enemies you ram bleed out over time.',
     apply(s, l) { s.dashTime += 0.04 * l; s.dashDmg += l; onHit(s, 'dash', 'bleed', { t: 3, dps: 1.5 * l }, {}, 'add'); },
   },
   juggernaut: {
-    name: 'Juggernaut Neck', from: 'horns', rarity: 'legendary', icon: ['skull', 'horns'],
+    name: 'Juggernaut Neck', from: 'horns', icon: ['skull', 'horns'],
     desc: 'Rammed enemies are launched into walls and each other. Charge kills refresh your dash.',
     apply(s) { s.juggernaut = true; s.dashReset = true; },
   },
   bloodletter: {
-    name: 'Bloodletting Horns', from: 'horns', rarity: 'rare', icon: ['horns', 'hemophage'],
+    name: 'Bloodletting Horns', from: 'horns', icon: ['horns', 'hemophage'],
     desc: 'Ramming an enemy that is already bleeding makes it burst, hurting everything near it.',
     short: 'Ram a bleeding enemy and it bursts.',
     apply(s) { s.bleedBurst = true; },
   },
   echo: {
-    name: 'Echoing Skull', from: 'skull', rarity: 'uncommon', overlay: ['echo'], icon: ['skull', 'antennae'],
+    name: 'Echoing Skull', from: 'skull', overlay: ['echo'], icon: ['skull', 'antennae'],
     desc: 'Your skull rings: every headbutt and every dash bursts bone shards out of you.',
     short: 'Headbutts and dashes burst bone shards.',
     apply(s, l) { s.skullRing = 4 + 2 * l; },
   },
   shatter: {
-    name: 'Shatter Skull', from: 'echo', rarity: 'rare', icon: ['skull', 'spike'],
+    name: 'Shatter Skull', from: 'echo', icon: ['skull', 'spike'],
     desc: 'Stunned enemies take double damage.',
     apply(s) { s.stunBreak = true; },
   },
   ossified: {
-    name: 'Ossified Skull', from: 'echo', rarity: 'rare', icon: ['skull', 'chitin'],
+    name: 'Ossified Skull', from: 'echo', icon: ['skull', 'chitin'],
     desc: 'While your headbutt is ready, your skull takes a hit for you. Then it has to recover.',
     apply(s) { s.skullGuard = true; },
   },
 
   nighteyes: {
-    name: 'Night Eyes', slot: 'HEAD', rarity: 'uncommon', malignant: true, overlay: ['compound'],
+    name: 'Night Eyes', slot: 'HEAD', malignant: true, overlay: ['compound'],
     desc: '+50% damage (more as it grows) to enemies outside your light. When something closes in, your light snuffs out and the whole room goes dark.',
     short: 'Far more damage to prey outside your light.',
     cost: 'Your light shrinks to a small circle.',
@@ -732,35 +731,35 @@ const MUTATIONS = {
     apply(s, l) { s.nightEyes += 0.3 + 0.2 * l; s.headActive = { kind: 'blackout', l }; s.lightMul *= 0.6; },
   },
   owleyes: {
-    name: 'Owl Eyes', from: 'nighteyes', rarity: 'rare', cures: true, icon: ['nighteyes', 'eyes'],
+    name: 'Owl Eyes', from: 'nighteyes', cures: true, icon: ['nighteyes', 'eyes'],
     desc: 'CURED. Keep the darkness bonus, and your light returns to normal.',
     short: 'CURED. Keep the dark bonus; your light returns.',
     apply(s) { s.lightMul /= 0.6; },
   },
   antennae: {
-    name: 'Antennae', from: 'owleyes', rarity: 'uncommon', overlay: ['antennae'],
+    name: 'Antennae', from: 'owleyes', overlay: ['antennae'],
     desc: 'Feel movement in the dark: see enemies as faint outlines. Hit the dark harder.',
     apply(s) { s.antennae = true; s.nightEyes += 0.3; },
   },
   stalker: {
-    name: 'Stalker Eyes', from: 'owleyes', rarity: 'rare', icon: ['nighteyes', 'hemophage'],
+    name: 'Stalker Eyes', from: 'owleyes', icon: ['nighteyes', 'hemophage'],
     desc: 'Kills out in the dark can heal you.',
     apply(s) { s.darkHeal = 0.15; },
   },
   pitchblack: {
-    name: 'Black Pupils', from: 'nighteyes', rarity: 'rare', malignant: true, icon: ['nighteyes', 'abyssal'],
+    name: 'Black Pupils', from: 'nighteyes', malignant: true, icon: ['nighteyes', 'abyssal'],
     desc: 'Far more damage out in the dark.',
     cost: 'Your light shrinks even further.',
     costShort: 'The dark closes in.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.nightEyes += 0.75; s.lightMul *= 0.8; },
   },
   darkstare: {
-    name: 'Abyss Eyes', from: 'pitchblack', rarity: 'rare', icon: ['nighteyes', 'echo'],
+    name: 'Abyss Eyes', from: 'pitchblack', icon: ['nighteyes', 'echo'],
     desc: 'Shots that hit out in the dark stun.',
     apply(s) { s.darkStun = 0.5; },
   },
   lightless: {
-    name: 'Sealed Eyes', from: 'pitchblack', rarity: 'legendary', malignant: true, overlay: ['antennae'], icon: ['nighteyes', 'starving'],
+    name: 'Sealed Eyes', from: 'pitchblack', malignant: true, overlay: ['antennae'], icon: ['nighteyes', 'starving'],
     desc: 'You feel them instead of seeing them, and the dark doubles everything.',
     short: 'You feel them in the dark, and the dark doubles all.',
     cost: 'Almost no light at all.',
@@ -770,7 +769,7 @@ const MUTATIONS = {
 
   parasite: {
     requires: { any: ['mitosis', 'twin'], label: 'MITOSIS OR A TWIN' },
-    name: 'Parasite Brain', slot: 'HEAD', boss: true, rarity: 'rare', malignant: true, overlay: ['parasite'],
+    name: 'Parasite Brain', slot: 'HEAD', boss: true, malignant: true, overlay: ['parasite'],
     desc: 'It steers your aim onto the prey nearest your crosshair, harder as it grows. Every few seconds it mind-spikes the nearest enemy, stunning and wounding it. Fully grown, it shoots for you.',
     short: 'It steers your aim onto prey.',
     cost: 'Sometimes it takes control of your body.',
@@ -778,25 +777,25 @@ const MUTATIONS = {
     apply(s, l) { s.parasite = true; s.aimAssist = Math.max(s.aimAssist || 0, 0.25 + 0.1 * l); s.headActive = { kind: 'mindspike', l }; },
   },
   symbiote: {
-    name: 'Symbiote Brain', from: 'parasite', rarity: 'legendary', cures: true, icon: ['parasite', 'antennae'],
+    name: 'Symbiote Brain', from: 'parasite', cures: true, icon: ['parasite', 'antennae'],
     desc: 'CURED. The parasite works with you now: it never takes control, and it steers your aim harder.',
     short: 'CURED. A helper now: it steers your aim harder.',
     apply(s) { s.symbiote = true; s.aimAssist = (s.aimAssist || 0) + 0.15; },
   },
   brainworm: {
-    name: 'Brain Worm', from: 'symbiote', rarity: 'rare', icon: ['parasite', 'echo'],
+    name: 'Brain Worm', from: 'symbiote', icon: ['parasite', 'echo'],
     desc: 'Fully grown, it aims and fires your weapons for you every few seconds, and your hits sometimes stun.',
     short: 'It shoots for you, and your hits can stun.',
     apply(s) { onHit(s, 'any', 'stun', { t: 0.8 }, { chance: 0.12 }); s.parasiteGunner = PARASITE_GUNNER; },
   },
   overmind: {
-    name: 'Overbrain', from: 'symbiote', rarity: 'rare', overlay: ['echo'], icon: ['parasite', 'skull'],
+    name: 'Overbrain', from: 'symbiote', overlay: ['echo'], icon: ['parasite', 'skull'],
     desc: 'Fully grown, it aims and fires your weapons for you every few seconds, and it screams through you when you dash, stunning everything near.',
     short: 'It shoots for you, and screams when you dash.',
     apply(s) { s.echo = Math.max(s.echo, 1.2); s.parasiteGunner = PARASITE_GUNNER; },
   },
   rider: {
-    name: 'Rider Nerves', from: 'parasite', rarity: 'rare', malignant: true, icon: ['parasite', 'twitch'],
+    name: 'Rider Nerves', from: 'parasite', malignant: true, icon: ['parasite', 'twitch'],
     desc: 'While it drives, nothing can hurt you, and it steers your aim harder even when it lets go.',
     short: 'While it drives, nothing can hurt you.',
     cost: 'It takes control far more often.',
@@ -804,13 +803,13 @@ const MUTATIONS = {
     apply(s) { s.parasiteInv = true; s.parasiteOften = true; s.aimAssist = (s.aimAssist || 0) + 0.1; },
   },
   berserkhost: {
-    name: 'Berserker Brain', from: 'rider', rarity: 'rare', icon: ['parasite', 'feral'],
+    name: 'Berserker Brain', from: 'rider', icon: ['parasite', 'feral'],
     desc: 'While it drives, it attacks the nearest enemy for you, twice as fast. Fully grown, it shoots for you even when it lets go.',
     short: 'It hunts for you, and shoots for you.',
     apply(s) { s.parasiteFrenzy = true; s.parasiteGunner = PARASITE_GUNNER; },
   },
   cerebral: {
-    name: 'Bloated Cerebrum', from: 'rider', rarity: 'rare', malignant: true, icon: ['parasite', 'overgrown'],
+    name: 'Bloated Cerebrum', from: 'rider', malignant: true, icon: ['parasite', 'overgrown'],
     desc: 'Your swollen brain hits much harder, and fully grown it shoots for you. But your head weighs you down: you move slower.',
     short: 'You hit much harder, and it shoots for you.',
     cost: 'You move slower.',
@@ -819,39 +818,39 @@ const MUTATIONS = {
   },
 
   bloom: {
-    name: 'Scalp Bloom', slot: 'HEAD', rarity: 'uncommon',
+    name: 'Scalp Bloom', slot: 'HEAD',
     desc: 'A carnivorous flower opens on your head. It puffs pollen; pollinated enemies take more damage. When something gets close, it bursts, pollinating everything around you.',
     short: 'Pollen makes enemies take more damage.',
     apply(s, l) { s.pollen = { r: 42, every: 3.2 - 0.4 * (l - 1) }; s.headActive = { kind: 'pollenburst', l }; },
   },
   venusmaw: {
-    name: 'Venus Maw', from: 'bloom', rarity: 'uncommon', icon: ['bloom', 'mandibles'],
+    name: 'Venus Maw', from: 'bloom', icon: ['bloom', 'mandibles'],
     desc: 'The flower bites anything that touches you.',
     apply(s, l) { s.flowerBite = 2 + l; },
   },
   digest: {
-    name: 'Flower Stomach', from: 'venusmaw', rarity: 'rare', icon: ['bloom', 'hemophage'],
+    name: 'Flower Stomach', from: 'venusmaw', icon: ['bloom', 'hemophage'],
     desc: 'What the flower kills, it digests: it can heal you.',
     apply(s) { s.flowerHeal = 0.3; },
   },
   snaptrap: {
-    name: 'Snapping Petals', from: 'venusmaw', rarity: 'rare', icon: ['bloom', 'echo'],
+    name: 'Snapping Petals', from: 'venusmaw', icon: ['bloom', 'echo'],
     desc: 'The flower snaps shut on what it bites, holding it fast.',
     short: 'The flower snaps shut and holds its prey.',
     apply(s) { s.flowerStun = 1.2; },
   },
   sporebloom: {
-    name: 'Spore Stamen', from: 'bloom', rarity: 'uncommon', icon: ['bloom', 'mitosis'],
+    name: 'Spore Stamen', from: 'bloom', icon: ['bloom', 'mitosis'],
     desc: 'Pollen blinds whatever breathes it.',
     apply(s) { onHit(s, 'pollen', 'blind', { t: 1.5 }); },
   },
   hayfever: {
-    name: 'Itching Stamen', from: 'sporebloom', rarity: 'rare', icon: ['bloom', 'twitch'],
+    name: 'Itching Stamen', from: 'sporebloom', icon: ['bloom', 'twitch'],
     desc: 'Pollinated enemies choke and stagger, slowed to a crawl.',
     apply(s) { onHit(s, 'pollen', 'slow', { t: 2 }); },
   },
   nightbloom: {
-    name: 'Glowing Petals', from: 'sporebloom', rarity: 'rare', icon: ['bloom', 'nighteyes'],
+    name: 'Glowing Petals', from: 'sporebloom', icon: ['bloom', 'nighteyes'],
     desc: 'Pollen glows. Pollinated enemies take twice the extra damage.',
     short: 'Glowing pollen: pollinated prey takes double.',
     apply(s) { s.pollenMul = 0.5; },
@@ -859,157 +858,157 @@ const MUTATIONS = {
 
   // ================= BACK =================
   spines: {
-    name: 'Bone Spurs', slot: 'BACK', rarity: 'common', overlay: ['spines'],
+    name: 'Bone Spurs', slot: 'BACK', overlay: ['spines'],
     desc: 'Dashing or getting hurt fires a ring of bone shards.',
     apply(s, l) { s.ring += 4 + 2 * l; },
   },
   urchinhide: {
-    name: 'Urchin Hide', from: 'spines', rarity: 'rare', overlay: ['barbs'], icon: ['spines', 'barbs'],
+    name: 'Urchin Hide', from: 'spines', overlay: ['barbs'], icon: ['spines', 'barbs'],
     desc: 'Barbed skin, and anything that touches you sets off your shard ring.',
     short: 'Barbed skin. Touching you sets off your shards.',
     apply(s, l) { s.thorns += 1 + l; s.urchinHide = true; },
   },
   venomquills: {
-    name: 'Venom Quills', from: 'urchinhide', rarity: 'rare', overlay: ['acid'], icon: ['spines', 'toxic'],
+    name: 'Venom Quills', from: 'urchinhide', overlay: ['acid'], icon: ['spines', 'toxic'],
     desc: 'Your shards leave bile wherever they land.',
     apply(s) { s.ringAcid = true; },
   },
   seekquills: {
-    name: 'Seeking Quills', from: 'urchinhide', rarity: 'rare', icon: ['spines', 'eyes'],
+    name: 'Seeking Quills', from: 'urchinhide', icon: ['spines', 'eyes'],
     desc: 'Your shards hunt for flesh.',
     apply(s) { s.ringHoming = 5; },
   },
   quillpulse: {
-    name: 'Guard Quills', from: 'spines', rarity: 'uncommon', icon: ['spines', 'chitin'],
+    name: 'Guard Quills', from: 'spines', icon: ['spines', 'chitin'],
     desc: 'Your bone shards shatter any enemy shot they touch.',
     apply(s) { s.ringEat = true; },
   },
   bonestorm: {
-    name: 'Piercing Quills', from: 'quillpulse', rarity: 'rare', icon: ['spines', 'spike'],
+    name: 'Piercing Quills', from: 'quillpulse', icon: ['spines', 'spike'],
     desc: 'More shards, and each one punches through two enemies.',
     apply(s) { s.ring += 4; s.ringPierce = 2; },
   },
   splitquills: {
-    name: 'Splitting Quills', from: 'quillpulse', rarity: 'rare', icon: ['spines', 'mitosis'],
+    name: 'Splitting Quills', from: 'quillpulse', icon: ['spines', 'mitosis'],
     desc: 'Every shard splits in two when it hits.',
     apply(s) { s.ringSplit = 2; },
   },
 
   chitin: {
-    name: 'Chitin Shell', slot: 'BACK', rarity: 'uncommon', overlay: ['chitin'],
+    name: 'Chitin Shell', slot: 'BACK', overlay: ['chitin'],
     desc: 'A shell that blocks one hit, then regrows. Regrows faster as it grows.',
     apply(s, l) { s.shieldCd = 14 - 3 * l; },
     onGain(p) { p.shieldUp = true; },
   },
   carapace: {
-    name: 'Brood Shell', from: 'chitin', rarity: 'rare', overlay: ['eggs'], icon: ['chitin', 'eggsac'],
+    name: 'Brood Shell', from: 'chitin', overlay: ['eggs'], icon: ['chitin', 'eggsac'],
     desc: 'When your shell breaks, it splits open and spiderlings spill out of it.',
     short: 'When your shell breaks, spiderlings spill out.',
     apply(s) { s.shieldBrood = 2; },
   },
   thornplate: {
-    name: 'Thorned Plate', from: 'carapace', rarity: 'rare', overlay: ['barbs'], icon: ['chitin', 'barbs'],
+    name: 'Thorned Plate', from: 'carapace', overlay: ['barbs'], icon: ['chitin', 'barbs'],
     desc: 'While your shell is up, anything that touches you is shredded.',
     short: 'While your shell is up, touching you shreds.',
     apply(s) { s.plateThorns = 4; },
   },
   reactive: {
-    name: 'Reactive Plate', from: 'carapace', rarity: 'rare', icon: ['chitin', 'skull'],
+    name: 'Reactive Plate', from: 'carapace', icon: ['chitin', 'skull'],
     desc: 'When your shell breaks, it throws everything near you back.',
     short: 'When your shell breaks, it throws enemies back.',
     apply(s) { s.shieldBlast = true; },
   },
   molt: {
-    name: 'Molting Skin', from: 'chitin', rarity: 'rare', overlay: ['moltshell'], icon: ['chitin', 'regrow'],
+    name: 'Molting Skin', from: 'chitin', overlay: ['moltshell'], icon: ['chitin', 'regrow'],
     desc: 'Once per room, shed your skin to ignore a hit, leaving a decoy husk.',
     short: 'Once a room, shed your skin to ignore a hit.',
     apply(s) { s.molt = true; },
   },
   huskbomb: {
-    name: 'Bursting Husk', from: 'molt', rarity: 'rare', icon: ['chitin', 'toxic'],
+    name: 'Bursting Husk', from: 'molt', icon: ['chitin', 'toxic'],
     desc: 'Your shed husk bursts into bile when it falls apart.',
     apply(s) { s.huskBomb = true; },
   },
   endlessmolt: {
-    name: 'Endless Skin', from: 'molt', rarity: 'rare', icon: ['chitin', 'secondheart'],
+    name: 'Endless Skin', from: 'molt', icon: ['chitin', 'secondheart'],
     desc: 'Your skin grows back loose: you can molt again after a while.',
     apply(s) { s.moltCd = 15; },
   },
 
   eggsac: {
-    name: 'Egg Sac', slot: 'BACK', rarity: 'uncommon', overlay: ['eggs'],
+    name: 'Egg Sac', slot: 'BACK', overlay: ['eggs'],
     desc: 'When you are hurt, spiderlings hatch and fight for you.',
     apply(s, l) { s.eggsac = 1 + l; },
   },
   eggpods: {
-    name: 'Egg Pods', from: 'eggsac', rarity: 'rare', overlay: ['pustules'], icon: ['spider', 'hemophage'],
+    name: 'Egg Pods', from: 'eggsac', overlay: ['pustules'], icon: ['spider', 'hemophage'],
     desc: 'Pustules cover your back. Anything that pops one burns, and a spiderling hatches.',
     short: 'Pustules that burn and hatch spiderlings when popped.',
     apply(s, l) { s.pustules = 1 + 0.5 * l; s.eggPods = true; },
   },
   broodmother: {
-    name: 'Brood Womb', from: 'eggpods', rarity: 'rare', icon: ['spider', 'mitosis'],
+    name: 'Brood Womb', from: 'eggpods', icon: ['spider', 'mitosis'],
     desc: 'Spiderlings hatch whenever you enter a room.',
     apply(s) { s.roomBrood = 2; },
   },
   venombrood: {
-    name: 'Venom Eggs', from: 'eggpods', rarity: 'rare', icon: ['spider', 'bile'],
+    name: 'Venom Eggs', from: 'eggpods', icon: ['spider', 'bile'],
     desc: 'Your spiderlings leave bile where they bite.',
     apply(s) { s.venomBrood = true; },
   },
   lure: {
-    name: 'Lure Stalk', from: 'eggsac', rarity: 'uncommon', overlay: ['lure'], icon: ['antennae', 'eyes'],
+    name: 'Lure Stalk', from: 'eggsac', overlay: ['lure'], icon: ['antennae', 'eyes'],
     desc: 'A glowing lure on your back draws enemies (and their aim) away from you.',
     short: 'A glowing lure draws enemies and their aim.',
     apply(s) { s.lure = true; },
   },
   angler: {
-    name: 'Angler Jaw', from: 'lure', rarity: 'rare', icon: ['mandibles', 'eyes'],
+    name: 'Angler Jaw', from: 'lure', icon: ['mandibles', 'eyes'],
     desc: 'Anything that reaches the lure gets bitten.',
     apply(s) { s.lureBite = 2; },
   },
   toxic: {
-    name: 'Toxic Blood', from: 'lure', rarity: 'uncommon',
+    name: 'Toxic Blood', from: 'lure',
     desc: 'When you bleed, your blood burns everything around you.',
     short: "When you bleed, your blood burns what's near.",
     apply(s, l) { s.toxicBlood += 2 + l; },
   },
 
   twitch: {
-    name: 'Twitch Fibers', slot: 'BACK', rarity: 'common', overlay: ['twitch'],
+    name: 'Twitch Fibers', slot: 'BACK', overlay: ['twitch'],
     desc: 'Raw muscle along the spine. Move faster, attack faster, dash sooner.',
     short: 'Move, attack and dash faster.',
     apply(s, l) { s.speed += 10 * l; s.rateMul *= Math.pow(0.9, l); s.dashCd *= Math.pow(0.9, l); },
   },
   adrenal: {
-    name: 'Adrenal Gland', from: 'twitch', rarity: 'common',
+    name: 'Adrenal Gland', from: 'twitch',
     desc: 'Longer invulnerability after a hit, plus a burst of speed.',
     short: 'Longer safety after a hit, and a burst of speed.',
     apply(s, l) { s.invuln += 0.25 * l; s.adrenal = Math.max(s.adrenal, 0.8 + 0.6 * l); },
   },
   fightflight: {
-    name: 'Panic Nerves', from: 'adrenal', rarity: 'rare', icon: ['twitch', 'adrenal'],
+    name: 'Panic Nerves', from: 'adrenal', icon: ['twitch', 'adrenal'],
     desc: 'Getting hurt slows the world around you for a moment.',
     apply(s) { s.bulletTime = 1.6; },
   },
   rage: {
-    name: 'Rage Glands', from: 'adrenal', rarity: 'rare', icon: ['adrenal', 'overgrown'],
+    name: 'Rage Glands', from: 'adrenal', icon: ['adrenal', 'overgrown'],
     desc: 'After being hurt you also attack twice as fast for a while.',
     apply(s) { s.adrenalRage = true; s.adrenal += 1; },
   },
   streamfibers: {
-    name: 'Stream Fibers', from: 'twitch', rarity: 'uncommon', icon: ['twitch', 'bile'],
+    name: 'Stream Fibers', from: 'twitch', icon: ['twitch', 'bile'],
     desc: 'Your attack becomes a rapid, wild stream.',
     apply(s) { s.stream = true; },
   },
   jitter: {
-    name: 'Jittering Nerves', from: 'streamfibers', rarity: 'rare', icon: ['twitch', 'wings'],
+    name: 'Jittering Nerves', from: 'streamfibers', icon: ['twitch', 'wings'],
     desc: 'Dash sooner, and every dash reloads every weapon at once.',
     short: 'Dash sooner. Each dash reloads every weapon.',
     apply(s) { s.dashCd *= 0.7; s.dashReload = true; },
   },
   needles: {
-    name: 'Needle Fibers', from: 'streamfibers', rarity: 'rare', icon: ['twitch', 'spike'],
+    name: 'Needle Fibers', from: 'streamfibers', icon: ['twitch', 'spike'],
     desc: 'The stream punches through an enemy.',
     apply(s) { s.pierce += 1; },
   },
@@ -1018,82 +1017,82 @@ const MUTATIONS = {
   // ================= LIMBS: how you move =================
   // Empty LIMBS = a slow, inching slug.
   spider: {
-    name: 'Spider Legs', slot: 'LIMBS', rarity: 'common', overlay: ['spiderlegs'],
+    name: 'Spider Legs', slot: 'LIMBS', overlay: ['spiderlegs'],
     desc: 'Eight skittering legs. Quick, responsive movement. Right-click: spit a web that sticks enemies in place.',
     short: 'Quick legs. Right-click: spit a sticky web.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 76 + 8 * l); s.limbActive = { kind: 'web', l }; },
   },
   huntsman: {
-    name: 'Huntsman Legs', from: 'spider', rarity: 'legendary', overlay: ['hindlegs'], icon: ['spider', 'hindlegs'],
+    name: 'Huntsman Legs', from: 'spider', overlay: ['hindlegs'], icon: ['spider', 'hindlegs'],
     desc: 'Your dash is a pounce: it bends toward prey in the direction you leap (never a boss), and lands with a shockwave.',
     short: 'Your dash bends toward prey ahead, and lands hard.',
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.hop = 0; s.homingPounce = true; },
   },
   trapdoor: {
-    name: 'Scent Glands', from: 'huntsman', rarity: 'rare', icon: ['hindlegs', 'eyes'],
+    name: 'Scent Glands', from: 'huntsman', icon: ['hindlegs', 'eyes'],
     desc: 'Your pounce marks what it lands on with your scent: it takes more damage from everything.',
     short: 'Your pounce marks what it lands on.',
     apply(s) { onHit(s, 'slam', 'mark', { t: 5, mul: 0.4 }); },
   },
   mantis: {
-    name: 'Scythe Arms', from: 'huntsman', rarity: 'uncommon', overlay: ['scythes'], icon: ['spider', 'horns'],
+    name: 'Scythe Arms', from: 'huntsman', overlay: ['scythes'], icon: ['spider', 'horns'],
     desc: 'Your pounce slices everything it passes through.',
     apply(s, l) { s.dashDmg += 3 + 2 * l; onHit(s, 'dash', 'bleed', { t: 3, dps: 1.5 * l }, {}, 'add'); s.dashTime += 0.04; },
   },
   centipede: {
-    name: 'Centipede Body', from: 'spider', rarity: 'rare', overlay: ['centlegs'], icon: ['spider', 'chitin'],
+    name: 'Centipede Body', from: 'spider', overlay: ['centlegs'], icon: ['spider', 'chitin'],
     desc: 'Faster. Your body trails behind as a segmented chain that blocks enemy shots.',
     short: 'Faster, with a trailing chain that blocks shots.',
     apply(s, l) { s.speed = Math.max(s.speed, 106 + 6 * l); s.centipede = 3 + l; },
   },
   spinedsegs: {
-    name: 'Spined Segments', from: 'centipede', rarity: 'rare', icon: ['spider', 'spines'],
+    name: 'Spined Segments', from: 'centipede', icon: ['spider', 'spines'],
     desc: 'Every shot your segments block bursts into a ring of shards.',
     short: 'Shots your segments block burst into shards.',
     apply(s) { s.spinedSegments = true; },
   },
   biters: {
-    name: 'Biting Segments', from: 'centipede', rarity: 'rare', icon: ['spider', 'mandibles'],
+    name: 'Biting Segments', from: 'centipede', icon: ['spider', 'mandibles'],
     desc: 'More segments, and each one bites whatever touches it.',
     apply(s) { s.centipede += 2; s.segBite = 1.5; },
   },
 
   wings: {
-    name: 'Wings', slot: 'LIMBS', rarity: 'uncommon', overlay: ['wings'],
+    name: 'Wings', slot: 'LIMBS', overlay: ['wings'],
     desc: 'Fast but floaty flight. Drift over crates and tanks. Right-click: a wing beat that blows enemies and their shots away.',
     short: 'Fly over cover. Right-click: a gust.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 112 + 10 * l); s.limbActive = { kind: 'gust', l }; s.accel = s.accel || 330 + 30 * l; s.drag = s.drag || 1.5; s.flyover = true; s.dashTime += 0.05; },
   },
   carrionfly: {
-    name: 'Carrion Wings', from: 'wings', rarity: 'rare', icon: ['spider', 'wings'],
+    name: 'Carrion Wings', from: 'wings', icon: ['spider', 'wings'],
     desc: 'Fly with control, trailed by a swarm of flies that bite anything near you.',
     short: 'Fly with control, wrapped in biting flies.',
     apply(s) { s.accel = 1100; s.drag = 5; s.flySwarm = 1; },
   },
   cropduster: {
-    name: 'Dusting Wings', from: 'carrionfly', rarity: 'rare', overlay: ['sporepods'], icon: ['wings', 'mitosis'],
+    name: 'Dusting Wings', from: 'carrionfly', overlay: ['sporepods'], icon: ['wings', 'mitosis'],
     desc: 'While you fly, you drop a trail of blinding spore clouds.',
     short: 'Flying drops a trail of blinding spores.',
     apply(s) { s.cropDuster = true; },
   },
   plague: {
-    name: 'Plague Wings', from: 'carrionfly', rarity: 'rare', icon: ['wings', 'hemophage'],
+    name: 'Plague Wings', from: 'carrionfly', icon: ['wings', 'hemophage'],
     desc: 'The swarm grows thick, and its bites bleed.',
     apply(s) { s.flySwarm = 2; },
   },
   locust: {
-    name: 'Locust Legs', from: 'wings', rarity: 'rare', overlay: ['hindlegs'], icon: ['hindlegs', 'wings'],
+    name: 'Locust Legs', from: 'wings', overlay: ['hindlegs'], icon: ['hindlegs', 'wings'],
     desc: 'Fly freely, and your dash is a pounce from the air that lands with a shockwave.',
     short: 'Fly, and your dash is a pounce that lands hard.',
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.hop = 0; },
   },
   meteor: {
-    name: 'Hammer Heels', from: 'locust', rarity: 'rare', icon: ['hindlegs', 'skull'],
+    name: 'Hammer Heels', from: 'locust', icon: ['hindlegs', 'skull'],
     desc: 'A far bigger, far harder shockwave.',
     apply(s) { s.slamDmg += 4; s.slamR += 16; },
   },
   pupa: {
-    name: 'Pupal Skin', from: 'locust', rarity: 'legendary', overlay: ['shell'], icon: ['wings', 'chitin'],
+    name: 'Pupal Skin', from: 'locust', overlay: ['shell'], icon: ['wings', 'chitin'],
     desc: 'Hold still to close a cocoon around you: it blocks everything and slowly heals.',
     short: 'Hold still to cocoon: block everything and heal.',
     apply(s) { s.shell = true; s.pupa = true; },
@@ -1101,119 +1100,119 @@ const MUTATIONS = {
 
   grapple: {
     requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
-    name: 'Tentacles', slot: 'LIMBS', boss: true, rarity: 'rare', overlay: ['tentlimbs'],
+    name: 'Tentacles', slot: 'LIMBS', boss: true, overlay: ['tentlimbs'],
     desc: 'Right-click (or E) to lash a tentacle at a wall or enemy and yank yourself to it.',
     short: 'Right-click: lash a tentacle and yank yourself.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 60); s.grapple = 1.0 - 0.15 * (l - 1); s.grappleRange = 110 + 15 * l; s.pullDmg += 2 + l; },
   },
   silktendril: {
-    name: 'Silk Tendril', from: 'grapple', rarity: 'rare', icon: ['spider', 'grapple'],
+    name: 'Silk Tendril', from: 'grapple', icon: ['spider', 'grapple'],
     desc: 'Your tentacle webs every enemy it crosses, sticking them in place.',
     short: 'Your tentacle webs every enemy it crosses.',
     apply(s) { s.webLine = true; },
   },
   bileline: {
-    name: 'Bile Tendril', from: 'silktendril', rarity: 'rare', icon: ['grapple', 'bile'],
+    name: 'Bile Tendril', from: 'silktendril', icon: ['grapple', 'bile'],
     desc: 'Your tentacle leaves a line of burning bile along its whole length.',
     short: 'Your tentacle leaves a line of burning bile.',
     apply(s) { s.bileLine = true; },
   },
   shredpull: {
-    name: 'Shredding Tendril', from: 'silktendril', rarity: 'rare', icon: ['grapple', 'barbs'],
+    name: 'Shredding Tendril', from: 'silktendril', icon: ['grapple', 'barbs'],
     desc: 'Grapple twice as often, and shred anything you are dragged through.',
     short: 'Grapple twice as often, shredding what you pass.',
     apply(s) { s.grapple *= 0.5; s.pullThrough = true; },
   },
   hands: {
-    name: 'Grasping Hands', from: 'grapple', rarity: 'rare', overlay: ['hands'], icon: ['grapple', 'mandibles'],
+    name: 'Grasping Hands', from: 'grapple', overlay: ['hands'], icon: ['grapple', 'mandibles'],
     desc: 'Right-click (or E) to grab a corpse or small enemy, and again to throw it.',
     short: 'Right-click: grab a corpse or enemy, then throw it.',
     apply(s, l) { s.hands = true; s.handDmg += 4 + 2 * l; },
   },
   puppeteer: {
-    name: 'Puppeteer Fingers', from: 'hands', rarity: 'legendary', icon: ['grapple', 'parasite'],
+    name: 'Puppeteer Fingers', from: 'hands', icon: ['grapple', 'parasite'],
     desc: 'Your tentacle drags enemies to YOU, straight into your hands.',
     short: 'Your tentacle drags enemies to your hands.',
     apply(s) { s.puppeteer = true; },
   },
   bilebomb: {
-    name: 'Bile Palms', from: 'hands', rarity: 'rare', icon: ['grapple', 'toxic'],
+    name: 'Bile Palms', from: 'hands', icon: ['grapple', 'toxic'],
     desc: 'Whatever you throw explodes in burning bile.',
     apply(s) { s.bileBomb = true; },
   },
 
   burrow: {
     requires: { any: ['skull'], label: 'BATTERING SKULL' },
-    name: 'Burrowing Claws', slot: 'LIMBS', rarity: 'rare', overlay: ['claws'], icon: ['spider', 'skull'],
+    name: 'Burrowing Claws', slot: 'LIMBS', overlay: ['claws'], icon: ['spider', 'skull'],
     desc: 'Dash dives underground. Untouchable while buried; erupt with damage. Right-click: a tremor that stuns everything near you.',
     short: 'Dash underground. Right-click: a tremor.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 64); s.limbActive = { kind: 'tremor', l }; s.burrow = Math.max(s.burrow, 0.5 + 0.1 * l); s.burrowDmg += 3 + l; },
   },
   moleworm: {
-    name: 'Mole Claws', from: 'burrow', rarity: 'rare', overlay: ['centlegs'], icon: ['spider', 'regrow'],
+    name: 'Mole Claws', from: 'burrow', overlay: ['centlegs'], icon: ['spider', 'regrow'],
     desc: 'Tunnel longer, shredding everything you pass beneath.',
     apply(s) { s.moleworm = true; s.burrow += 0.25; },
   },
   eruption: {
-    name: 'Erupting Spines', from: 'moleworm', rarity: 'rare', icon: ['spines', 'skull'],
+    name: 'Erupting Spines', from: 'moleworm', icon: ['spines', 'skull'],
     desc: 'You erupt in a ring of bone shards.',
     apply(s) { s.eruptRing = 10; },
   },
   tunnelbrood: {
-    name: 'Burrow Eggs', from: 'moleworm', rarity: 'rare', icon: ['spider', 'mitosis'],
+    name: 'Burrow Eggs', from: 'moleworm', icon: ['spider', 'mitosis'],
     desc: 'Spiderlings crawl out of the ground with you.',
     apply(s) { s.eruptBrood = 2; },
   },
   razorclaws: {
-    name: 'Razor Claws', from: 'burrow', rarity: 'uncommon', overlay: ['scythes'], icon: ['horns', 'skull'],
+    name: 'Razor Claws', from: 'burrow', overlay: ['scythes'], icon: ['horns', 'skull'],
     desc: 'You erupt much harder, and leave everything bleeding.',
     apply(s) { s.burrowDmg *= 1.6; onHit(s, 'burrow', 'bleed', { t: 3, dps: 3 }); },
   },
   ambush: {
-    name: 'Ambush Claws', from: 'razorclaws', rarity: 'rare', icon: ['feral', 'skull'],
+    name: 'Ambush Claws', from: 'razorclaws', icon: ['feral', 'skull'],
     desc: 'Your first attack after erupting deals triple damage.',
     apply(s) { s.ambush = true; },
   },
   quake: {
-    name: 'Quaking Claws', from: 'razorclaws', rarity: 'rare', icon: ['echo', 'skull'],
+    name: 'Quaking Claws', from: 'razorclaws', icon: ['echo', 'skull'],
     desc: 'Erupting stuns everything nearby.',
     apply(s) { s.eruptStun = 1.2; },
   },
 
   fins: {
-    name: 'Pseudopods', slot: 'LIMBS', rarity: 'common', overlay: ['fins'], icon: ['regrow', 'bile'],
+    name: 'Pseudopods', slot: 'LIMBS', overlay: ['fins'], icon: ['regrow', 'bile'],
     desc: 'Slide fast through your own slime and bile; sluggish everywhere else. Right-click: roll out a wave of slime to ride.',
     short: 'Slide fast through slime. Right-click: ride a wave.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 52); s.limbActive = { kind: 'slimewave', l }; s.fins = 118 + 12 * l; },
   },
   slimeglands: {
-    name: 'Slime Glands', from: 'fins', rarity: 'uncommon', icon: ['bile', 'regrow'],
+    name: 'Slime Glands', from: 'fins', icon: ['bile', 'regrow'],
     desc: 'Enemies that cross your slime get stuck in it.',
     apply(s) { s.slimeSlow = 0.45; },
   },
   acidslime: {
-    name: 'Acid Slime', from: 'slimeglands', rarity: 'rare', icon: ['toxic', 'bile'],
+    name: 'Acid Slime', from: 'slimeglands', icon: ['toxic', 'bile'],
     desc: 'Your slime burns whatever crawls through it.',
     apply(s) { s.slimeBurn = 1.5; },
   },
   slipstream: {
-    name: 'Slick Underbelly', from: 'slimeglands', rarity: 'rare', icon: ['bile', 'twitch'],
+    name: 'Slick Underbelly', from: 'slimeglands', icon: ['bile', 'twitch'],
     desc: 'On your own slime, you attack much faster.',
     apply(s) { s.slimeRate = 0.6; },
   },
   cilia: {
-    name: 'Cilia', from: 'fins', rarity: 'common', overlay: ['cilia'], icon: ['regrow', 'twitch'],
+    name: 'Cilia', from: 'fins', overlay: ['cilia'], icon: ['regrow', 'twitch'],
     desc: 'Thousands of tiny hairs: a smooth, constant glide, and you attack faster.',
     short: 'A smooth, constant glide, and faster attacks.',
     apply(s, l) { s.speed = Math.max(s.speed, 78 + 6 * l); s.accel = s.accel || 640; s.drag = s.drag || 4.2; s.rateMul *= 0.92; },
   },
   stilts: {
-    name: 'Bone Stilts', from: 'cilia', rarity: 'uncommon', icon: ['spike', 'spider'],
+    name: 'Bone Stilts', from: 'cilia', icon: ['spike', 'spider'],
     desc: 'Stride over enemy acid untouched, and shoot over cover.',
     apply(s, l) { s.speed = Math.max(s.speed, 66 + 6 * l); s.stilts = true; s.accel = 0; },
   },
   shell: {
-    name: 'Snail Shell', from: 'cilia', rarity: 'uncommon', malignant: true, overlay: ['shell'], icon: ['chitin', 'regrow'],
+    name: 'Snail Shell', from: 'cilia', malignant: true, overlay: ['shell'], icon: ['chitin', 'regrow'],
     desc: 'Hold still to withdraw into your shell and block everything.',
     short: 'Hold still to withdraw and block everything.',
     cost: 'Painfully slow.',
@@ -1222,7 +1221,7 @@ const MUTATIONS = {
   },
   // Not offered on its own: Huntsman and Locust grow it.
   hindlegs: {
-    name: 'Hind Legs', slot: 'LIMBS', part: true, rarity: 'uncommon', overlay: ['hindlegs'],
+    name: 'Hind Legs', slot: 'LIMBS', part: true, overlay: ['hindlegs'],
     desc: 'Move in powerful hops. Your dash is a pounce that lands with a shockwave.',
     apply(s, l) {
       s.slug = false; s.speed = Math.max(s.speed, 150); s.hop = s.hop || 0.5 - 0.05 * l;
@@ -1233,71 +1232,71 @@ const MUTATIONS = {
 
   // ================= CORE =================
   hide: {
-    name: 'Thick Hide', slot: 'CORE', rarity: 'common',
+    name: 'Thick Hide', slot: 'CORE',
     desc: '+1 max health per growth, and heal 1.',
     short: 'Thicker skin: more health as it grows.',
     apply(s, l) { s.maxHp += l; },
     onGain(p) { p.hp += 1; },
   },
   calcified: {
-    name: 'Calcified Organs', from: 'hide', rarity: 'common', overlay: ['calcified'], icon: ['hide', 'spike'],
+    name: 'Calcified Organs', from: 'hide', overlay: ['calcified'], icon: ['hide', 'spike'],
     desc: 'Your organs harden: you start every floor with a grey armor heart (up to 2).',
     short: 'Start every floor with an armor heart.',
     apply(s) { s.calcified = true; },
     onGain(p) { p.armor = Math.max(p.armor || 0, 1); },
   },
   bonecage: {
-    name: 'Bone Cage', from: 'calcified', rarity: 'rare', icon: ['hide', 'chitin'],
+    name: 'Bone Cage', from: 'calcified', icon: ['hide', 'chitin'],
     desc: 'Every third hit glances off your bones.',
     apply(s) { s.hitIgnore = 3; },
   },
   secondheart: {
-    name: 'Second Heart', from: 'calcified', rarity: 'legendary', overlay: ['heart2'],
+    name: 'Second Heart', from: 'calcified', overlay: ['heart2'],
     desc: 'The first time you die, you are reborn: pure, limbless, with 3 HP.',
     short: 'The first time you die, you are reborn.',
     apply(s) { s.secondHeart = true; },
   },
   regrow: {
-    name: 'Regrowing Flesh', from: 'hide', rarity: 'uncommon',
+    name: 'Regrowing Flesh', from: 'hide',
     desc: 'Slowly regrow lost flesh.',
     apply(s, l) { s.regen = 40 - 8 * l; },
   },
   hemophage: {
-    name: 'Hemophage Gut', from: 'regrow', rarity: 'rare', overlay: ['drool'],
+    name: 'Hemophage Gut', from: 'regrow', overlay: ['drool'],
     desc: 'Bursting corpses can heal you.',
     apply(s, l) { s.hemophage += 0.15 * l; },
   },
   mending: {
-    name: 'Mending Flesh', from: 'regrow', rarity: 'rare', icon: ['regrow', 'twitch'],
+    name: 'Mending Flesh', from: 'regrow', icon: ['regrow', 'twitch'],
     desc: 'You regrow twice as fast.',
     apply(s) { s.regen *= 0.5; },
   },
 
   marrow: {
-    name: 'Dense Marrow', slot: 'CORE', rarity: 'common',
+    name: 'Dense Marrow', slot: 'CORE',
     desc: 'Heavier bones. Every hit or shot you block feeds them: more damage with everything for a few seconds (it stacks).',
     short: 'Blocking a hit feeds your bones: more damage.',
     apply(s, l) { s.damageMul *= 1 + 0.05 * l; s.marrowFeed = 0.06 + 0.02 * l; },
   },
   loaded: {
-    name: 'Loaded Marrow', from: 'marrow', rarity: 'uncommon', icon: ['marrow', 'spike'],
+    name: 'Loaded Marrow', from: 'marrow', icon: ['marrow', 'spike'],
     desc: 'Hold fire to charge, release to unleash everything at once as a blast.',
     short: 'Hold to charge, release everything in one blast.',
     apply(s) { s.charge = true; },
   },
   overcharge: {
-    name: 'Overcharged Marrow', from: 'loaded', rarity: 'rare', icon: ['marrow', 'spines'],
+    name: 'Overcharged Marrow', from: 'loaded', icon: ['marrow', 'spines'],
     desc: 'A full charge also bursts a ring of bone shards out of you.',
     apply(s) { s.chargeRing = 12; },
   },
   pressure: {
-    name: 'Pressure Marrow', from: 'loaded', rarity: 'rare', icon: ['marrow', 'chitin'],
+    name: 'Pressure Marrow', from: 'loaded', icon: ['marrow', 'chitin'],
     desc: 'Holding a charge braces you: the first hit while you hold it is blocked, and the charge is spent.',
     short: 'Holding a charge blocks the first hit.',
     apply(s) { s.chargeGuard = true; },
   },
   overgrown: {
-    name: 'Overgrown Heart', from: 'marrow', rarity: 'uncommon', malignant: true, overlay: ['bigheart'],
+    name: 'Overgrown Heart', from: 'marrow', malignant: true, overlay: ['bigheart'],
     desc: 'Double damage from every source. Your heart swells, and you swell with it: bigger, stronger, easier to hit.',
     short: 'Double damage, both ways. You swell bigger.',
     cost: 'Max health halved.',
@@ -1305,13 +1304,13 @@ const MUTATIONS = {
     apply(s) { s.damageMul *= 2; s.hpMul *= 0.5; s.bulk += 1; },
   },
   titanheart: {
-    name: 'Titan Heart', from: 'overgrown', rarity: 'legendary', cures: true, icon: ['overgrown', 'hide'],
+    name: 'Titan Heart', from: 'overgrown', cures: true, icon: ['overgrown', 'hide'],
     desc: 'CURED. Keep double damage, and +25% max health instead of half.',
     short: 'CURED. Double damage, and more health.',
     apply(s) { s.hpMul *= 2.5; },
   },
   hollow: {
-    name: 'Hollow Bones', from: 'overgrown', rarity: 'uncommon', malignant: true, overlay: ['hollow'], icon: ['overgrown', 'starving'],
+    name: 'Hollow Bones', from: 'overgrown', malignant: true, overlay: ['hollow'], icon: ['overgrown', 'starving'],
     desc: 'Much faster, and you attack faster.',
     cost: 'Every hit costs 2 health.',
     costShort: 'Every wound cuts deeper.', // the card's line (vague); hovering shows the exact cost
@@ -1320,72 +1319,72 @@ const MUTATIONS = {
 
   mitosis: {
     requires: { set: 'ABOMINATION', label: 'AN ABOMINATION PART' },
-    name: 'Mitotic Cells', slot: 'CORE', rarity: 'rare', overlay: ['mitosis'],
+    name: 'Mitotic Cells', slot: 'CORE', overlay: ['mitosis'],
     desc: 'Anything you hit bursts into fragments of you, shot or bite.',
     short: 'Anything you hit bursts into fragments of you.',
     apply(s, l) { s.split += 1 + l; },
   },
   brood: {
-    name: 'Brood Chamber', from: 'mitosis', rarity: 'uncommon', overlay: ['brood'], icon: ['mitosis', 'hemophage'],
+    name: 'Brood Chamber', from: 'mitosis', overlay: ['brood'], icon: ['mitosis', 'hemophage'],
     desc: 'Burst corpses sometimes birth a friendly maggot as well.',
     short: 'Corpses sometimes birth a maggot too.',
     apply(s, l) { s.brood = 0.2 + 0.1 * l; },
   },
   clutch: {
-    name: 'Clutch Sac', from: 'brood', rarity: 'rare', icon: ['mitosis', 'spider'],
+    name: 'Clutch Sac', from: 'brood', icon: ['mitosis', 'spider'],
     desc: 'Anything your fragments kill hatches a maggot.',
     apply(s) { s.clutch = true; },
   },
   maggotburst: {
-    name: 'Rupturing Eggs', from: 'brood', rarity: 'rare', icon: ['mitosis', 'bile'],
+    name: 'Rupturing Eggs', from: 'brood', icon: ['mitosis', 'bile'],
     desc: 'Your maggots burst into burning bile when they die.',
     apply(s) { s.maggotBurst = true; },
   },
   twin: {
-    name: 'Twin Embryo', from: 'mitosis', rarity: 'rare', malignant: true, icon: ['mitosis', 'hide'],
+    name: 'Twin Embryo', from: 'mitosis', malignant: true, icon: ['mitosis', 'hide'],
     desc: 'A tiny twin follows you and copies your attacks.',
     cost: 'If it dies, you lose 1 max health.',
     costShort: 'If it dies, part of you dies with it.', // the card's line (vague); hovering shows the exact cost
     apply(s, l, p) { s.twin = true; s.maxHp -= (p && p.twinLost) || 0; },
   },
   bondedtwin: {
-    name: 'Bonded Twin', from: 'twin', rarity: 'rare', cures: true, icon: ['mitosis', 'secondheart'],
+    name: 'Bonded Twin', from: 'twin', cures: true, icon: ['mitosis', 'secondheart'],
     desc: 'CURED. Losing your twin no longer costs you anything.',
     apply(s, l, p) { s.maxHp += (p && p.twinLost) || 0; },
   },
   mirrortwin: {
-    name: 'Mirror Twin', from: 'twin', rarity: 'rare', icon: ['mitosis', 'eyes'],
+    name: 'Mirror Twin', from: 'twin', icon: ['mitosis', 'eyes'],
     desc: 'Your twin copies you at full strength.',
     apply(s) { s.twinMul = 1.6; },
   },
 
   starving: {
-    name: 'Starving Cells', slot: 'CORE', rarity: 'uncommon', malignant: true, overlay: ['ribs'],
+    name: 'Starving Cells', slot: 'CORE', malignant: true, overlay: ['ribs'],
     desc: 'Corpses give double biomass.',
     cost: 'Go 30s without bursting a corpse and you starve, losing health (never fatal).',
     costShort: 'You must consume... or suffer.', // the card's line (vague); hovering shows the exact cost
     apply(s) { s.dnaMul *= 2; s.starve = 30; },
   },
   apexpredator: {
-    name: 'Apex Gut', from: 'starving', rarity: 'legendary', cures: true, icon: ['starving', 'hemophage'],
+    name: 'Apex Gut', from: 'starving', cures: true, icon: ['starving', 'hemophage'],
     desc: 'CURED. Keep double biomass. You never starve, and bursts can heal you.',
     short: 'CURED. Never starve, and bursts heal you.',
     apply(s) { s.starve = 0; s.hemophage += 0.3; },
   },
   bacteria: {
-    name: 'Gut Bacteria', from: 'apexpredator', rarity: 'common', icon: ['starving', 'mitosis'],
+    name: 'Gut Bacteria', from: 'apexpredator', icon: ['starving', 'mitosis'],
     desc: 'Even more biomass per corpse, but corpses take longer to burst.',
     short: 'More biomass per corpse; bursting is slower.',
     apply(s) { s.bacteria += 2; },
   },
   feedfrenzy: {
-    name: 'Frenzy Glands', from: 'apexpredator', rarity: 'rare', icon: ['starving', 'feral'],
+    name: 'Frenzy Glands', from: 'apexpredator', icon: ['starving', 'feral'],
     desc: 'Bursting a corpse sends you into a frenzy: +40% damage for a few seconds.',
     short: 'Bursting a corpse sends you into a frenzy.',
     apply(s) { s.feedFrenzy = 0.4; },
   },
   cancer: {
-    name: 'Tumor', from: 'starving', rarity: 'rare', malignant: true, overlay: ['tumor'],
+    name: 'Tumor', from: 'starving', malignant: true, overlay: ['tumor'],
     desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
     short: 'Stronger with every room. The tumor makes you bigger.',
     cost: 'It keeps swelling: every 6 rooms you grow bigger and easier to hit.',
@@ -1397,13 +1396,13 @@ const MUTATIONS = {
     },
   },
   benignmass: {
-    name: 'Benign Tumor', from: 'cancer', rarity: 'legendary', cures: true, icon: ['cancer', 'regrow'],
+    name: 'Benign Tumor', from: 'cancer', cures: true, icon: ['cancer', 'regrow'],
     desc: 'CURED. The growth keeps making you stronger, but it stops swelling.',
     short: 'CURED. Stronger every room, without the swelling.',
     apply(s, l, p) { s.bulk -= Math.min(2, Math.floor(((p && p.cancerRooms) || 0) / 6)); },
   },
   metastasis: {
-    name: 'Metastatic Tumor', from: 'cancer', rarity: 'rare', malignant: true, icon: ['cancer', 'mitosis'],
+    name: 'Metastatic Tumor', from: 'cancer', malignant: true, icon: ['cancer', 'mitosis'],
     desc: 'The growth spreads faster: +20% damage per room instead, and it swells faster too.',
     short: 'The growth spreads faster: more damage per room.',
     cost: 'It swells faster: you grow bigger sooner.',
@@ -1413,41 +1412,41 @@ const MUTATIONS = {
 
   // --- Bone Plates: armor you can see, and it fights back ---
   boneplates: {
-    name: 'Bone Plates', slot: 'CORE', rarity: 'uncommon', icon: ['marrow', 'chitin'],
+    name: 'Bone Plates', slot: 'CORE', icon: ['marrow', 'chitin'],
     desc: 'Bone plates orbit you and block enemy shots. A plate that breaks bursts into shrapnel. They all regrow in every new room.',
     apply(s, l) { s.plates = Math.max(s.plates || 0, 2 + l); s.plateShards = Math.max(s.plateShards || 0, 4); },
   },
   razorplates: {
-    name: 'Razor Plates', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'horns'],
+    name: 'Razor Plates', from: 'boneplates', icon: ['marrow', 'horns'],
     desc: 'The plates have edges: they cut whatever they pass through.',
     short: 'Your plates cut whatever they pass through.',
     apply(s, l) { s.plateDmg = 1.5 + 0.5 * l; },
   },
   bladestorm: {
-    name: 'Blade Plates', from: 'razorplates', rarity: 'rare', icon: ['marrow', 'spines'],
+    name: 'Blade Plates', from: 'razorplates', icon: ['marrow', 'spines'],
     desc: 'Every few seconds in a fight, a plate flings itself at the nearest enemy and swings back.',
     short: 'Your plates fling themselves at enemies.',
     apply(s) { s.plateFling = 2.2; },
   },
   bonemill: {
-    name: 'Grinding Plates', from: 'razorplates', rarity: 'rare', icon: ['marrow', 'mitosis'],
+    name: 'Grinding Plates', from: 'razorplates', icon: ['marrow', 'mitosis'],
     desc: 'Whatever the plates kill bursts into bone shards.',
     apply(s) { s.plateMill = 5; },
   },
   mirrorplates: {
-    name: 'Mirror Plates', from: 'boneplates', rarity: 'uncommon', icon: ['marrow', 'eyes'],
+    name: 'Mirror Plates', from: 'boneplates', icon: ['marrow', 'eyes'],
     desc: 'Your plates glaze over like glass: a shot that hits one is thrown back, twice as hard. Broken plates regrow even in the middle of a fight.',
     short: 'Plates throw shots back, and regrow mid-fight.',
     apply(s, l) { s.plateMirror = { mul: 2 }; s.plateRegrow = 7 - l; },
   },
   prism: {
-    name: 'Prism Plates', from: 'mirrorplates', rarity: 'rare', icon: ['abyssal', 'mitosis'],
+    name: 'Prism Plates', from: 'mirrorplates', icon: ['abyssal', 'mitosis'],
     desc: 'Every shot your plates throw back splits into three, and they hunt for prey.',
     short: 'Thrown-back shots split in three and seek.',
     apply(s) { s.plateMirror.split = true; s.plateMirror.homing = 3; },
   },
   feedingglass: {
-    name: 'Feeding Plates', from: 'mirrorplates', rarity: 'rare', icon: ['eyes', 'hemophage'],
+    name: 'Feeding Plates', from: 'mirrorplates', icon: ['eyes', 'hemophage'],
     desc: 'Every 6th shot your plates throw back heals you, and thrown-back shots hit twice as hard again.',
     short: 'Thrown-back shots sometimes heal you.',
     apply(s) { s.plateMirror.heal = 6; s.plateMirror.mul *= 2; },
@@ -1455,190 +1454,190 @@ const MUTATIONS = {
 
   // ================= NEW STARTING MOUTHS =================
   barbs: {
-    name: 'Barbed Gullet', slot: 'MOUTH', rarity: 'common', icon: ['spike', 'barbs'],
+    name: 'Barbed Gullet', slot: 'MOUTH', icon: ['spike', 'barbs'],
     desc: 'Fling barbed hooks that stick in what they hit, then rip out a moment later for more damage.',
     short: 'Hooks that stick, then rip out for more damage.',
     apply(s, l) { gun(s, { id: 'barbs', dmg: 0.8 + 0.25 * l, delay: 0.7, speed: 150, r: 2, barb: 1.6 + 0.6 * l, color: '#d8ccb0', sound: 'spine' }); },
   },
   fishhook: {
-    name: 'Fishhook Barbs', from: 'barbs', rarity: 'uncommon', icon: ['barbs', 'grapple'],
+    name: 'Fishhook Barbs', from: 'barbs', icon: ['barbs', 'grapple'],
     desc: 'When the barbs rip out, they drag their victim toward you.',
     apply(s) { s.barbPull = true; },
   },
   chainhook: {
-    name: 'Chain Barbs', from: 'fishhook', rarity: 'rare', icon: ['barbs', 'tentacles'],
+    name: 'Chain Barbs', from: 'fishhook', icon: ['barbs', 'tentacles'],
     desc: 'A barb that rips out flies on into the next enemy.',
     apply(s) { s.barbChain = true; },
   },
   guthook: {
-    name: 'Gut Barbs', from: 'fishhook', rarity: 'rare', icon: ['barbs', 'hemophage'],
+    name: 'Gut Barbs', from: 'fishhook', icon: ['barbs', 'hemophage'],
     desc: 'Ripped-out barbs leave their victims bleeding badly.',
     apply(s) { onHit(s, 'barb', 'bleed', { t: 3, dps: 3 }); },
   },
   barbvolley: {
-    name: 'Barb Cluster', from: 'barbs', rarity: 'uncommon', icon: ['barbs', 'spines'],
+    name: 'Barb Cluster', from: 'barbs', icon: ['barbs', 'spines'],
     desc: 'Fling three barbs at once. Barbs stuck in the same enemy rip out together, each one harder.',
     apply(s) { const g = s.guns.find(g => g.id === 'barbs'); if (g) { g.count = 3; g.spread = 0.12; } s.barbBundle = 0.25; },
   },
   thornstorm: {
-    name: 'Bursting Thorns', from: 'barbvolley', rarity: 'rare', icon: ['barbs', 'spines'],
+    name: 'Bursting Thorns', from: 'barbvolley', icon: ['barbs', 'spines'],
     desc: 'Barbs that rip out burst into bone shards.',
     apply(s) { s.barbBurst = 3; },
   },
   seekbarbs: {
-    name: 'Seeking Barbs', from: 'barbvolley', rarity: 'rare', icon: ['barbs', 'eyes'],
+    name: 'Seeking Barbs', from: 'barbvolley', icon: ['barbs', 'eyes'],
     desc: 'Your barbs curve toward prey.',
     apply(s) { s.homing += 3; },
   },
 
   sneeze: {
-    name: 'Spore Sinuses', slot: 'MOUTH', rarity: 'common', icon: ['membrane', 'toxic'],
+    name: 'Spore Sinuses', slot: 'MOUTH', icon: ['membrane', 'toxic'],
     desc: 'A short, wide sneeze of spores. Whatever it hits is blinded for a moment.',
     apply(s, l) { gun(s, { id: 'sneeze', dmg: 0.45 + 0.15 * l, delay: 0.6, speed: 115, range: 0.34, count: 5, spread: 0.32, r: 1.5, blind: 1.1 + 0.2 * l, round: true, fade: true, color: '#c4cca4', sound: 'spray' }); },
   },
   allergen: {
-    name: 'Allergen Glands', from: 'sneeze', rarity: 'uncommon', icon: ['toxic', 'eyes'],
+    name: 'Allergen Glands', from: 'sneeze', icon: ['toxic', 'eyes'],
     desc: 'Blinded enemies take more damage from everything.',
     apply(s) { s.allergen = 0.4; },
   },
   hives: {
-    name: 'Hives', from: 'allergen', rarity: 'rare', icon: ['toxic', 'mitosis'],
+    name: 'Hives', from: 'allergen', icon: ['toxic', 'mitosis'],
     desc: 'Whatever dies blinded bursts into a spore cloud.',
     apply(s) { s.hivesCloud = true; },
   },
   histamine: {
-    name: 'Swelling Glands', from: 'allergen', rarity: 'rare', icon: ['toxic', 'slime'],
+    name: 'Swelling Glands', from: 'allergen', icon: ['toxic', 'slime'],
     desc: 'Your sneezes also slow what they hit to a crawl.',
     apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.slow = 1.4; },
   },
   sneezefit: {
-    name: 'Raw Sinuses', from: 'sneeze', rarity: 'uncommon', icon: ['membrane', 'twitch'],
+    name: 'Raw Sinuses', from: 'sneeze', icon: ['membrane', 'twitch'],
     desc: 'Sneeze twice as often, wider.',
     apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) { g.delay *= 0.55; g.spread += 0.1; } },
   },
   pollenstorm: {
-    name: 'Pollen Sinuses', from: 'sneezefit', rarity: 'rare', icon: ['membrane', 'bloom'],
+    name: 'Pollen Sinuses', from: 'sneezefit', icon: ['membrane', 'bloom'],
     desc: 'Your sneezes pollinate what they hit: it takes more damage.',
     short: 'Sneezes pollinate: what they hit takes more.',
     apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.pollen = true; if (!s.pollen) s.pollen = { r: 0, every: 99 }; },
   },
   mucus: {
-    name: 'Mucus', from: 'sneezefit', rarity: 'rare', icon: ['membrane', 'bile'],
+    name: 'Mucus', from: 'sneezefit', icon: ['membrane', 'bile'],
     desc: 'Your sneezes are thick with mucus: they leave a sticky smear on the floor that slows whatever crawls through it (it is slime, so it works with Pseudopods).',
     short: 'Sneezes leave sticky mucus that slows.',
     apply(s) { const g = s.guns.find(g => g.id === 'sneeze'); if (g) g.mucus = true; },
   },
 
   leechspit: {
-    name: 'Leech Gullet', slot: 'MOUTH', rarity: 'uncommon', icon: ['proboscis', 'hemophage'],
+    name: 'Leech Gullet', slot: 'MOUTH', icon: ['proboscis', 'hemophage'],
     desc: 'Spit leeches that latch on and bleed their victims. Bled-out kills sometimes heal you.',
     apply(s, l) { gun(s, { id: 'leech', dmg: 0.6 + 0.2 * l, delay: 0.65, speed: 130, r: 2, bleed: 1 + 0.4 * l, round: true, color: '#5e2229', sound: 'splat' }); s.leechFeed = Math.max(s.leechFeed || 0, 0.08); },
   },
   fatleech: {
-    name: 'Fat Leeches', from: 'leechspit', rarity: 'uncommon', icon: ['hemophage', 'overgrown'],
+    name: 'Fat Leeches', from: 'leechspit', icon: ['hemophage', 'overgrown'],
     desc: 'Swollen leeches: they bleed their victims much harder.',
     apply(s) { const g = s.guns.find(g => g.id === 'leech'); if (g) g.bleed *= 1.6; },
   },
   leechswarm: {
-    name: 'Leech Nest', from: 'fatleech', rarity: 'rare', icon: ['hemophage', 'eggsac'],
+    name: 'Leech Nest', from: 'fatleech', icon: ['hemophage', 'eggsac'],
     desc: 'Whatever bleeds to death releases maggots that fight for you.',
     short: 'What bleeds to death releases fighting maggots.',
     apply(s) { s.leechBrood = 2; },
   },
   bloodpact: {
-    name: 'Shared Veins', from: 'fatleech', rarity: 'rare', icon: ['hemophage', 'secondheart'],
+    name: 'Shared Veins', from: 'fatleech', icon: ['hemophage', 'secondheart'],
     desc: 'Bled-out kills heal you far more often.',
     apply(s) { s.leechFeed = 0.25; },
   },
   leechspray: {
-    name: 'Leech Spray', from: 'leechspit', rarity: 'uncommon', icon: ['proboscis', 'spines'],
+    name: 'Leech Spray', from: 'leechspit', icon: ['proboscis', 'spines'],
     desc: 'Spit three smaller leeches at once.',
     apply(s) { const g = s.guns.find(g => g.id === 'leech'); if (g) { g.count = 3; g.spread = 0.2; g.dmg *= 0.7; } },
   },
   anticoag: {
-    name: 'Thin Blood', from: 'leechspray', rarity: 'rare', icon: ['hemophage', 'toxic'],
+    name: 'Thin Blood', from: 'leechspray', icon: ['hemophage', 'toxic'],
     desc: 'Bleeding enemies take more damage from everything.',
     apply(s) { s.anticoag = 0.3; },
   },
   hungryleech: {
-    name: 'Hungry Leeches', from: 'leechspray', rarity: 'rare', icon: ['hemophage', 'eyes'],
+    name: 'Hungry Leeches', from: 'leechspray', icon: ['hemophage', 'eyes'],
     desc: 'Your leeches seek out prey.',
     apply(s) { s.homing += 3; },
   },
 
   // ================= NEW STARTING LIMBS =================
   crablegs: {
-    name: 'Crab Legs', slot: 'LIMBS', rarity: 'common', icon: ['spider', 'chitin'],
+    name: 'Crab Legs', slot: 'LIMBS', icon: ['spider', 'chitin'],
     desc: 'Quick, armored legs. Right-click: snap a pincer shut on whatever is in front of you.',
     short: 'Quick, armored legs. Right-click: snap a pincer.',
     apply(s, l) { s.slug = false; s.speed = Math.max(s.speed, 80 + 6 * l); s.limbActive = { kind: 'pincer', l }; },
   },
   carapacelegs: {
-    name: 'Shell Claw', from: 'crablegs', rarity: 'uncommon', icon: ['chitin', 'hide'],
+    name: 'Shell Claw', from: 'crablegs', icon: ['chitin', 'hide'],
     desc: 'Your pincer is a shield too: snapping it shatters the enemy shots in front of you.',
     short: 'Snapping your pincer shatters shots ahead.',
     apply(s) { s.shellClaw = true; },
   },
   kingcrab: {
-    name: 'King Claw', from: 'carapacelegs', rarity: 'rare', icon: ['chitin', 'horns'],
+    name: 'King Claw', from: 'carapacelegs', icon: ['chitin', 'horns'],
     desc: 'A huge pincer: it crushes everything in front of you, harder.',
     apply(s) { s.pincerWide = true; s.pincerMul = 1.5; },
   },
   boxercrab: {
-    name: 'Pistol Claw', from: 'carapacelegs', rarity: 'rare', icon: ['chitin', 'slam'],
+    name: 'Pistol Claw', from: 'carapacelegs', icon: ['chitin', 'slam'],
     desc: 'The pincer snaps so hard it fires a shockwave forward.',
     apply(s) { s.pincerShock = true; },
   },
   scuttle: {
-    name: 'Scuttling Legs', from: 'crablegs', rarity: 'uncommon', icon: ['spider', 'spines'],
+    name: 'Scuttling Legs', from: 'crablegs', icon: ['spider', 'spines'],
     desc: 'Every dash leaves a bone spike behind. It cuts what steps on it and stops enemy shots.',
     apply(s) { s.dashSpike = true; },
   },
   sidestep: {
-    name: 'Deflecting Shins', from: 'scuttle', rarity: 'rare', icon: ['spider', 'membrane'],
+    name: 'Deflecting Shins', from: 'scuttle', icon: ['spider', 'membrane'],
     desc: 'Dashing through enemy shots destroys them.',
     apply(s) { s.dashEat = true; },
   },
   coconutcrab: {
-    name: 'Crushing Claw', from: 'scuttle', rarity: 'rare', icon: ['chitin', 'adrenal'],
+    name: 'Crushing Claw', from: 'scuttle', icon: ['chitin', 'adrenal'],
     desc: 'A pincer kill refreshes the pincer and your dash.',
     apply(s) { s.pincerReset = true; },
   },
 
   haunches: {
-    name: 'Haunches', slot: 'LIMBS', rarity: 'uncommon', icon: ['hindlegs', 'feral'],
+    name: 'Haunches', slot: 'LIMBS', icon: ['hindlegs', 'feral'],
     desc: 'Powerful hopping legs; your dash is a pounce. Right-click: leap the way you are moving (standing still, where you point), landing just short of anything in the way with a shockwave.',
     short: 'Hop, pounce, and leap in with a shockwave.',
     apply(s, l) { MUTATIONS.hindlegs.apply(s, l); s.limbActive = { kind: 'leap', l }; },
   },
   pouncer: {
-    name: 'Pouncing Heels', from: 'haunches', rarity: 'uncommon', icon: ['hindlegs', 'slam'],
+    name: 'Pouncing Heels', from: 'haunches', icon: ['hindlegs', 'slam'],
     desc: 'You land harder, and the shockwave stuns.',
     apply(s) { s.slamDmg += 2; onHit(s, 'slam', 'stun', { t: 0.8 }); },
   },
   gorepounce: {
-    name: 'Gore Claws', from: 'pouncer', rarity: 'rare', icon: ['hindlegs', 'hemophage'],
+    name: 'Gore Claws', from: 'pouncer', icon: ['hindlegs', 'hemophage'],
     desc: 'Everything you land on bleeds.',
     apply(s) { onHit(s, 'slam', 'bleed', { t: 3, dps: 3 }); },
   },
   killerleap: {
-    name: 'Killer Haunches', from: 'pouncer', rarity: 'rare', icon: ['hindlegs', 'adrenal'],
+    name: 'Killer Haunches', from: 'pouncer', icon: ['hindlegs', 'adrenal'],
     desc: 'A landing that kills lets you leap again at once.',
     apply(s) { s.leapReset = true; },
   },
   longstride: {
-    name: 'Long Legs', from: 'haunches', rarity: 'uncommon', icon: ['hindlegs', 'wings'],
+    name: 'Long Legs', from: 'haunches', icon: ['hindlegs', 'wings'],
     desc: 'No more hopping: a fast, smooth run, and your leap reaches much further.',
     short: 'A fast, smooth run, and a much longer leap.',
     apply(s) { s.hop = 0; s.speed = Math.max(s.speed, 118); s.leapRange = 125; },
   },
   sprinter: {
-    name: 'Sprinter Tendons', from: 'longstride', rarity: 'rare', icon: ['hindlegs', 'twitch'],
+    name: 'Sprinter Tendons', from: 'longstride', icon: ['hindlegs', 'twitch'],
     desc: 'Faster still, and your dash recovers quicker.',
     apply(s) { s.speed += 20; s.dashCd *= 0.8; },
   },
   antelope: {
-    name: 'Antelope Legs', from: 'longstride', rarity: 'rare', icon: ['hindlegs', 'membrane'],
+    name: 'Antelope Legs', from: 'longstride', icon: ['hindlegs', 'membrane'],
     desc: 'Nothing can touch you for the whole leap, and a moment after.',
     apply(s) { s.leapInv = true; },
   },
@@ -1646,83 +1645,83 @@ const MUTATIONS = {
   // ================= PHASE 5: ROOTS FOR THE EMPTY SLOTS =================
   // --- Hive HEAD: the brood answers to you ---
   broodcrest: {
-    name: 'Brood Crest', slot: 'HEAD', rarity: 'uncommon', shallow: true, icon: ['antennae', 'eggsac'],
+    name: 'Brood Crest', slot: 'HEAD', shallow: true, icon: ['antennae', 'eggsac'],
     desc: 'A ridge of chitin crowns your head. Every few seconds your brood swarms the prey you are aiming at, biting faster for a while.',
     short: 'Your brood swarms what you aim at.',
     apply(s, l) { s.headActive = { kind: 'swarmcall', l }; },
   },
   pheromone: {
-    name: 'Pheromone Glands', from: 'broodcrest', rarity: 'rare', icon: ['antennae', 'toxic'],
+    name: 'Pheromone Glands', from: 'broodcrest', icon: ['antennae', 'toxic'],
     desc: 'The crest weeps a scent your brood rubs into every bite: what they bite is slowed.',
     short: 'Brood bites slow their prey.',
     apply(s) { s.broodSlow = true; },
   },
   hatchingcrest: {
-    name: 'Hatching Crest', from: 'broodcrest', rarity: 'rare', icon: ['eggsac', 'spider'],
+    name: 'Hatching Crest', from: 'broodcrest', icon: ['eggsac', 'spider'],
     desc: 'Eggs ripen in the crest: every swarm call also hatches a spiderling.',
     short: 'Every swarm call hatches a spiderling.',
     apply(s) { s.crestHatch = true; },
   },
   // --- Hive CORE: a womb that never stops ---
   hivewomb: {
-    name: 'Hive Womb', slot: 'CORE', rarity: 'uncommon', shallow: true, icon: ['brood', 'eggsac'],
+    name: 'Hive Womb', slot: 'CORE', shallow: true, icon: ['brood', 'eggsac'],
     desc: 'In a fight, a spiderling hatches out of you every few seconds (within your brood cap).',
     short: 'In a fight, spiderlings keep hatching.',
     apply(s, l) { s.wombHatch = Math.max(3, 6.5 - 0.7 * l); },
   },
   royaljelly: {
-    name: 'Royal Jelly', from: 'hivewomb', rarity: 'rare', icon: ['brood', 'regrow'],
+    name: 'Royal Jelly', from: 'hivewomb', icon: ['brood', 'regrow'],
     desc: 'You feed your brood something rich: every spiderling and maggot is tougher.',
     short: 'Your brood is tougher.',
     apply(s) { s.broodHp = 1; },
   },
   swarmheart: {
-    name: 'Swarm Heart', from: 'hivewomb', rarity: 'rare', icon: ['brood', 'twitch'],
+    name: 'Swarm Heart', from: 'hivewomb', icon: ['brood', 'twitch'],
     desc: 'Your heart beats for the whole swarm: your brood attacks much faster.',
     short: 'Your brood attacks faster.',
     apply(s) { s.broodHaste = 0.6; },
   },
   // --- Fungal BACK: vents along the spine ---
   sporevents: {
-    name: 'Spore Vents', slot: 'BACK', rarity: 'uncommon', shallow: true, icon: ['spores', 'miasma'],
+    name: 'Spore Vents', slot: 'BACK', shallow: true, icon: ['spores', 'miasma'],
     desc: 'Vents open along your spine. Dashing or getting hurt vents a corroding spore cloud.',
     short: 'Dashing or getting hurt vents a corroding cloud.',
     apply(s, l) { s.ventCloud = 16 + 3 * l; },
   },
   rotvents: {
-    name: 'Rot Vents', from: 'sporevents', rarity: 'rare', icon: ['miasma', 'bile'],
+    name: 'Rot Vents', from: 'sporevents', icon: ['miasma', 'bile'],
     desc: 'What you vent is thick with rot: the clouds corrode harder and burn.',
     short: 'Your vented clouds corrode harder and burn.',
     apply(s) { s.ventHard = true; },
   },
   fruitingvents: {
-    name: 'Fruiting Vents', from: 'sporevents', rarity: 'rare', icon: ['spores', 'bile'],
+    name: 'Fruiting Vents', from: 'sporevents', icon: ['spores', 'bile'],
     desc: 'Your vented clouds settle as they fade, bursting into pools of burning bile.',
     short: 'Vented clouds fade into bile pools.',
     apply(s) { s.ventPool = true; },
   },
   // --- Fungal CORE: a liver that keeps it going ---
   fungalliver: {
-    name: 'Fungal Liver', slot: 'CORE', rarity: 'uncommon', shallow: true, icon: ['bacteria', 'bile'],
+    name: 'Fungal Liver', slot: 'CORE', shallow: true, icon: ['bacteria', 'bile'],
     desc: 'Your liver grows a fur of mold. Everything you Corrode stays Corroded much longer.',
     short: 'Your corrosion lasts much longer.',
     apply(s, l) { s.corrodeLong = 1.6 + 0.3 * l; },
   },
   rotliver: {
-    name: 'Rot Liver', from: 'fungalliver', rarity: 'rare', icon: ['bacteria', 'miasma'],
+    name: 'Rot Liver', from: 'fungalliver', icon: ['bacteria', 'miasma'],
     desc: 'Corroded prey that dies bursts into a corroding cloud.',
     short: 'Corroded kills burst into a corroding cloud.',
     apply(s) { s.rotLiver = true; },
   },
   mycelialliver: {
-    name: 'Mycelial Liver', from: 'fungalliver', rarity: 'rare', icon: ['bacteria', 'silk'],
+    name: 'Mycelial Liver', from: 'fungalliver', icon: ['bacteria', 'silk'],
     desc: 'Threads of mold creep into whatever you Corrode: Corroded enemies are slowed.',
     short: 'Corroded enemies are slowed.',
     apply(s) { s.corrodeSlow = true; },
   },
   // --- Abomination BACK: what grows on your back is a sacrifice too ---
   hunchback: {
-    name: 'Hunchback', slot: 'BACK', rarity: 'uncommon', shallow: true, malignant: true, icon: ['overgrown', 'spines'],
+    name: 'Hunchback', slot: 'BACK', shallow: true, malignant: true, icon: ['overgrown', 'spines'],
     desc: 'A swollen hump rises between your shoulders: you hit harder.',
     short: 'A swollen hump: you hit harder.',
     cost: 'You grow bigger and easier to hit.',
@@ -1730,7 +1729,7 @@ const MUTATIONS = {
     apply(s) { s.damageMul *= 1.25; s.bulk += 1; },
   },
   glassspine: {
-    name: 'Glass Spine', from: 'hunchback', rarity: 'rare', malignant: true, icon: ['spines', 'twitch'],
+    name: 'Glass Spine', from: 'hunchback', malignant: true, icon: ['spines', 'twitch'],
     desc: 'Your spine turns to glass: your dash recovers much faster and goes further. But you are brittle: every hit costs more.',
     short: 'Much faster dashes.',
     cost: 'Every hit costs you more.',
@@ -1738,7 +1737,7 @@ const MUTATIONS = {
     apply(s) { s.dashCd *= 0.55; s.dashSpeed *= 1.2; s.hitCost = (s.hitCost || 1) + 0.5; },
   },
   secondmouth: {
-    name: 'Second Mouth', from: 'hunchback', rarity: 'rare', icon: ['mandibles', 'overgrown'],
+    name: 'Second Mouth', from: 'hunchback', icon: ['mandibles', 'overgrown'],
     desc: 'The hump splits open into a mouth. It bites anything that comes up behind you.',
     short: 'Your hump bites what comes up behind you.',
     apply(s) { s.backMouth = 0.6; },
@@ -1748,66 +1747,76 @@ const MUTATIONS = {
   // Parts that evolve once, fully grown (graft): no fork, just one end form.
   // They level like any part, and at full growth each evolves once.
   ratincisors: {
-    name: 'Rat Incisors', slot: 'MOUTH', graft: 'rat', rarity: 'uncommon', icon: ['mandibles', 'hemophage'],
+    name: 'Rat Incisors', slot: 'MOUTH', graft: 'rat', icon: ['mandibles', 'hemophage'],
     desc: 'Gnawing teeth: quick little bites that leave whatever you bite bleeding.',
     short: 'Quick bites that leave prey bleeding.',
     apply(s, l) { s.bite = true; s.biteDmg += 1 + 0.5 * l; s.biteDelay = Math.min(s.biteDelay, 0.24); onHit(s, 'melee', 'bleed', { t: 3, dps: 2 }); },
   },
   urchinquills: {
-    name: 'Urchin Quills', slot: 'BACK', graft: 'urchin', rarity: 'uncommon', icon: ['spines', 'barbs'],
+    name: 'Urchin Quills', slot: 'BACK', graft: 'urchin', icon: ['spines', 'barbs'],
     desc: 'In a fight, your quills fire a ring of spines every couple of seconds on their own.',
     short: 'In a fight, your quills fire spine rings.',
     apply(s, l) { s.quillPulse = Math.min(s.quillPulse || 99, 2.6 - 0.2 * l); s.quillCount = Math.max(s.quillCount || 0, 6); },
   },
   toadgullet: {
-    name: 'Toad Gullet', slot: 'MOUTH', graft: 'spitter', rarity: 'uncommon', icon: ['bile', 'toxic'],
+    name: 'Toad Gullet', slot: 'MOUTH', graft: 'spitter', icon: ['bile', 'toxic'],
     desc: 'Lob globs of bile that burst into burning puddles.',
     apply(s, l) { gun(s, { id: 'toad', dmg: 1.8 + 0.4 * l, delay: 1.1, lob: true, acid: 12, r: 3, round: true, color: '#8a9a30', sound: 'splat' }); },
   },
   splittercells: {
-    name: 'Splitter Cells', slot: 'CORE', graft: 'splitter', rarity: 'uncommon', icon: ['mitosis', 'regrow'],
+    name: 'Splitter Cells', slot: 'CORE', graft: 'splitter', icon: ['mitosis', 'regrow'],
     desc: 'When you are hurt, pieces of you split off and fight for you.',
     short: 'When hurt, pieces of you split off and fight.',
     apply(s, l) { s.hurtFlesh = 1 + (l >= 2 ? 1 : 0); },
   },
   culturejelly: {
-    name: 'Jelly Glands', slot: 'BACK', graft: 'culture', rarity: 'uncommon', icon: ['regrow', 'bile'],
+    name: 'Jelly Glands', slot: 'BACK', graft: 'culture', icon: ['regrow', 'bile'],
     desc: 'Where your dash ends, a sticky jelly bursts out and holds everything near.',
     short: 'Your dash ends in a burst of sticky jelly.',
     apply(s, l) { s.dashJelly = 1.2 + 0.2 * l; },
   },
   // ...and what each becomes, fully grown.
   plagueteeth: {
-    name: 'Plague Teeth', from: 'ratincisors', rarity: 'rare', icon: ['hemophage', 'toxic'],
+    name: 'Plague Teeth', from: 'ratincisors', icon: ['hemophage', 'toxic'],
     desc: 'Faster bites, and biting something that bleeds spreads its bleeding to everything near it.',
     short: 'Faster bites. Bleeding spreads when you bite.',
     apply(s) { s.biteDelay *= 0.8; s.plagueTeeth = true; },
   },
   pincushion: {
-    name: 'Pincushion Hide', from: 'urchinquills', rarity: 'rare', icon: ['barbs', 'spines'],
+    name: 'Pincushion Hide', from: 'urchinquills', icon: ['barbs', 'spines'],
     desc: 'A thicker ring of quills, and they also fire every time you are hurt.',
     short: "More quills, and they fire when you're hurt.",
     apply(s) { s.quillCount = Math.max(s.quillCount || 0, 10); s.quillOnHurt = true; },
   },
   bullfrog: {
-    name: 'Bullfrog Throat', from: 'toadgullet', rarity: 'rare', icon: ['toxic', 'overgrown'],
+    name: 'Bullfrog Throat', from: 'toadgullet', icon: ['toxic', 'overgrown'],
     desc: 'Bigger, heavier globs that bounce once on landing, bursting twice.',
     short: 'Heavy globs that bounce once and burst twice.',
     apply(s) { const g = s.guns.find(x => x.id === 'toad'); if (g) { g.r = 4; g.dmg *= 1.3; g.acid = 16; g.bounce = 1; } },
   },
   mitosis2: {
-    name: 'Runaway Cells', from: 'splittercells', rarity: 'rare', icon: ['mitosis', 'overgrown'],
+    name: 'Runaway Cells', from: 'splittercells', icon: ['mitosis', 'overgrown'],
     desc: 'More of you splits off when you are hurt, and in a fight a piece splits off on its own every few seconds.',
     short: 'More of you splits off, even on its own.',
     apply(s) { s.hurtFlesh = (s.hurtFlesh || 0) + 1; s.splitPulse = 7; },
   },
   digestjelly: {
-    name: 'Digesting Glands', from: 'culturejelly', rarity: 'rare', icon: ['bile', 'regrow'],
+    name: 'Digesting Glands', from: 'culturejelly', icon: ['bile', 'regrow'],
     desc: 'A wider jelly that digests what it holds: they bleed, and stay slowed after it lets go.',
     short: 'A wider jelly. What it holds bleeds and slows.',
     apply(s) { s.jellyR = 34; onHit(s, 'jelly', 'bleed', { t: 3, dps: 2.5 }); onHit(s, 'jelly', 'slow', { t: 2.5 }); },
   },
 };
+
+// RARITY is how far a part has evolved, nothing else: a root is COMMON, its first evolution
+// UNCOMMON, an end form RARE. Siblings at a fork are always equally rare, so every choice is
+// about what you want your body to do, never just "take the rarer one".
+const TIER_RARITY = ['common', 'uncommon', 'rare'];
+for (const id in MUTATIONS) {
+  let k = 0, x = id;
+  while (MUTATIONS[x].from) { x = MUTATIONS[x].from; k++; }
+  MUTATIONS[id].rarity = TIER_RARITY[Math.min(TIER_RARITY.length - 1, k)];
+}
 
 
 // WHISPERS: the cryptic line that appears when something new grows in you.
@@ -2493,10 +2502,9 @@ function bodyOffers(p, onlyLoc, boss = false) {
     const kids = childrenOf(m.id);
     if (kids.length) { for (const id of kids) out.push({ id, kind: 'branch', part: m }); continue; }
     if (!okLoc(m.loc)) continue;
-    // Fully grown: it can shed into a rarer root.
-    const rank = RARITY_ORDER.indexOf(MUTATIONS[m.path[0]].rarity);
+    // Fully grown: it can shed into another root (grown back just as far: swapPath).
     for (const r of rootsOf(m.loc)) {
-      if (RARITY_ORDER.indexOf(MUTATIONS[r].rarity) <= rank || hasMutation(p, r) || MUTATIONS[r].boss || !meetsRequirement(p, r, m)) continue;
+      if (r === m.path[0] || hasMutation(p, r) || MUTATIONS[r].boss || !meetsRequirement(p, r, m)) continue;
       out.push({ id: r, kind: 'meta', shed: m });
     }
   }
@@ -2539,14 +2547,13 @@ function isMetamorph(p, c) {
 // what you have with planting something new: wide or deep, your call.
 // `onlyLoc`: a devoured boss core offers only CORE cards.
 function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
-  const minIdx = minRarity ? RARITY_ORDER.indexOf(minRarity) : 0;
-  const luck = r => (r === 'rare' || r === 'legendary') ? (1 + 0.2 * (game.depth - 1)) : 1;
+  // Every offer is equally likely (rarity is just how evolved a part is: it doesn't make it
+  // likelier or rarer). Malignant parts turn up a little less, and boss picks are rare finds.
   const weight = c => {
     const d = MUTATIONS[c.id];
-    let w = RARITY[d.rarity].weight * luck(d.rarity);
+    let w = 1;
     if (d.malignant) w *= 0.7;
     if (d.boss) w *= 0.03; // boss picks are rare finds (about 1 vial in 4)
-    if (RARITY_ORDER.indexOf(d.rarity) < minIdx) w *= 0.02; // a vial strongly prefers rare samples
     return w;
   };
   const pickWeighted = cs => {
@@ -2603,11 +2610,8 @@ function rollChoices(p, n, minRarity, onlyLoc, plain = false, opened = null) {
     // A devoured core (it already gave you +1 max health). If it opened a new
     // slot, one card fills it (rare or better when there is one); otherwise one
     // card is a boss pick. The rest grow your CORE.
-    const cs = all.slice(), out = [];
-    const best = list => { // rare or better when any is on offer
-      const rare = list.filter(c => RARITY_ORDER.indexOf(MUTATIONS[c.id].rarity) >= RARITY_ORDER.indexOf('rare'));
-      return rare.length ? rare : list;
-    };
+    const cs = all.filter(c => c.kind !== 'meta'), out = []; // (a core grows you; it doesn't swap a part out)
+    const best = list => list;
     const extra = opened === 'CORE' ? [] : opened
       ? bodyOffers(p, opened).filter(c => c.kind === 'root').concat(bossPicks(p).filter(c => c.kind === 'root' && locOf(c.id) === opened))
       : bossPicks(p);
@@ -2781,7 +2785,7 @@ function becomeApex(p) {
 // you have room (always a mouth / limbs while you have none), and a
 // metamorphosis now and then for a fully grown part at max level.
 function rollLevelUps(p, n) {
-  const weight = c => RARITY[MUTATIONS[c.id].rarity].weight * (MUTATIONS[c.id].malignant ? 0.7 : 1);
+  const weight = c => MUTATIONS[c.id].malignant ? 0.7 : 1; // (no rarity bias: see TIER_RARITY)
   const pickW = cs => { let t = 0; for (const c of cs) t += weight(c); let r = Math.random() * t; for (const c of cs) if ((r -= weight(c)) <= 0) return c; return cs[cs.length - 1]; };
   const all = bodyOffers(p), roots = all.filter(c => c.kind === 'root'), out = [];
   const takeRoot = loc => { const rs = roots.filter(c => (!loc || locOf(c.id) === loc) && !out.some(o => o.id === c.id)); if (rs.length) out.push({ id: pickW(rs).id, kind: 'root' }); };

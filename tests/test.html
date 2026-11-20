@@ -150,7 +150,7 @@ try {
     applyChoice(p, { id: 'venomquills' });
     const spinesPart = partFor(p, 'venomquills');
     const metaBack = bodyOffers(p, 'BACK').filter(c => c.shed === spinesPart);
-    check('a fully grown part offers a METAMORPHOSIS into a rarer root', spinesPart.path.join() === 'spines,urchinhide,venomquills' && metaBack.length > 0 && metaBack.every(c => c.kind === 'meta' && RARITY_ORDER.indexOf(MUTATIONS[c.id].rarity) > 0));
+    check('a fully grown part offers a METAMORPHOSIS into another root (grown back just as far)', spinesPart.path.join() === 'spines,urchinhide,venomquills' && metaBack.length > 0 && metaBack.every(c => c.kind === 'meta' && c.id !== 'spines' && swapPath(c.id, spinesPart).length >= 2));
     const at = p.parts.indexOf(spinesPart);
     const metaCard = metaBack.find(c => c.id === 'chitin'), shown = choiceInfo(p, metaCard);
     applyChoice(p, metaCard);
@@ -773,7 +773,7 @@ try {
     q = arena(); grow(q, 'leechspit'); r = dummy(40, 99); r.speed = 0; fireFor(30); check('leech spitter: they bleed', statusT(r, 'bleed') > 0);
     q = arena(); grow(q, 'crablegs'); r = dummy(16, 99); r.speed = 0; q.aimX = 1; q.aimY = 0; Input.mouse.x = r.x; Input.mouse.y = r.y + ROOM_Y; Input.mouse.rightClicked = true; update(1 / 60); Input.endFrame();
     check('crab legs: right-click snaps a pincer (damage + stun)', r.hp < 99 && statusT(r, 'stun') > 0);
-    q = arena(); grow(q, 'haunches'); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
+    q = arena(); grow(q, 'haunches'); Input.keys.clear(); const x0 = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y; Input.mouse.rightClicked = true; for (let i = 0; i < 30; i++) { q.inv = 1; update(1 / 60); Input.endFrame(); }
     check(`haunches: right-click leaps where you point (${(q.x - x0).toFixed(0)}px) and lands with a shockwave`, q.x - x0 > 40 && q.landT !== undefined);
     { // ...but moving, it leaps the way you move; at an enemy, it lands just short, hits it, and you're safe a moment.
       q = arena(); grow(q, 'haunches'); const xa = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y;
@@ -892,7 +892,7 @@ try {
       const cs = rollChoices(p, 3, undefined, 'CORE', false, opens);
       const f = cs.filter(c => c.id !== '_gorge' && locOf(c.id) === 'MOUTH' && c.kind === 'root');
       if (f.length === 1) fills++;
-      if (f.some(c => ['rare', 'legendary'].includes(MUTATIONS[c.id].rarity))) rare++;
+      rare++; // (no rarity bias any more: any root will do)
       if (cs.some(c => c.id !== '_gorge' && locOf(c.id) === 'CORE')) core++;
     }
     check(`...and its core always offers exactly one weapon for it (${fills}/40, ${rare} rare+), with CORE growth beside it (${core}/40)`, fills === 40 && rare === 40 && core === 40);
@@ -1225,6 +1225,14 @@ try {
     check(`songs follow you (floor 1 ${f1}, floor 2 ${f2}, floor 7 ${f7}, boss ${boss}, title ${title})`, f1 === 'floor0@0' && f2 === 'floor1@0' && f7 === 'floor1@1' && boss === 'colossus@0' && title === 'title');
     Music.compile(SONGS.floor0, 2).root === SONGS.floor0.root + 2 || bad.push('loop');
     check('deeper loops come back higher and faster', Music.compile(SONGS.floor0, 2).root > SONGS.floor0.root && Music.compile(SONGS.floor0, 2).bpm > SONGS.floor0.bpm);
+  }
+  { // 0j1z) Rarity is only how evolved a part is: roots common, first evolutions uncommon, end forms rare.
+    const depth = id => { let k = 0; while (MUTATIONS[id].from) { id = MUTATIONS[id].from; k++; } return k; };
+    const wrong = Object.keys(MUTATIONS).filter(id => MUTATIONS[id].rarity !== TIER_RARITY[Math.min(2, depth(id))]);
+    check(`rarity follows evolution depth (${wrong.slice(0, 5).join(',') || 'all'})`, !wrong.length);
+    const uneven = Object.keys(MUTATIONS).filter(id => { const k = childrenOf(id); return k.length > 1 && new Set(k.map(c => MUTATIONS[c].rarity)).size > 1; });
+    check(`every fork is between equally rare forms (${uneven.join(',') || 'all'})`, !uneven.length);
+    check('nothing is legendary any more', !Object.values(MUTATIONS).some(d => d.rarity === 'legendary'));
   }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);

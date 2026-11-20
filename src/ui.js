@@ -106,7 +106,7 @@ function drawCard(ctx, info, i, x, y, menu) {
     ctx.fillStyle = '#fff4dc'; ctx.fillRect(kx, ky, 1, 1);
   }
   if (hover) { ctx.fillStyle = frame; ctx.fillRect(x + 1, y + 1, w - 2, 1); ctx.fillRect(x + 1, y + h - 2, w - 2, 1); }
-  if (info.rarity === 'legendary') {
+  if (info.rarity === 'rare') { // an end form: a slow glint runs round the frame
     ctx.fillStyle = '#fff0c0';
     for (let k = 0; k < 4; k++) {
       const pos = (menu.t * 90 + k * (w + h) / 2) % ((w + h) * 2);
