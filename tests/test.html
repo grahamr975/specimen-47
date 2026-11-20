@@ -1524,20 +1524,28 @@ try {
     const h0 = mom.hp; for (let i = 0; i < 60; i++) { p.hp = p.maxHp; p.inv = 1; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
     check(`silk cuts bosses (${(h0 - mom.hp).toFixed(1)} dmg)`, mom.hp < h0 && !(statusT(mom, 'web') > 0));
   }
-  { // 0a) The Mutagen Vault: next to the start, behind a hazmat seal.
-    let adj = 0, deadEnd = 0, exitOk = 0;
+  { // 0a) The Mutagen Vault: off a random room, behind a hazmat seal.
+    let one = 0, deadEnd = 0, exitOk = 0, nearOnF1 = 0, f1 = 0; const hosts = new Set();
     for (let i = 0; i < 60; i++) {
       game.depth = 1 + (i % 5);
       const f = generateFloor(game.depth), v = f.rooms.filter(r => r.type === 'vault');
-      if (v.length === 1 && Object.values(f.start.doors).includes(v[0])) adj++;
-      if (v.length === 1 && Object.keys(v[0].doors).length === 1) deadEnd++;
-      if (f.rooms.find(r => r.type === 'exit') !== v[0]) exitOk++;
+      if (v.length !== 1) continue;
+      one++;
+      const host = Object.values(v[0].doors)[0];
+      if (Object.keys(v[0].doors).length === 1 && host.seals && Object.values(host.doors).includes(v[0])) deadEnd++;
+      if (host.type !== 'exit') exitOk++;
+      if (game.depth > 1) hosts.add(host === f.start ? 'start' : 'elsewhere');
+      if (game.depth === 1) { f1++; if (host === f.start || Object.values(f.start.doors).includes(host)) nearOnF1++; }
     }
     game.depth = 1;
-    check(`the vault is always next to the start (${adj}/60), a dead end (${deadEnd}/60), never the exit (${exitOk}/60)`, adj === 60 && deadEnd === 60 && exitOk === 60);
-    newRun(); let p = game.player; game.room.pickups = []; game.room.cage = null; grow(p, 'slime');
+    check(`every floor has one vault (${one}/60): a sealed dead end (${deadEnd}/60), never off the exit (${exitOk}/60)`, one === 60 && deadEnd === 60 && exitOk === 60);
+    check(`the vault moves around (deeper floors: ${[...hosts].join(' + ')}), but on floor 1 stays within a room of the start (${nearOnF1}/${f1})`, hosts.has('elsewhere') && nearOnF1 === f1);
+    newRun(); let p = game.player;
+    // Stand in whichever room holds the vault's sealed door.
+    const toHost = () => { const v = game.floor.rooms.find(r => r.type === 'vault'), h = Object.values(v.doors)[0]; if (h !== game.room) { h.cleared = true; enterRoom(h, Object.keys(h.doors).find(d => h.doors[d] !== v) || 'up'); } game.enemies = []; game.room.locked = false; game.room.pickups = []; game.room.cage = null; return game.room; };
+    toHost(); grow(p, 'slime');
     const room = game.room, dir = Object.keys(room.seals)[0], c = doorCenter(dir);
-    check('the start room has a sealed door', !!sealAt(room, dir));
+    check('the room it hangs off has a sealed door', !!sealAt(room, dir));
     // Walk into it: it holds.
     const keyFor = { up: 'w', down: 's', left: 'a', right: 'd' }[dir];
     for (let i = 0; i < 180; i++) { Input.keys.clear(); Input.keys.add(keyFor); update(1 / 60); Input.endFrame(); }
@@ -1554,7 +1562,7 @@ try {
     for (let i = 0; i < 240 && game.room === room; i++) { Input.keys.clear(); Input.keys.add(keyFor); p.x += DIRS[dir].dx * 0; update(1 / 60); Input.endFrame(); }
     check('...and you walk through into the vault, where a mutagen waits', game.room.type === 'vault' && game.room.pickups.some(k => k.kind === 'vial'));
     // Melee breaks it too.
-    newRun(); p = game.player; game.room.cage = null; grow(p, 'mandibles');
+    newRun(); p = game.player; toHost(); grow(p, 'mandibles');
     const r2 = game.room, d2 = Object.keys(r2.seals)[0], c2 = doorCenter(d2);
     p.x = clamp(c2.x, TILE + 7, ROOM_PX_W - TILE - 7); p.y = clamp(c2.y, TILE + 7, ROOM_PX_H - TILE - 7);
     for (let i = 0; i < 60 * 4 && sealAt(r2, d2); i++) { Input.keys.clear(); Input.mouse.x = c2.x; Input.mouse.y = c2.y + ROOM_Y; Input.mouse.down = true; update(1 / 60); Input.endFrame(); }

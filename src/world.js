@@ -121,13 +121,9 @@ function generateFloor(depth) {
 
   const start = add(0, 0, 'start');
   const dirList = Object.values(DIRS);
-  // The Mutagen Vault sits right next to where you wake up, behind a hazmat seal.
-  const vd = pick(dirList);
-  const vault = add(vd.dx, vd.dy, 'vault');
   let guard = 0;
-  while (rooms.length < target && guard++ < 2000) {
+  while (rooms.length < target - 1 && guard++ < 2000) { // (the vault is added last)
     const base = pick(rooms);
-    if (base === vault) continue; // the vault stays a dead end
     const d = pick(dirList);
     const nx = base.gx + d.dx, ny = base.gy + d.dy;
     if (grid.has(key(nx, ny))) continue;
@@ -141,14 +137,7 @@ function generateFloor(depth) {
   for (const r of rooms) {
     for (const name in DIRS) {
       const nb = grid.get(key(r.gx + DIRS[name].dx, r.gy + DIRS[name].dy));
-      if (!nb) continue;
-      if ((r === vault && nb !== start) || (nb === vault && r !== start)) continue; // one way in
-      r.doors[name] = nb;
-      if (nb === vault) { // seal it; both sides share the same door
-        const seal = { hits: 0, broken: false, cd: 0 };
-        r.seals = { [name]: seal };
-        vault.seals = { [DIRS[name].opp]: seal };
-      }
+      if (nb) r.doors[name] = nb;
     }
   }
 
@@ -165,6 +154,28 @@ function generateFloor(depth) {
   let exit = rooms.find(r => r.type === 'combat');
   for (const r of rooms) if (r.type === 'combat' && distMap.get(r) > distMap.get(exit)) exit = r;
   exit.type = 'exit';
+
+  // The Mutagen Vault: a sealed dead end off a random room, wherever it lands this time
+  // (never off the exit). On floor 1 it stays within a room of the start, so the slug can
+  // reach the limbs inside. Its only door is the sealed one.
+  const spots = [], loose = [];
+  for (const r of rooms) {
+    if (r === exit || (depth === 1 && distMap.get(r) > 1)) continue;
+    for (const name in DIRS) {
+      const nx = r.gx + DIRS[name].dx, ny = r.gy + DIRS[name].dy;
+      if (grid.has(key(nx, ny)) || Math.abs(nx) > 4 || Math.abs(ny) > 2) continue;
+      let touching = 0;
+      for (const dd of dirList) if (grid.has(key(nx + dd.dx, ny + dd.dy))) touching++;
+      (touching === 1 ? spots : loose).push([r, name, nx, ny]); // (prefer a spot only its host touches)
+    }
+  }
+  const at = pick(spots.length ? spots : loose);
+  if (at) {
+    const [host, name, nx, ny] = at, vault = add(nx, ny, 'vault'), seal = { hits: 0, broken: false, cd: 0 }; // both sides share the door
+    host.doors[name] = vault; vault.doors[DIRS[name].opp] = host;
+    host.seals = Object.assign(host.seals || {}, { [name]: seal });
+    vault.seals = { [DIRS[name].opp]: seal };
+  }
 
   for (const r of rooms) buildRoom(r, depth);
   return { rooms, start: rooms[0], depth };
