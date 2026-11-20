@@ -54,6 +54,12 @@ function updateMenu(dt) {
     const x = cardX(i, n);
     if (mx >= x && mx < x + CARD.w && my >= CARD.y && my < CARD.y + CARD.h) menu.hover = i;
   }
+  if (Input.padUsed) { // gamepad: d-pad or stick moves between the cards, A takes one
+    if (!(menu.padSel >= 0 && menu.padSel < n)) menu.padSel = 0;
+    if (Input.hit('pad:left')) menu.padSel = (menu.padSel + n - 1) % n;
+    if (Input.hit('pad:right')) menu.padSel = (menu.padSel + 1) % n;
+    menu.hover = menu.padSel;
+  }
   if (menu.t < 0.5 || menu.stageT < 0.2) return; // ignore input briefly so a held fire button doesn't pick by accident
 
   // Esc: not now. Everything waiting stays banked; hold F in a cleared room later.
@@ -61,6 +67,7 @@ function updateMenu(dt) {
   let choice = -1;
   for (let i = 0; i < n; i++) if (Input.hit(String(i + 1))) choice = i;
   if (Input.mouse.clicked && menu.hover >= 0) choice = menu.hover;
+  if (Input.hit('pad:a') && Input.padUsed && menu.hover >= 0) choice = menu.hover;
   if (choice < 0) return;
 
   applyChoice(p, menu.choices[choice]);
@@ -637,6 +644,7 @@ function drawTitle(ctx) {
     ['SPACE / SHIFT', 'DASH'],
     ['RIGHT CLICK / E', 'LIMB ABILITY'],
     ['M / P / J', 'MUTE / PAUSE / JOURNAL'],
+    ['GAMEPAD', 'STICKS, RT FIRE, A DASH, RB LIMB'],
   ];
   lines.forEach(([k, v], i) => {
     drawText(ctx, k, VIEW_W / 2 - 6, 188 + i * 10, PAL.red, 1, 'right');
@@ -694,9 +702,9 @@ function openJournal() { game.journal = { page: 0 }; Sfx.play('flicker'); }
 
 function updateJournal() {
   const j = game.journal, pages = Math.ceil(Object.keys(SPLICES).length / JOURNAL_PER_PAGE);
-  if (Input.hit('j', 'escape')) { game.journal = null; return; }
-  if (Input.hit('arrowright', 'd')) j.page = (j.page + 1) % pages;
-  if (Input.hit('arrowleft', 'a')) j.page = (j.page + pages - 1) % pages;
+  if (Input.hit('j', 'escape', 'pad:b')) { game.journal = null; return; }
+  if (Input.hit('arrowright', 'd', 'pad:right')) j.page = (j.page + 1) % pages;
+  if (Input.hit('arrowleft', 'a', 'pad:left')) j.page = (j.page + pages - 1) % pages;
 }
 
 function drawJournal(ctx) {

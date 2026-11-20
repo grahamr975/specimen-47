@@ -1163,6 +1163,29 @@ try {
     for (let i = 0; i < 60 * 21; i++) { q.inv = 1; q.hp = q.maxHp; q.x = 30; q.y = 30; update(1 / 60); Input.endFrame(); if (game.menu) game.menu = null; }
     render(); check(`corpses rot: flies come after a while (age ${(c.age || 0).toFixed(0)}s)`, c.age > FLIES_AFTER);
   }
+  { // 0j1x) Gamepad: a fake Xbox-layout pad drives movement, aim, fire, dash and the cards.
+    const real = navigator.getGamepads;
+    const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad], configurable: true });
+    const frame = () => { Input.pollPad(); update(1 / 60); Input.endFrame(); };
+    newRun(); combatRoom(); game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); const q = game.player; q.inv = 99; q.x = 80; q.y = 96;
+    pad.axes = [1, 0, 0, -1]; const x0 = q.x; for (let i = 0; i < 30; i++) frame();
+    check(`left stick moves you, right stick aims (moved ${(q.x - x0).toFixed(0)}px, aim ${q.aimX.toFixed(1)},${q.aimY.toFixed(1)})`, q.x > x0 + 10 && q.aimY < -0.9 && Input.padUsed);
+    check('the right stick fires', game.bullets.some(b => b.team === 'player') || q.firing || Input.pad.fire);
+    check('the crosshair follows the stick aim', Math.abs(Input.mouse.y - (q.y + ROOM_Y - 40)) < 2);
+    pad.axes = [0, 0, 0, 0]; frame(); const cd = q.dashCd; pad.buttons[0].pressed = true; frame(); pad.buttons[0].pressed = false; frame();
+    check(`A dashes (cooldown ${cd} -> ${q.dashCd.toFixed(2)})`, q.dashCd > cd);
+    pad.buttons[3].pressed = true; Input.pollPad(); check('holding Y holds the cocoon key', Input.down('f')); pad.buttons[3].pressed = false; Input.pollPad();
+    openEvolution({ minRarity: null, title: 'TEST', levelUp: true }); const m = game.menu; m.t = m.stageT = 1;
+    pad.buttons[15].pressed = true; frame(); pad.buttons[15].pressed = false; frame();
+    const sel = m.hover, pick = m.choices[sel];
+    pad.buttons[0].pressed = true; frame(); pad.buttons[0].pressed = false; frame();
+    check(`d-pad picks the next card and A takes it (card ${sel + 1}: ${pick && pick.id})`, sel === 1 && game.menu !== m);
+    game.paused = true; pad.buttons[9].pressed = true; frame(); pad.buttons[9].pressed = false;
+    check('Start unpauses', !game.paused);
+    Object.defineProperty(navigator, 'getGamepads', { value: real, configurable: true }); Input.pollPad(); Input.padUsed = false; game.menu = null;
+    check('unplugged: back to keyboard and mouse', !Input.pad && !Input.padKeys.size);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

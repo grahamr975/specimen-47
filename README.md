@@ -14,7 +14,19 @@ Open `index.html` in a browser. There's no build step and nothing to install.
 | Right click / E | Limb ability (every LIMBS root has one; Tentacles grapple, Grasping Hands grab and throw) |
 | M / P | Mute / pause |
 | J (title screen or paused) | Splice journal: every splice you've found, and hints for the rest (kept between runs) |
-| G (paused) | Gore setting: full, reduced (less blood, nothing flies), or off (dust instead of blood; enemies still lose parts) |
+| G (paused) | Gore setting (X on a gamepad): full, reduced (less blood, nothing flies), or off (dust instead of blood; enemies still lose parts) |
+
+A controller works too: any gamepad the browser sees, with an Xbox-style layout (press a button after plugging it in). Moving the mouse hands control back to keyboard and mouse.
+
+| Gamepad | Action |
+|---|---|
+| Left stick / d-pad | Move |
+| Right stick | Aim and fire (RT also fires; push further to lob further) |
+| A / LB | Dash |
+| RB / X | Limb ability |
+| Hold Y | Cocoon (evolve) |
+| Start / Back | Pause / splice journal |
+| D-pad or stick, then A | Choose a card |
 
 ## How it works
 

@@ -210,7 +210,7 @@ function update(dt) {
     emergeFromCocoon(game.player);
   }
   if (Input.hit('p', 'escape')) game.paused = !game.paused;
-  if (game.paused) { if (Input.hit('j')) openJournal(); if (Input.hit('g')) setGore((GORE + 2) % 3); return; } // G: full -> reduced -> off
+  if (game.paused) { if (Input.hit('j')) openJournal(); if (Input.hit('g', 'pad:x')) setGore((GORE + 2) % 3); return; } // G (gamepad X): full -> reduced -> off
 
   // Hitstop: a heavy hit freezes everything for a beat.
   if (game.hitstop > 0) { game.hitstop -= dt; return; }
@@ -397,8 +397,8 @@ function render() {
     ctx.fillStyle = 'rgba(10,10,20,0.6)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     drawText(ctx, 'PAUSED', VIEW_W / 2, VIEW_H / 2 - 10, PAL.white, 3, 'center');
-    drawText(ctx, 'PRESS P TO RESUME  -  J: SPLICE JOURNAL', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
-    drawText(ctx, 'G: GORE ' + GORE_NAMES[GORE], VIEW_W / 2, VIEW_H / 2 + 26, GORE ? '#c84050' : PAL.silver, 1, 'center');
+    drawText(ctx, Input.padUsed ? 'START TO RESUME  -  BACK: SPLICE JOURNAL' : 'PRESS P TO RESUME  -  J: SPLICE JOURNAL', VIEW_W / 2, VIEW_H / 2 + 14, PAL.silver, 1, 'center');
+    drawText(ctx, (Input.padUsed ? 'X' : 'G') + ': GORE ' + GORE_NAMES[GORE], VIEW_W / 2, VIEW_H / 2 + 26, GORE ? '#c84050' : PAL.silver, 1, 'center');
   }
   if (game.journal) drawJournal(ctx);
   if (game.state === 'dead') drawGameOver(ctx);
@@ -423,6 +423,7 @@ function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
   while (acc >= STEP) {
+    Input.pollPad();
     update(STEP);
     Input.endFrame();
     acc -= STEP;
