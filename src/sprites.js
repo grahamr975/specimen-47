@@ -873,9 +873,11 @@ function comboIcon(a, b) {
 
 // A node's art: its own painting, a pair it borrows (`icon: ['a', 'b']` or
 // 'a'), or failing that, its parent's.
+// Every card part without a hand-painted icon gets one generated from what it is (icons.js).
 function mutIcon(id) {
-  if (SPR.icons[id]) return SPR.icons[id];
   const d = MUTATIONS[id];
+  if (d && !d.part && typeof partIcon === 'function' && (!ICON_PAINT[id] || ICON_REDO.has(id))) return partIcon(id);
+  if (SPR.icons[id]) return SPR.icons[id];
   if (!d) return null;
   if (Array.isArray(d.icon)) return (SPR.icons[id] = comboIcon(d.icon[0], d.icon[1]));
   if (d.icon) return (SPR.icons[id] = mutIcon(d.icon));
