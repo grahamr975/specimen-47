@@ -169,6 +169,7 @@ const STATUS_LOOK = {
   blind:   { hue: '#4a5468', prio: 2 },                 // cold slate
   slow:    { hue: '#5a7a78', prio: 3 },                 // murky teal goo
   pollen:  { hue: '#e8c840', prio: 3 },                 // gold
+  silkcut: { hue: '#e0d8d0', prio: 9, dot: '#ffe8e8' },     // the web cutting (a flash only; never inflicted)
 };
 
 // The hue on this enemy right now, and how strongly (fades as the status runs out).

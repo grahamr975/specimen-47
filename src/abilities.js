@@ -963,6 +963,7 @@ function updateWebs(dt) {
   const s = game.player.stats, cuts = new Map();
   for (const w of game.webs) {
     w.t -= dt;
+    if (w.cutT > 0) w.cutT -= dt;
     if (!s.silk) { w.t = 0; continue; }
     for (const e of game.enemies) {
       if (w.t <= 0) break;
@@ -970,6 +971,7 @@ function updateWebs(dt) {
       if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
       const n = cuts.get(e) || 0; cuts.set(e, n + 1);
       damageEnemy(e, s.silk.dmg * dt * (n ? WEB_STACK : 1), 0, 0, true);
+      webCutFx(w, e);
       if (isBoss(e)) continue; // the silk cuts a boss, but can't hold one
       inflict(e, 'web', { t: 0.25 });
       if (w.touched.has(e)) continue;
@@ -985,6 +987,25 @@ function updateWebs(dt) {
     if (c.hp <= 0) burstCorpse(c);
   }
   game.webs = game.webs.filter(w => w.t > 0);
+}
+
+// The cut has to read as damage, not just a slow: a flash, a drip of blood, a glint where the
+// strand bites, and a strand that darkens with blood the more it cuts. Rate-limited per enemy.
+const WEB_CUT_EVERY = 0.22;
+let webSndAt = -9;
+function webCutFx(w, e) {
+  if (game.time - (e.webCutAt || -9) < WEB_CUT_EVERY) return;
+  e.webCutAt = game.time;
+  const dx = w.x2 - w.x1, dy = w.y2 - w.y1, L2 = dx * dx + dy * dy || 1;
+  const k = Math.max(0, Math.min(1, ((e.x - w.x1) * dx + (e.y - w.y1) * dy) / L2));
+  const cx = w.x1 + dx * k, cy = w.y1 + dy * k;
+  dotFlash(e, 'silkcut');
+  const T = ENEMY_TYPES[e.type];
+  if (!T.robot) bloodSpray(cx, cy, 0, 0, Math.max(1, Math.round(2 * goreScale(e))), T.fluid, 35);
+  burst(cx, cy, '#f4eee8', 2, 45, 0.18); // the silk glints as it bites
+  w.cutX = cx; w.cutY = cy; w.cutT = 0.2;
+  if (Math.abs(game.time - webSndAt) > 0.15) { webSndAt = game.time; Sfx.play('silkcut'); }
+  if (!T.robot) w.blood = Math.min(1, (w.blood || 0) + 0.12);
 }
 
 // Tripwire: the web snaps, firing bone shards all along it.
@@ -1003,6 +1024,11 @@ function drawWebs(ctx) {
     ctx.globalAlpha = Math.min(1, w.t) * 0.85;
     pxLine(ctx, w.x1, w.y1, w.x2, w.y2, '#d8d0c8', 1, 0.6);
     const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) || 1;
+    if (w.blood) { const a = ctx.globalAlpha; ctx.globalAlpha = a * w.blood * 0.85; pxLine(ctx, w.x1, w.y1, w.x2, w.y2, GORE ? '#8a1c22' : '#3a3434', 1, 0.6); ctx.globalAlpha = a; } // soaked from cutting
+    if (w.cutT > 0) { // the strand pulls taut and glints where it bites
+      const ux = (w.x2 - w.x1) / len, uy = (w.y2 - w.y1) / len, g = 3 + 3 * (w.cutT / 0.2);
+      pxLine(ctx, w.cutX - ux * g, w.cutY - uy * g, w.cutX + ux * g, w.cutY + uy * g, '#ffffff', 1, 0.6);
+    }
     ctx.fillStyle = '#a8a098';
     for (let k = 6; k < len; k += 7) { // cross threads
       const x = Math.round(w.x1 + (w.x2 - w.x1) * k / len), y = Math.round(w.y1 + (w.y2 - w.y1) * k / len);

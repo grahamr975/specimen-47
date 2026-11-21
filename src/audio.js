@@ -133,6 +133,7 @@ const Sfx = {
     switch (name) {
       case 'shoot': this.noise(0.05, 0.06, 3500); this.tone(520, 0.05, 'triangle', 0.035, 220); break; // dry bony click
       case 'spine': this.noise(0.04, 0.05, 3000); this.tone(600, 0.03, 'square', 0.015, 300); break;
+      case 'silkcut': this.noise(0.05, 0.025, 5200); this.tone(1700, 0.05, 'triangle', 0.012, 1100); break; // a thin wire snicking through meat
       case 'hit': this.noise(0.08, 0.09, 700); this.tone(110, 0.06, 'sine', 0.06, 60); break;
       case 'kill': this.noise(0.3, 0.14, 600); this.tone(90, 0.25, 'sawtooth', 0.05, 35); break;
       case 'clank': this.noise(0.2, 0.08, 2500); this.tone(160, 0.2, 'square', 0.03, 80); break;
