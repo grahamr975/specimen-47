@@ -89,6 +89,8 @@ function enterRoom(room, side) {
       }
     }
   }
+  // The cancer ward: its growths are still standing, every time you come back in.
+  if (room.type === 'heart') for (const g of room.growths || []) if (!g.gone) { const e = spawnEnemy('growth', g.x, g.y); e.spawnT = 0; e.growth = g; }
   game.fade = 0.2;
 }
 
@@ -343,13 +345,14 @@ function drawDoors(ctx) {
     if (seal) {
       // Hazmat seal: dents and cracks as you hit it; flashes on each hit.
       const dmg = Math.min(2, Math.floor(seal.hits * 3 / SEAL_HITS));
-      let img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmat' + dmg];
-      if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash']; }
+      const sk = seal.kind === 'flesh' ? 'flesh' : 'hazmat'; // (the cancer ward's door is meat)
+      let img = SPR.doors[(horiz ? 'h_' : 'v_') + sk + dmg];
+      if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + sk + 'Flash']; }
       // Every couple of seconds (out of a fight) it rattles and flashes white, like anything you can hurt.
       const ph = (game.time + seal.hits * 0.3) % SEAL_PULSE, pulse = !room.locked && ph < 0.3;
       const rx = pulse && Math.floor(game.time * 30) % 2 ? (horiz ? 1 : 0) : 0, ry = pulse && Math.floor(game.time * 30) % 2 ? (horiz ? 0 : 1) : 0;
       ctx.drawImage(img, tx * TILE + rx, ty * TILE + ry);
-      if (pulse) { ctx.globalAlpha = 0.55 * (1 - ph / 0.3); ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + 'hazmatFlash'], tx * TILE + rx, ty * TILE + ry); ctx.globalAlpha = 1; }
+      if (pulse) { ctx.globalAlpha = 0.55 * (1 - ph / 0.3); ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + sk + 'Flash'], tx * TILE + rx, ty * TILE + ry); ctx.globalAlpha = 1; }
 
       const behind = room.doors[name]; // a glint of the vial waiting behind the seal
       if (behind && behind.vialLoc && Math.floor(game.time * 2) % 2) { const c = doorCenter(name); ctx.fillStyle = vialColor(behind.vialLoc); ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3); }

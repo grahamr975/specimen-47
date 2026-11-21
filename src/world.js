@@ -155,27 +155,33 @@ function generateFloor(depth) {
   for (const r of rooms) if (r.type === 'combat' && distMap.get(r) > distMap.get(exit)) exit = r;
   exit.type = 'exit';
 
-  // The Mutagen Vault: a sealed dead end off a random room, wherever it lands this time
-  // (never off the exit). On floor 1 it stays within a room of the start, so the slug can
-  // reach the limbs inside. Its only door is the sealed one.
-  const spots = [], loose = [];
-  for (const r of rooms) {
-    if (r === exit || (depth === 1 && distMap.get(r) > 1)) continue;
-    for (const name in DIRS) {
-      const nx = r.gx + DIRS[name].dx, ny = r.gy + DIRS[name].dy;
-      if (grid.has(key(nx, ny)) || Math.abs(nx) > 4 || Math.abs(ny) > 2) continue;
-      let touching = 0;
-      for (const dd of dirList) if (grid.has(key(nx + dd.dx, ny + dd.dy))) touching++;
-      (touching === 1 ? spots : loose).push([r, name, nx, ny]); // (prefer a spot only its host touches)
+  // Sealed rooms: dead ends off a random room (never off the exit), behind a door you
+  // break open. Their only door is the sealed one.
+  //  - The Mutagen Vault (a vial), behind a hazmat seal. On floor 1 it stays within a
+  //    room of the start, so the slug can reach the limbs inside.
+  //  - From floor 2, the Cancer Ward (growths full of hearts), behind a door of meat.
+  const attachSealed = (type, kind, near) => {
+    const spots = [], loose = [];
+    for (const r of rooms) {
+      if (r === exit || r.type === 'vault' || r.type === 'heart' || (near && distMap.get(r) > 1)) continue;
+      for (const name in DIRS) {
+        const nx = r.gx + DIRS[name].dx, ny = r.gy + DIRS[name].dy;
+        if (grid.has(key(nx, ny)) || Math.abs(nx) > 4 || Math.abs(ny) > 2) continue;
+        let touching = 0;
+        for (const dd of dirList) if (grid.has(key(nx + dd.dx, ny + dd.dy))) touching++;
+        (touching === 1 ? spots : loose).push([r, name, nx, ny]); // (prefer a spot only its host touches)
+      }
     }
-  }
-  const at = pick(spots.length ? spots : loose);
-  if (at) {
-    const [host, name, nx, ny] = at, vault = add(nx, ny, 'vault'), seal = { hits: 0, broken: false, cd: 0 }; // both sides share the door
-    host.doors[name] = vault; vault.doors[DIRS[name].opp] = host;
+    const at = pick(spots.length ? spots : loose);
+    if (!at) return null;
+    const [host, name, nx, ny] = at, room = add(nx, ny, type), seal = { hits: 0, broken: false, cd: 0, kind }; // both sides share the door
+    host.doors[name] = room; room.doors[DIRS[name].opp] = host;
     host.seals = Object.assign(host.seals || {}, { [name]: seal });
-    vault.seals = { [DIRS[name].opp]: seal };
-  }
+    room.seals = { [DIRS[name].opp]: seal };
+    return room;
+  };
+  attachSealed('vault', 'hazmat', depth === 1);
+  if (depth >= 2) attachSealed('heart', 'flesh', false);
 
   for (const r of rooms) buildRoom(r, depth);
   return { rooms, start: rooms[0], depth };
@@ -198,7 +204,8 @@ function buildRoom(room, depth) {
     for (let i = 0; i < row.length; i++) if (row[i] === '#') tiles[(j + 1) * ROOM_W + (i + 1)] = T_BLOCK;
   });
   room.tiles = tiles;
-  room.hazards = makeHazards(room, depth);
+  room.hazards = room.type === 'heart' ? [] : makeHazards(room, depth); // (the cancer ward is a safe room)
+  if (room.type === 'heart') room.growths = growthSpots(depth);
   room.bg = bakeRoom(room);
   room.decals = makeCanvas(ROOM_PX_W, ROOM_PX_H); // fresh blood & corpses, kept for the whole floor
 }
@@ -293,6 +300,7 @@ function bakeRoom(room) {
   }
 
   paintHazards(x, room);
+  if (room.type === 'heart') paintCancerWard(x);
 
   // Shadow cast by the walls onto the floor.
   x.fillStyle = 'rgba(0,0,0,0.5)';
@@ -408,16 +416,19 @@ function strikeSeal(x, y, reach) {
     s.cd = game.time + 0.18;
     s.hits++;
     s.flash = 0.08;
-    burst(c.x, c.y, '#ffd070', 6, 80, 0.25);
-    burst(c.x, c.y, '#e8c020', 3, 50, 0.3);
+    const meat = s.kind === 'flesh'; // the cancer ward's door bleeds instead of sparking
+    if (meat) { bloodSpray(c.x, c.y, x - c.x, y - c.y, 8, FLUID.blood, 90); Sfx.play('chomp'); }
+    else { burst(c.x, c.y, '#ffd070', 6, 80, 0.25); burst(c.x, c.y, '#e8c020', 3, 50, 0.3); Sfx.play('clank'); }
     game.shake = Math.max(game.shake, 2);
-    Sfx.play('clank');
     if (s.hits >= SEAL_HITS) {
       s.broken = true;
-      burst(c.x, c.y, '#e8c020', 20, 130, 0.6);
-      burst(c.x, c.y, '#3e3e46', 16, 110, 0.6);
-      burst(c.x, c.y, VIAL_COLOR, 10, 60, 0.8); // the vault breathes out
-      floatText(c.x, c.y + 10, 'SEAL BROKEN', '#e8c020');
+      if (meat) { bloodSpray(c.x, c.y, 0, 0, 30, FLUID.blood, 140); gibs(c.x, c.y, 6, ['#8a1020', '#5a0a12', '#c04050'], FLUID.blood); stain(c.x, c.y, 5, FLUID.blood); floatText(c.x, c.y + 10, 'TORN OPEN', '#ff6070'); }
+      else {
+        burst(c.x, c.y, '#e8c020', 20, 130, 0.6);
+        burst(c.x, c.y, '#3e3e46', 16, 110, 0.6);
+        burst(c.x, c.y, VIAL_COLOR, 10, 60, 0.8); // the vault breathes out
+        floatText(c.x, c.y + 10, 'SEAL BROKEN', '#e8c020');
+      }
       game.shake = Math.max(game.shake, 5);
       Sfx.play('slam');
     }
@@ -440,4 +451,47 @@ function randomFloorSpot(room, avoid, minDist) {
     return spot;
   }
   return { x: ROOM_PX_W / 2, y: ROOM_PX_H / 2 };
+}
+
+// --- The Cancer Ward (floor 2 on) --------------------------------------------------
+// A safe room behind a door of meat. Everything in it has grown wrong: tumors bulge out
+// of the walls, veins crawl over the floor. 2-3 growths stand in it; burst one and a
+// heart falls out (half hearts on floors 2-3, whole ones deeper).
+function growthSpots(depth) {
+  const n = randInt(2, 3), cx = ROOM_PX_W / 2, cy = ROOM_PX_H / 2, a0 = rand(0, Math.PI * 2);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = a0 + i * Math.PI * 2 / n;
+    out.push({ x: Math.round(cx + Math.cos(a) * 58), y: Math.round(cy + Math.sin(a) * 34), amount: depth >= 4 ? HP_PER_HEART : 1, gone: false });
+  }
+  return out;
+}
+
+function paintCancerWard(x) {
+  x.fillStyle = 'rgba(110,0,18,0.2)'; x.fillRect(0, 0, ROOM_PX_W, ROOM_PX_H); // a red cast over everything
+  const lump = (lx, ly, r) => { // a tumor: dark rim, raw red, a wet highlight
+    pxCircle(x, lx, ly, r + 1, '#1a0204');
+    pxCircle(x, lx, ly, r, pick(['#6a0e18', '#7a1420', '#5a0a12']));
+    pxCircle(x, lx - r * 0.3, ly - r * 0.3, r * 0.45, '#a02a34');
+    x.fillStyle = '#d06070'; x.fillRect(Math.round(lx - r * 0.4), Math.round(ly - r * 0.5), 1, 1);
+  };
+  // Clusters swelling out of the walls and corners.
+  for (let i = 0; i < 26; i++) {
+    const side = randInt(0, 3), t = rand(0.05, 0.95);
+    const lx = side === 0 ? TILE + rand(0, 6) : side === 1 ? ROOM_PX_W - TILE - rand(0, 6) : TILE + t * (ROOM_PX_W - TILE * 2);
+    const ly = side === 2 ? TILE + rand(0, 6) : side === 3 ? ROOM_PX_H - TILE - rand(0, 6) : TILE + t * (ROOM_PX_H - TILE * 2);
+    lump(lx, ly, rand(2, 5.5));
+    if (Math.random() < 0.5) lump(lx + rand(-5, 5), ly + rand(-4, 4), rand(1.5, 3));
+  }
+  // Veins crawling across the floor toward the middle.
+  for (let i = 0; i < 16; i++) {
+    let vx = rand(TILE, ROOM_PX_W - TILE), vy = rand(TILE, ROOM_PX_H - TILE), a = Math.atan2(ROOM_PX_H / 2 - vy, ROOM_PX_W / 2 - vx);
+    for (let k = 0; k < 60; k++) {
+      a += rand(-0.5, 0.5); vx += Math.cos(a) * 1.2; vy += Math.sin(a) * 1.2;
+      if (vx < TILE || vy < TILE || vx > ROOM_PX_W - TILE || vy > ROOM_PX_H - TILE) break;
+      x.fillStyle = k % 7 === 0 ? '#e0404a' : k % 2 ? '#a01828' : '#7a1020'; x.fillRect(Math.round(vx), Math.round(vy), k % 3 ? 1 : 2, 1); // red, and thick in places
+    }
+  }
+  // And a few pools where something wept.
+  for (let i = 0; i < 5; i++) pxCircle(x, rand(TILE * 2, ROOM_PX_W - TILE * 2), rand(TILE * 2, ROOM_PX_H - TILE * 2), rand(2, 5), '#2a0408');
 }

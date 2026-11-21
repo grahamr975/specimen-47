@@ -331,6 +331,8 @@ function drawHUD(ctx) {
   else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - DEVOUR IT'; col = VIAL_COLOR; }
   else if (room.type === 'vault') { msg = (room.vialLoc || 'MUTAGEN') + ' VAULT'; col = vialColor(room.vialLoc); }
+  else if (room.type === 'heart') { msg = 'CANCER WARD - BURST THE GROWTHS'; col = '#ff6070'; }
+  else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d) && sealAt(room, d).kind === 'flesh')) { msg = 'A WALL OF MEAT - TEAR IT OPEN'; col = '#ff6070'; }
   else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d))) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; }
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');
 
@@ -384,6 +386,7 @@ function drawMinimap(ctx) {
     let mark = null;
     if (r.type === 'exit') mark = PAL.red;
     if (r.type === 'vault') mark = vialColor(r.vialLoc);
+    if (r.type === 'heart') mark = '#e02838'; // the cancer ward
     if ((r.corpses.length || r.orbs.length) && r.visited) mark = '#e8a0b8';
     if (mark && !current) { ctx.fillStyle = mark; ctx.fillRect(x + 2, y + 1, 2, 2); }
   }
@@ -615,7 +618,7 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 // The build shown in the corner of the title screen. Bump both when you put out a new version.
-const GAME_VERSION = '0.1.5', GAME_UPDATED = '2026-11-20';
+const GAME_VERSION = '0.1.6', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [

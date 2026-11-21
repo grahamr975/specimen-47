@@ -1289,6 +1289,29 @@ try {
     check(`armor taking a hit still leaves you safe a while (${q.inv.toFixed(2)}s)`, q.inv >= BLOCK_INV - 1e-9 && q.armor === 0);
     render(); check('the hurt flash and red edges draw without errors', true);
   }
+  { // 0j1v7) The Cancer Ward: from floor 2, a safe room behind a door of meat; its growths burst into hearts.
+    let ok = 0, f1 = 0;
+    for (let i = 0; i < 30; i++) {
+      game.depth = 1 + (i % 5);
+      const f = generateFloor(game.depth), w = f.rooms.filter(r => r.type === 'heart');
+      if (game.depth === 1) { if (!w.length) f1++; continue; }
+      const host = w[0] && Object.values(w[0].doors)[0];
+      if (w.length === 1 && Object.keys(w[0].doors).length === 1 && host.type !== 'exit' && host.seals && Object.values(host.seals).some(s => s.kind === 'flesh') && w[0].growths.length >= 2 && w[0].growths.length <= 3) ok++;
+    }
+    check(`floors 2+ have one cancer ward behind a door of meat, never off the exit (${ok}/24), floor 1 none (${f1}/6)`, ok === 24 && f1 === 6);
+    newRun(); game.depth = 2; game.floor = generateFloor(2); const ward = game.floor.rooms.find(r => r.type === 'heart');
+    enterRoom(ward, Object.keys(ward.doors)[0]);
+    const grows = game.enemies.filter(e => e.type === 'growth');
+    check(`the ward is safe (locked ${game.room.locked}, hazards ${game.room.hazards.length}) with ${grows.length} growths in it`, !game.room.locked && !game.room.hazards.length && grows.length === ward.growths.length);
+    damageEnemy(grows[0], 999, 1, 0);
+    const hearts = game.room.pickups.filter(k => k.kind === 'heart');
+    check(`a burst growth drops a heart (${hearts.length}, ${hearts[0] && hearts[0].amount} half-hearts on floor 2)`, hearts.length === 1 && hearts[0].amount === 1);
+    check('growths are harmless and rooted', ENEMY_TYPES.growth.harmless && enemyMass(grows[1]) === Infinity);
+    enterRoom(game.floor.rooms[0], 'up'); enterRoom(ward, Object.keys(ward.doors)[0]);
+    check(`come back and the burst one stays gone (${game.enemies.filter(e => e.type === 'growth').length} left)`, game.enemies.filter(e => e.type === 'growth').length === ward.growths.length - 1);
+    game.depth = 4; check('deeper, they hold whole hearts', growthSpots(4)[0].amount === HP_PER_HEART);
+    game.depth = 1;
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

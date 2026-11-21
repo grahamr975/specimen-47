@@ -596,6 +596,34 @@ function paintHazmat(horiz, dmg) {
   return P.outline().toCanvas();
 }
 
+// The cancer ward's door: a wall of meat, swollen shut with red growths. Torn as you hit it.
+function paintFleshDoor(horiz, dmg) {
+  const w = horiz ? 32 : 16, h = horiz ? 16 : 32;
+  const P = new Painter(w, h, 91 + dmg);
+  P.rect(0, 0, w - 1, h - 1, R.muscle, 0.45, { noise: 0.35 });
+  for (let i = 0; i < 6; i++) P.vein(hash2(i, 1, 9) * w, hash2(i, 2, 9) * h, 8, i % 2 ? '#c02838' : '#e04a54', hash2(i, 3, 9) * 6); // red veins over the meat
+  // Growths bulging out of it: the more you've torn, the fewer are left whole.
+  const lumps = [[0.3, 0.3, 3.4], [0.7, 0.4, 2.8], [0.45, 0.7, 3], [0.82, 0.78, 2.2], [0.15, 0.75, 2], [0.55, 0.2, 1.8]];
+  lumps.slice(0, lumps.length - dmg * 2).forEach(([fx, fy, r]) => P.blob(fx * w, fy * h, horiz ? r * 1.2 : r, horiz ? r : r * 1.2, R.blood, { spec: 1, noise: 0.15 }));
+  for (const [fx, fy] of [[0.3, 0.3], [0.7, 0.4]]) P.dot(fx * w + 0.6, fy * h - 0.6, '#ff8a90'); // wet shine
+  if (dmg >= 1) P.scratch([[w * 0.2, h * 0.2], [w * 0.45, h * 0.55], [w * 0.4, h * 0.8]], '#1a0204');
+  if (dmg >= 2) { P.blob(w * 0.6, h * 0.55, 2.4, 2.4, R.socket, { noise: 0 }); P.scratch([[w * 0.55, h * 0.3], [w * 0.75, h * 0.6], [w * 0.7, h * 0.9]], '#1a0204'); }
+  return P.outline().toCanvas();
+}
+
+// A cancerous growth (the cancer ward's): a swollen red tumor, veined, lumpy, slowly breathing.
+// Hit it until it bursts; there's a heart inside.
+function paintGrowth(frame) {
+  const P = new Painter(18, 16, 121), k = frame ? 1.06 : 1;
+  P.blob(9, 13.4, 7, 2, R.muscle, { shift: -0.35, noise: 0.3 }); // its roots, spread over the floor
+  P.blob(9, 9, 6.2 * k, 5.6 * k, R.blood, { spec: 1, noise: 0.2 });
+  P.blob(5.4, 7, 3 * k, 2.7 * k, R.blood, { spec: 1, noise: 0.2 }).blob(12.6, 6.4, 2.6 * k, 2.4 * k, R.blood, { spec: 1, noise: 0.2 });
+  P.blob(9.5, 4.2, 2.2 * k, 2 * k, R.cyst, { spec: 1 });
+  P.vein(6, 10, 6, '#3a0608', 0.4).vein(12, 11, 5, '#3a0608', 2.8);
+  P.blob(10, 9.5, 1.6, 1.4, R.pink, { shift: 0.2 }); // the heart inside, showing through
+  return P.outline().toCanvas();
+}
+
 // A planted polyp: a fleshy bulb on a stalk with a toothed mouth on top.
 function paintPolypAlly() { // Spider Womb's egg sac: silk wrapped tight, eggs pressing through, tied down
   const P = new Painter(12, 14, 83);
@@ -1431,6 +1459,7 @@ function withFlash(name, img) {
   for (const [n, fn] of [['frostbitten', paintFrostbitten], ['cryocrawler', paintCryoCrawler], ['jarthing', paintThawed], ['carrier', paintCarrier], ['gunpolyp', paintGunPolyp],
     ['mimic', paintMimic], ['chimera', paintChimera], ['clone', paintClone], ['enforcer', paintEnforcer], ['hunter', paintHunter], ['handler', paintHandler]]) { withFlash(n, fn(false)); withFlash(n + '2', fn(true)); }
   withFlash('jar', paintJar());
+  withFlash('growth', paintGrowth(0)); withFlash('growth2', paintGrowth(1)); // the cancer ward's growths
   withFlash('bloater', paintBloater(false)); withFlash('bloater2', paintBloater(true));
   withFlash('mimicdead', SPR.rat_dead); // a Mimic in disguise: just another corpse
   for (const [n, fn] of [['colossus', paintColossus], ['biotank', paintBiotank], ['archive', paintArchive], ['director', paintDirector]]) { withFlash(n, fn(0)); withFlash(n + '2', fn(1)); }
@@ -1455,6 +1484,8 @@ function withFlash(name, img) {
     SPR.doors[k + 'bossLocked'] = paintBossDoor(horiz, true);
     for (const d of [0, 1, 2]) SPR.doors[k + 'hazmat' + d] = paintHazmat(horiz, d);
     SPR.doors[k + 'hazmatFlash'] = silhouette(SPR.doors[k + 'hazmat0'], '#fff0c0');
+    for (const d of [0, 1, 2]) SPR.doors[k + 'flesh' + d] = paintFleshDoor(horiz, d); // the cancer ward's door
+    SPR.doors[k + 'fleshFlash'] = silhouette(SPR.doors[k + 'flesh0'], '#ffd0d0');
   }
 })();
 

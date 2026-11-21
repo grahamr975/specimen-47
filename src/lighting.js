@@ -74,6 +74,7 @@ function drawLighting(ctx) {
   for (const pd of game.puddles) light(LIGHT.small, pd.x, pd.y, pd.team === 'player' ? 0.5 : 0.35);
   if (game.room.hatch) light(LIGHT.med, ROOM_PX_W / 2, ROOM_PX_H / 2, 0.8);
   for (const pk of game.room.pickups) light(LIGHT.small, pk.x, pk.y, 0.6);
+  for (const e of game.enemies) if (e.type === 'growth' && !e.dead) light(LIGHT.med, e.x, e.y, 0.5 + 0.15 * Math.sin(game.time * 3 + e.x)); // the ward's growths glow, throbbing
   for (const o of game.room.orbs) light(LIGHT.small, o.x, o.y, 0.45);
 
   dctx.globalAlpha = 1;

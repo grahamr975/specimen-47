@@ -16,6 +16,7 @@ const ENEMY_TYPES = {
   spitter:  { name: 'Bloat Toad',      hp: 5, r: 6, speed: 34, dna: 2, corpse: 0.7, fluid: FLUID.blood, gib: ['#3e4a2a', '#8a1020', '#232a18'], eyes: [[-4, -4], [4, -4]] },
   // --- Floor 1: Petri Labs ---
   culture:  { name: 'Culture Blob',    hp: 4, r: 6, speed: 8,  dna: 1, corpse: 0.4, fluid: FLUID.rot,   gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [] },
+  growth:   { name: 'Growth', hp: 4, r: 7, speed: 0, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#8a1020', '#5a0a12', '#c04050'], eyes: [], harmless: true, rooted: true }, // the cancer ward's: bursts into a heart
   scavenger:{ name: 'Scavenger Maggot', hp: 1, r: 4, speed: 34, dna: 0, corpse: 0,  fluid: FLUID.bile,  gib: ['#9a8c70', '#6a5e48'], eyes: [[4, -1]], harmless: true },
   // --- Floor 2: Cryo Wing ---
   frostbitten: { name: 'Frostbitten',      hp: 7, r: 6, speed: 26, dna: 2, corpse: 0.6, fluid: FLUID.blood, gib: ['#9aaab8', '#3a4a5a', '#d8f0ff'], eyes: [[4, -6]] },
@@ -268,7 +269,7 @@ const KNOCK_MAX = 320;        // most force a single hit can apply
 const KNOCK_SPEED_CAP = 420;  // fastest an enemy can be flung (~45px of slide)
 function enemyMass(e) {
   const T = ENEMY_TYPES[e.type];
-  if (T.boss) return Infinity;
+  if (T.boss || T.rooted) return Infinity; // (a growth doesn't budge)
   return Math.max(0.6, (e.r / 5) ** 2) * (e.elite ? 2.5 : 1);
 }
 function knock(e, dx, dy, force) {
@@ -507,6 +508,10 @@ const ENEMY_BEHAVIOR = {
       if (pd < 28) { e.state = 'fuse'; e.timer = 0.7; Sfx.play('flicker'); floatText(e.x, e.y - 12, '!', '#c0e040'); }
       return [mx, my];
     },
+  },
+  growth: { // a cancerous growth in the cancer ward: it just sits there and breathes, until you burst it
+    update(e) { return [0, 0]; },
+    onDeath(e) { burstGrowth(e); },
   },
   gunpolyp: {
     update(e, dt, c) { // rooted: fires bursts of three aimed spores
@@ -852,6 +857,7 @@ function enemySpriteName(e) {
   if (e.type === 'culture' && !e.offspring && !e.divided && (e.growT || 0) > floorDef(game.depth).cultureSplit * 0.6) n = 'culture2'; // swelling, about to divide
   if (['mother', 'motherling', 'colossus', 'biotank', 'archive', 'director'].includes(e.type) && Math.floor(e.t * 2.5) % 2) n = e.type + '2'; // pulsing / breathing
   if (FRAMED.has(e.type) && (e.speed === 0 ? e.burstN > 0 : true) && Math.floor(e.t * 8) % 2) n = e.type + '2';           // walking frames
+  if (e.type === 'growth' && Math.floor(e.t * 1.6) % 2) n = 'growth2'; // it breathes
   if (e.type === 'jarthing' && e.state === 'dormant') n = 'jar';
   if (e.type === 'mimic' && e.state === 'disguise') n = 'mimicdead';
   if (e.type === 'bloater' && e.state === 'fuse' && Math.floor(e.t * 14) % 2) n = 'bloater2';
@@ -935,4 +941,16 @@ function drawEnemyGlow(ctx) {
       if (hasAffix(e, 'shielded') && !(e.shieldT > 0)) pxRing(ctx, x, y, e.r + 3, Math.floor(game.time * 4) % 2 ? '#8a7a5a' : '#5a4a3a');
     }
   }
+}
+
+// A cancer ward growth bursts: blood, tumor-meat, and the heart it was hiding.
+function burstGrowth(e) {
+  const g = e.growth;
+  if (g) g.gone = true;
+  spawnPickup('heart', e.x, e.y, { amount: g ? g.amount : 1 });
+  bloodSpray(e.x, e.y, 0, 0, 24, FLUID.blood, 120);
+  gibs(e.x, e.y, 5, ['#8a1020', '#5a0a12', '#c04050'], FLUID.blood);
+  stain(e.x, e.y + 2, 6, FLUID.blood);
+  floatText(e.x, e.y - 12, 'A HEART INSIDE', '#ff6070');
+  Sfx.play('splat');
 }
