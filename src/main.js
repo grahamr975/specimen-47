@@ -134,29 +134,12 @@ function drawCage(ctx) {
   drawText(ctx, 'SPECIMEN 47', (c.x0 + c.x1) / 2, c.y0 - 9, '#7a868a', 1, 'center', null);
 }
 
-// Walk through a doorway to change rooms. The first time, a boss lair's door
-// holds you at the threshold: keep walking for a moment to go in.
-const LAIR_HOLD = 0.5;
+// Walk through a doorway to change rooms (a boss lair's too: no waiting at its door).
 function checkDoors(dt = 1 / 60) {
   const p = game.player, room = game.room;
   if (room.locked) return;
   // Past the doorway by more than `m` pixels?
   const past = (d, m) => d === 'up' ? p.y < TILE - m : d === 'down' ? p.y > ROOM_PX_H - TILE + m : d === 'left' ? p.x < TILE - m : p.x > ROOM_PX_W - TILE + m;
-  const lair = Object.keys(room.doors).find(d => isLairDoor(room, d) && !room.doors[d].visited && past(d, 1));
-  if (lair) {
-    const pushing = (p.inX || 0) * DIRS[lair].dx + (p.inY || 0) * DIRS[lair].dy > 0.5;
-    p.lairT = pushing ? (p.lairT || 0) + dt : 0;
-    if (p.lairT < LAIR_HOLD) { // held at the threshold
-      if (lair === 'up') p.y = Math.max(p.y, TILE - 1.5); else if (lair === 'down') p.y = Math.min(p.y, ROOM_PX_H - TILE + 1.5);
-      else if (lair === 'left') p.x = Math.max(p.x, TILE - 1.5); else p.x = Math.min(p.x, ROOM_PX_W - TILE + 1.5);
-      if (!p.lairWarned) { p.lairWarned = true; floatText(p.x, p.y - 12, 'KEEP WALKING TO ENTER', '#e05050'); Sfx.play('heartbeat'); }
-      return;
-    }
-    p.lairT = 0; p.lairWarned = false;
-    enterRoom(room.doors[lair], DIRS[lair].opp);
-    return;
-  }
-  p.lairT = 0; p.lairWarned = false;
   let dir = null;
   if (past('up', 2) && room.doors.up) dir = 'up';
   else if (past('down', 2) && room.doors.down) dir = 'down';

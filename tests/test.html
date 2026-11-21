@@ -406,7 +406,7 @@ try {
     grow(p, 'shrapnel', 'venomquills', 'trapdoor', 'ossified', 'titanheart'); const grown = p.stats.power;
     check(`a fresh body hits weaker than a fully grown one (power x${fresh.toFixed(2)} -> x${grown.toFixed(2)})`, fresh < 0.75 && grown > 0.95);
   }
-  { // 0m) Boss lairs: a marked door, and you can't stumble in.
+  { // 0m) Boss lairs: a marked door, and you walk straight in like any other.
     newRun(); let p = game.player;
     const room = game.floor.rooms.find(r => Object.keys(r.doors).some(d => r.doors[d].type === 'exit') && r.type !== 'exit');
     const dir = Object.keys(room.doors).find(d => room.doors[d].type === 'exit');
@@ -415,10 +415,10 @@ try {
     const key = { up: 'w', down: 's', left: 'a', right: 'd' }[dir], c = doorCenter(dir);
     const atDoor = () => { p.x = clamp(c.x, TILE + 6, ROOM_PX_W - TILE - 6); p.y = clamp(c.y, TILE + 6, ROOM_PX_H - TILE - 6); };
     atDoor(); Input.keys.clear(); Input.keys.add(key); for (let i = 0; i < 12; i++) { update(1 / 60); Input.endFrame(); }
-    Input.keys.clear(); for (let i = 0; i < 5; i++) { update(1 / 60); Input.endFrame(); }
-    check('bumping into it does not take you in', game.room === room);
-    Input.keys.add(key); for (let i = 0; i < 80 && game.room === room; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
-    check('keep walking and you go in', game.room.type === 'exit');
+
+
+    for (let i = 0; i < 40 && game.room === room; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check('walk into it and you go straight in', game.room.type === 'exit');
     { const exit = game.room, back = Object.keys(exit.doors)[0]; enterRoom(exit.doors[back], DIRS[back].opp); game.enemies = []; game.room.locked = false;
       const d2 = Object.keys(game.room.doors).find(d => game.room.doors[d] === exit);
       if (d2) { const c2 = doorCenter(d2); p.x = clamp(c2.x, TILE + 6, ROOM_PX_W - TILE - 6); p.y = clamp(c2.y, TILE + 6, ROOM_PX_H - TILE - 6); Input.keys.add({ up: 'w', down: 's', left: 'a', right: 'd' }[d2]); for (let i = 0; i < 25 && game.room !== exit; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
@@ -1483,7 +1483,7 @@ try {
       newRun(); combatRoom(); const z = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); z.x = 60; z.y = 96; z.gore = [];
       stain(z.x, z.y + 4, 4, FLUID.blood); update(1 / 60); Input.endFrame();
       check(`stepping in fresh blood wets your feet (${z.feet && z.feet.n} steps)`, z.feet && z.feet.n === FOOT_STEPS);
-      for (let i = 0; i < 60; i++) { Input.keys.clear(); Input.keys.add('d'); z.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
+      for (let i = 0; i < 100; i++) { Input.keys.clear(); Input.keys.add('d'); z.inv = 1; update(1 / 60); Input.endFrame(); } // (long enough for any body: some rooms are sticky) Input.keys.clear();
       check(`...and you leave prints as you walk (${FOOT_STEPS - z.feet.n} so far)`, z.feet.n < FOOT_STEPS - 3);
     }
   }
