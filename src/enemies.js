@@ -35,10 +35,10 @@ const ENEMY_TYPES = {
   hunter:      { name: 'Hunter-Killer',    hp: 6, r: 6, speed: 55, dna: 0, corpse: 0,   fluid: FLUID.oil,   gib: ['#5e5e66', '#3e3e46'], eyes: [[5, 0]], flying: true, robot: true },
   handler:     { name: 'Containment Handler', hp: 7, r: 6, speed: 34, dna: 2, corpse: 0.7, fluid: FLUID.blood, gib: ['#d8c040', '#a08a20', '#7a0f1a'], eyes: [[1, -6]] },
   // --- Bosses ---
-  colossus: { name: 'The Thawing Colossus', hp: 70, r: 16, speed: 0, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#9aaab8', '#4a7aa0', '#d8f0ff'], eyes: [[-2, -12], [2, -12]], boss: true },
-  biotank:  { name: 'Specimen Zero',     hp: 80, r: 15, speed: 30, dna: 0, corpse: 0, fluid: FLUID.bile, gib: ['#b0605a', '#aac25a', '#5e5e66'], eyes: [[-2, -10], [1, -10]], boss: true },
-  archive:  { name: 'The Archive',       hp: 85, r: 17, speed: 0, dna: 0, corpse: 0, fluid: FLUID.ichor, gib: ['#a45a7a', '#4a7aa0', '#e0c8c8'], eyes: [[-6, -4], [4, -6], [-1, 3]], boss: true },
-  director: { name: 'The Director',      hp: 100, r: 12, speed: 34, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#e8e8ee', '#5e5e66', '#7a0f1a'], eyes: [[-2, -13], [2, -13]], boss: true },
+  colossus: { name: 'The Thawing Colossus', hp: 98, r: 16, speed: 0, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#9aaab8', '#4a7aa0', '#d8f0ff'], eyes: [[-2, -12], [2, -12]], boss: true },
+  biotank:  { name: 'Specimen Zero',     hp: 145, r: 15, speed: 30, dna: 0, corpse: 0, fluid: FLUID.bile, gib: ['#b0605a', '#aac25a', '#5e5e66'], eyes: [[-2, -10], [1, -10]], boss: true },
+  archive:  { name: 'The Archive',       hp: 110, r: 17, speed: 0, dna: 0, corpse: 0, fluid: FLUID.ichor, gib: ['#a45a7a', '#4a7aa0', '#e0c8c8'], eyes: [[-6, -4], [4, -6], [-1, 3]], boss: true },
+  director: { name: 'The Director',      hp: 145, r: 12, speed: 34, dna: 0, corpse: 0, fluid: FLUID.blood, gib: ['#e8e8ee', '#5e5e66', '#7a0f1a'], eyes: [[-2, -13], [2, -13]], boss: true },
   mother:   { name: 'The Mother Culture', hp: 60, r: 17, speed: 0, dna: 0, corpse: 0, fluid: FLUID.rot, gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [[0, -8], [-12, 0], [12, 2]], boss: true },
   motherling:{ name: 'Mother Culture',  hp: 18, r: 10, speed: 22, dna: 0, corpse: 0, fluid: FLUID.rot, gib: ['#b8969a', '#8a6a70', '#5a4048'], eyes: [[0, -4]], boss: true },
 };

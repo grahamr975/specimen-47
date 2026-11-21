@@ -161,8 +161,8 @@ function leaveRoom(strategy) {
 }
 
 // --- One run ---------------------------------------------------------------------------
-const MAX_FRAMES = 60 * 60 * 15; // 15 minutes of game time
-const STALL = 60 * 60;           // a fight still going after a minute: call it a stall
+const MAX_FRAMES = 60 * 60 * 15; // 15 minutes of game time (boss TTK mode: 35, so most runs reach floor 5)
+const STALL = 60 * 60;           // a fight still going after a minute: call it a stall (boss TTK mode: 3 minutes, so long fights are measured)
 
 // Forced builds (?build=thornstorm,fractured,chestburster): those parts, fully
 // pathed, from the start of every run, so a reported combo can be measured.
@@ -189,11 +189,15 @@ function playRun(seed, strategy) {
   const p0 = game.player;
   let frame = 0, hurt = 0, lockedFor = 0, stalls = 0, lastHp = p0.hp;
   const floorAt = {};
-  while (game.state === 'play' && game.depth < 6 && frame < MAX_FRAMES) {
+  const bosses = []; let bossAt = null; // (boss time-to-kill: when each boss appeared and died)
+  while (game.state === 'play' && game.depth < 6 && frame < MAX_FRAMES * (GOD ? 35 / 15 : 1)) {
     const before = game.depth;
+    if (GOD) { game.player.hp = game.player.maxHp; } // (boss TTK mode: nothing kills the bot, so every build reaches every boss)
+    if (game.bossName && !bossAt) bossAt = { frame, depth: game.depth, id: game.bossId, hp: livingBossParts().reduce((t, e) => t + e.maxHp, 0) };
     if (game.room.locked) {
       frames(30, strategy); frame += 30; lockedFor += 30;
-      if (lockedFor > STALL) { stalls++; lockedFor = 0; for (const e of game.enemies.slice()) damageEnemy(e, 9999, 0, 0, true); }
+      if (lockedFor > STALL * (GOD ? 3 : 1) && bossAt) bossAt.stalled = true;
+      if (lockedFor > STALL * (GOD ? 3 : 1)) { stalls++; lockedFor = 0; for (const e of game.enemies.slice()) damageEnemy(e, 9999, 0, 0, true); }
     } else {
       lockedFor = 0;
       frames(10, strategy); frame += 10;
@@ -206,6 +210,7 @@ function playRun(seed, strategy) {
       Input.keys.clear();
       leaveRoom(strategy); frame += 60;
     }
+    if (bossAt && !game.bossName) { const pl = game.player; bosses.push({ depth: bossAt.depth, id: bossAt.id, hp: Math.round(bossAt.hp), secs: +((frame - bossAt.frame) / 60).toFixed(1), stalled: !!bossAt.stalled, level: pl.level, parts: pl.parts.filter(m => !m.starter).length, grown: pl.parts.reduce((t, m) => t + m.path.length + (m.lvl || 0), 0) }); bossAt = null; }
     const p = game.player;
     if (p.hp < lastHp) hurt += lastHp - p.hp;
     lastHp = p.hp;
@@ -214,7 +219,7 @@ function playRun(seed, strategy) {
   const p = game.player;
   return {
     seed, strategy, depth: game.depth, died: game.state !== 'play', kills: game.kills, minutes: +(frame / 3600).toFixed(2),
-    hurt: +(hurt / HP_PER_HEART).toFixed(1), stalls, floorAt,
+    hurt: +(hurt / HP_PER_HEART).toFixed(1), stalls, floorAt, bosses,
     parts: p.parts.filter(m => !m.starter).map(m => m.path.slice()),
     sets: setCounts(p), set: (activeSet(p) || {}).set || null, splices: activeSplices(p),
   };
@@ -354,6 +359,7 @@ function runBalance() {
     document.getElementById('out').textContent = JSON.stringify({ autotune: res }, null, 0);
     return;
   }
+  GOD = !!q.get('bossttk');
   const runsPer = +(q.get('runs') || 40), seed0 = +(q.get('seed') || 1);
   const strategies = (q.get('strategies') || 'random,focus,mix,splice').split(',').filter(s => STRATEGIES[s]);
   FORCED = q.get('build') ? q.get('build').split(',').map(s => s.trim()).filter(Boolean) : null;
@@ -367,8 +373,32 @@ function runBalance() {
   const sum = summarize(runs.filter(r => !r.error));
   sum.seconds = +((performance.now() - t0) / 1000).toFixed(0); sum.errors = errors.length;
   sum.hurtBy = Object.entries(HURT_BY).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => [k, +v.toFixed(1)]);
+  if (GOD) { const t = bossTtk(runs.filter(r => !r.error)); document.getElementById('game').style.display = 'none'; renderBossTtk(t, document.getElementById('report')); document.getElementById('out').textContent = JSON.stringify({ bossTtk: t, errors: errors.length }, null, 0); return; }
   document.getElementById('game').style.display = 'none';
   renderReport(sum, document.getElementById('report'));
   if (errors.length) document.getElementById('report').insertAdjacentHTML('afterbegin', `<p class="err">${errors.length} runs crashed. First: <pre>${errors[0].error.replace(/</g, '&lt;')}</pre></p>`);
   document.getElementById('out').textContent = JSON.stringify({ summary: sum, runs }, null, 0);
+}
+
+// --- Boss time-to-kill (?bossttk=1) ----------------------------------------------------
+// Bots play whole runs, invulnerable, so every build reaches every boss with whatever it
+// had grown by then (as a player who survives would). For each floor: how long its boss
+// took to kill (median and spread), with the build's level and how grown it was.
+let GOD = false;
+function bossTtk(runs) {
+  const byDepth = {};
+  for (const r of runs) for (const b of r.bosses || []) (byDepth[b.depth] = byDepth[b.depth] || []).push(b);
+  const q = (a, f) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(f * s.length))] : 0; };
+  return Object.keys(byDepth).sort((a, b) => a - b).map(d => {
+    const bs = byDepth[d], secs = bs.map(b => b.secs);
+    return { depth: +d, boss: bs[0].id, n: bs.length, hp: Math.round(bs.reduce((t, b) => t + b.hp, 0) / bs.length),
+      p25: q(secs, 0.25), median: q(secs, 0.5), p75: q(secs, 0.75), fastest: q(secs, 0), stalled: bs.filter(b => b.stalled).length,
+      level: +(bs.reduce((t, b) => t + b.level, 0) / bs.length).toFixed(1), parts: +(bs.reduce((t, b) => t + b.parts, 0) / bs.length).toFixed(1) };
+  });
+}
+function renderBossTtk(t, el) {
+  el.innerHTML = `<h1>Specimen 47: boss time-to-kill</h1>
+    <p class="note">Invulnerable bots, typical builds by each floor. Seconds from the boss appearing to its death (includes adds and dodging).</p>
+    <table><tr><th>Floor</th><th>Boss</th><th>Fights</th><th>HP</th><th>Fastest</th><th>25%</th><th>Median</th><th>75%</th><th>Stalled</th><th>Level</th><th>Parts</th></tr>
+    ${t.map(r => `<tr><td>${r.depth}</td><td>${r.boss}</td><td>${r.n}</td><td>${r.hp}</td><td>${r.fastest}s</td><td>${r.p25}s</td><td>${r.median}s</td><td>${r.p75}s</td><td>${r.stalled}</td><td>${r.level}</td><td>${r.parts}</td></tr>`).join('')}</table>`;
 }

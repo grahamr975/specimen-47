@@ -10,3 +10,5 @@ tools/balance-report.html
 tools/balance-runs.json
 tools/autotune-report.html
 tools/autotune.json
+tools/bossttk-report.html
+tools/bossttk.json

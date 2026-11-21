@@ -113,6 +113,8 @@ It uses headless Microsoft Edge, takes a minute or two, and exits with code 1 if
 
 **Balance simulator.** `powershell -ExecutionPolicy Bypass -File tools\run-balance.ps1 -Runs 250 -Seed 1` plays that many seeded bot runs per card-picking strategy (random, focus one set, mix sets, chase splices) in headless Edge, about 1000 runs in 2-3 minutes, and saves `tools\balance-report.html` (open it in a browser) plus `tools\balance-runs.json` (every run). The report ranks strategies, set bonuses, set pairs, splices, roots and end forms by how far runs got, compared fairly (a part only against runs that also filled that slot), flags strong and weak ones, counts stalled fights, and lists what hurts the bot most. Runs are replayable from their seed. The bot is simple (it steers away from enemies, dodges shots, steps out of boss telegraphs and acid); compare parts against each other, not against a human.
 
+**Boss time-to-kill.** `powershell -ExecutionPolicy Bypass -File toolsun-balance.ps1 -BossTtk -Runs 8` plays invulnerable bot runs (so every build reaches every boss with what it would have grown by then) and reports, per floor, how long its boss took to kill: fastest, 25%, median, 75%. Saved as `toolsbossttk-report.html`. Boss health was tuned with it toward roughly 30s, 35s, 40s, 45s, 50s (bot medians, floors 1-5); bots are slower than a focused player, and they get distracted by the Archive's clones and the Director's security.
+
 ## Version control
 
 The project is a git repository. Commit after each working change (`git add -A`, then `git commit -m "what changed"`), so any mistake can be undone with `git restore <file>` or by checking out an earlier commit.

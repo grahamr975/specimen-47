@@ -14,6 +14,7 @@ param(
   [string]$Strategies = 'random,focus,mix,splice',
   [string]$Build = '',   # e.g. 'thornstorm,fractured,chestburster': those parts from the start of every run
   [switch]$Autotune,
+  [switch]$BossTtk,      # time-to-kill for each floor's boss, invulnerable bots
   [int]$Rounds = 3
 )
 $ErrorActionPreference = 'Stop'
@@ -29,6 +30,7 @@ if (-not $edge) { Write-Error 'Microsoft Edge not found.'; exit 1 }
 $query = "?runs=$Runs&seed=$Seed&strategies=$Strategies"
 if ($Build) { $query += "&build=$Build" }
 if ($Autotune) { $query += "&autotune=1&rounds=$Rounds" }
+if ($BossTtk) { $query += '&bossttk=1' }
 $url = 'file:///' + (($page -replace '\\', '/') -replace ' ', '%20') + $query
 $tmp = Join-Path $env:TEMP ('specimen47-balance-' + [guid]::NewGuid())
 New-Item -ItemType Directory $tmp | Out-Null
@@ -50,10 +52,10 @@ if ($html -notmatch '(?s)<div id="report">(.*?)</div>\s*<pre id="out">(.*?)</pre
 }
 $report = $matches[1]; $json = [System.Net.WebUtility]::HtmlDecode($matches[2])
 $style = if ($html -match '(?s)<style>(.*?)</style>') { $matches[1] } else { '' }
-$name = if ($Autotune) { 'autotune' } else { 'balance' }
+$name = if ($Autotune) { 'autotune' } elseif ($BossTtk) { 'bossttk' } else { 'balance' }
 $out = "<!doctype html><html><head><meta charset=`"utf-8`"><title>Balance Report</title><style>$style</style></head><body><div id=`"report`">$report</div></body></html>"
 [System.IO.File]::WriteAllText((Join-Path $here "$name-report.html"), $out)
-[System.IO.File]::WriteAllText((Join-Path $here $(if ($Autotune) { 'autotune.json' } else { 'balance-runs.json' })), $json)
+[System.IO.File]::WriteAllText((Join-Path $here $(if ($Autotune) { 'autotune.json' } elseif ($BossTtk) { 'bossttk.json' } else { 'balance-runs.json' })), $json)
 Write-Host "Saved tools\$name-report.html"
 if ($json -match '"errors":(\d+)' -and [int]$matches[1] -gt 0) { Write-Host "$($matches[1]) runs crashed: see the top of the report."; exit 1 }
 exit 0
