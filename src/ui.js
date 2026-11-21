@@ -617,7 +617,7 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 // The build shown in the corner of the title screen. Bump both when you put out a new version.
-const GAME_VERSION = '0.1.21', GAME_UPDATED = '2026-11-20';
+const GAME_VERSION = '0.1.22', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [

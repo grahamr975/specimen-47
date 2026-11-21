@@ -210,7 +210,7 @@ function playRun(seed, strategy) {
       Input.keys.clear();
       leaveRoom(strategy); frame += 60;
     }
-    if (bossAt && !game.bossName) { const pl = game.player; bosses.push({ depth: bossAt.depth, id: bossAt.id, hp: Math.round(bossAt.hp), secs: +((frame - bossAt.frame) / 60).toFixed(1), stalled: !!bossAt.stalled, level: pl.level, parts: pl.parts.filter(m => !m.starter).length, grown: pl.parts.reduce((t, m) => t + m.path.length + (m.lvl || 0), 0) }); bossAt = null; }
+    if (bossAt && !game.bossName) { const pl = game.player; bosses.push({ depth: bossAt.depth, id: bossAt.id, hp: Math.round(bossAt.hp), secs: +((frame - bossAt.frame) / 60).toFixed(1), stalled: !!bossAt.stalled, level: pl.level, weapons: partsAt(pl, 'MOUTH').map(m => m.path[0]), forms: partsAt(pl, 'MOUTH').map(m => m.id), build: pl.parts.filter(m => !m.starter).map(m => ({ loc: m.loc, path: m.path.slice(), lvl: m.lvl || 0 })), splices: activeSplices(pl), set: (activeSet(pl) || {}).set || null, parts: pl.parts.filter(m => !m.starter).length, grown: pl.parts.reduce((t, m) => t + m.path.length + (m.lvl || 0), 0) }); bossAt = null; }
     const p = game.player;
     if (p.hp < lastHp) hurt += lastHp - p.hp;
     lastHp = p.hp;
@@ -373,7 +373,7 @@ function runBalance() {
   const sum = summarize(runs.filter(r => !r.error));
   sum.seconds = +((performance.now() - t0) / 1000).toFixed(0); sum.errors = errors.length;
   sum.hurtBy = Object.entries(HURT_BY).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => [k, +v.toFixed(1)]);
-  if (GOD) { const t = bossTtk(runs.filter(r => !r.error)); document.getElementById('game').style.display = 'none'; renderBossTtk(t, document.getElementById('report')); document.getElementById('out').textContent = JSON.stringify({ bossTtk: t, errors: errors.length }, null, 0); return; }
+  if (GOD) { const t = bossTtk(runs.filter(r => !r.error)); document.getElementById('game').style.display = 'none'; renderBossTtk(t, document.getElementById('report')); document.getElementById('out').textContent = JSON.stringify({ bossTtk: t, fights: runs.filter(r => !r.error).flatMap(r => r.bosses || []), errors: errors.length }, null, 0); return; }
   document.getElementById('game').style.display = 'none';
   renderReport(sum, document.getElementById('report'));
   if (errors.length) document.getElementById('report').insertAdjacentHTML('afterbegin', `<p class="err">${errors.length} runs crashed. First: <pre>${errors[0].error.replace(/</g, '&lt;')}</pre></p>`);
