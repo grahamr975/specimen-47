@@ -190,7 +190,7 @@ function setProc(x, y) {
   floatText(x, y - 14, name.toUpperCase(), SETS[act.set].color);
 }
 
-const STAGE_AT = [0, 2, 4, 7, 11];
+const STAGE_AT = [0, 1, 4, 7, 11]; // (your first weapon is a stage: the maggot grows a mouth)
 const HOP_STEER = 12; // Haunches: how hard a hop bends toward your keys mid-air
 // Getting hit: invulnerable for a while after (stats.invuln for a real hit), and a shorter
 // spell after one your armor or a block soaks. HURT_FX: how long the screen stays red.

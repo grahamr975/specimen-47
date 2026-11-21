@@ -12,12 +12,12 @@ const R = RAMPS;
 // 24x24, side view, facing right. A slug: long low body, raised head at the
 // front, tapering tail behind. It starts small and cute, and grows more
 // grotesque with every evolution. Stage 3 is the "full" grotesque design.
-const SPECIMEN = { w: 24, h: 24, eye: [18.2, 13.4], cuteEye: [18.9, 14], anchor: [12, 22] };
+const SPECIMEN = { w: 24, h: 24, eye: [18.2, 13.4], cuteEye: [20.4, 16.6], anchor: [12, 22] }; // (cuteEye: the maggot's head end, stages 0-1)
 const STAGE_SCALE = [0.72, 0.8, 0.87, 0.94, 1.0];
 const NUCLEUS = ['#1a1016', '#2a1a22', '#3a2630', '#4a3440', '#5a4250']; // dark, grainy cell nuclei
 const STAGE_RAMP = [
-  ['#5a3a44', '#a06a78', '#d898a4', '#f4c0c4', '#fff0ee'], // 0: soft pastel pink
-  ['#4a2a32', '#8a5a62', '#c08a8c', '#e4b0aa', '#f8dad2'], // 1: paler, blotchier
+  ['#3a3226', '#7a6c54', '#b8aa88', '#e0d6b8', '#f8f2de'], // 0: a pale maggot
+  ['#4a2428', '#8a4e50', '#c07e78', '#e0a89a', '#f4d0c0'], // 1: flushed raw now it has a mouth
   RAMPS.flesh,                                             // 2
   RAMPS.flesh,                                             // 3
   ['#1c080c', '#461216', '#742628', '#9c4440', '#c4766a'], // 4: raw
@@ -38,37 +38,34 @@ function paintSlugBody(P, ramp, br, o = {}) {
   P.blob(17.4, 14.8 - br * 0.3, o.headR || 4.4, (o.headR || 4.4) * 0.92, ramp, { spec: 1, noise });
 }
 
-// Tiny hand-placed features for the cute early forms (painted at the scaled position).
-function cuteEye(P, x, y, big) {
-  const [cx, cy] = P._t(x, y).map(Math.round);
-  const px = (dx, dy, col) => P.set(cx + dx, cy + dy, col, null);
-  for (let dy = -2; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-    if ((dy === -2 || dy === 1) && dx !== 0 && !big) continue; // rounded corners
-    px(dx, dy, '#140a10');
-  }
-  if (big) { px(-1, -2, '#140a10'); px(2, -1, '#140a10'); px(2, 0, '#140a10'); }
-  px(-1, -1, '#ffffff'); px(0, -1, '#ffffff'); px(1, 1, '#c8c0d8'); // sparkle
-}
-
+// Stage 0: what you are when you wake: a fat, pale maggot. No eyes, no mouth: just
+// soft segments, a blunt rear and a rounded head end. Stage 1 (your first weapon): the
+// front splits open into a wet round mouth ringed with tiny teeth, and you swell and redden.
 function paintPureSpecimen(stage, breath, scale) {
   const P = new Painter(24, 24, 47);
   P.scaleAround(scale || STAGE_SCALE[stage], ...SPECIMEN.anchor);
-  const ramp = STAGE_RAMP[stage], br = breath || 0;
-  // Little feelers on top of the head.
-  for (const [x0, x1] of [[16, 14.6], [18.8, 20.2]]) {
-    P.tube([[x0, 11.5], [x1, 8.2]], 0.6, 0.45, ramp, { noise: 0.05 });
-    P.blob(x1, 8, 0.95, 0.95, ramp, { spec: 1, noise: 0.05 });
+  const ramp = STAGE_RAMP[stage], br = breath || 0, open = stage >= 1;
+  const segs = 7, seg = i => { // each segment: where it sits and how fat it is (fattest just behind the head)
+    const t = i / (segs - 1);
+    return { x: 3.2 + t * 16.4 + br * (0.6 - t) * 1.2, r: 2.2 + Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.9) * (open ? 2.4 : 2) };
+  };
+  P.blob(11.5 + br * 0.4, 21, 8.6, 1.1, ramp, { noise: 0.05, shift: -0.25 }); // the wet underside
+  for (let i = 0; i < segs; i++) { const { x, r } = seg(i); P.blob(x, 21 - r * 0.95, r * 0.95, r, ramp, { spec: 1, noise: 0.05 }); }
+  for (let i = 1; i < segs; i++) { // the creases between segments
+    const a = seg(i - 1), b = seg(i), cx = (a.x + b.x) / 2, r = Math.min(a.r, b.r);
+    P.scratch([[cx, 21 - r * 1.6], [cx + 0.3, 21 - r * 0.9], [cx, 20.4]], ramp[2]); // (soft: folds, not stripes)
   }
-  paintSlugBody(P, ramp, br, { smooth: true, headR: 4.8 });
-  if (stage === 1) { P.blob(8, 16.4, 2, 1.5, ramp, { noise: 0.1 }); P.vein(12, 19, 5, ramp[1], -2.4); }
-  // Big glossy eyes, rosy cheeks, a tiny smile.
-  cuteEye(P, 16.2, 14.2, false);
-  cuteEye(P, SPECIMEN.cuteEye[0] + 0.6, SPECIMEN.cuteEye[1] + 0.2, stage === 1); // one eye starts to swell
-  const [bx1, by1] = P._t(14.6, 16.6).map(Math.round), [bx2, by2] = P._t(21.2, 16.6).map(Math.round);
-  const blush = stage === 0 ? '#f48898' : '#d8808a';
-  P.set(bx1, by1, blush, null); P.set(bx2, by2, blush, null); P.set(bx2 + 1, by2, blush, null);
-  const [mx, my] = P._t(18.3, 17.4).map(Math.round);
-  P.set(mx - 1, my, '#6a2a38', null); P.set(mx, my + 1, '#6a2a38', null); P.set(mx + 1, my, '#6a2a38', null);
+  const head = seg(segs - 1);
+  if (!open) P.blob(head.x + head.r * 0.55, 21 - head.r * 0.95, 0.7, 0.6, ramp, { shift: -0.3, noise: 0 }); // a blind, pursed tip
+  else {
+    // It splits open: a wet round mouth with a ring of tiny teeth, gums raw, a string of drool.
+    const mx = head.x + head.r * 0.45, my = 21 - head.r * 0.95;
+    P.blob(mx, my, 2.6, 2.8, R.muscle, { spec: 1, noise: 0.1 });
+    P.blob(mx + 0.4, my, 1.7, 1.9, R.socket, { noise: 0 });
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; P.dot(mx + 0.4 + Math.cos(a) * 2, my + Math.sin(a) * 2.2, '#e8e0c8'); }
+    P.tube([[mx + 0.8, my + 1.8], [mx + 1.4, my + 3.4]], 0.4, 0.3, R.blood, { spec: 1 });
+    P.vein(6, 18, 6, ramp[1], -0.2).vein(12, 17, 5, ramp[1], 0.3); // and it's begun to show its veins
+  }
   return P.outline().toCanvas();
 }
 
