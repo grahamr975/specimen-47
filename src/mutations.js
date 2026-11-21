@@ -189,7 +189,7 @@ const MUTATIONS = {
   spike: {
     name: 'Bone Spike', slot: 'MOUTH',
     desc: 'Fire a fast bone spike. Harder and faster as it grows; twin spikes at full growth.',
-    apply(s, l) { gun(s, { id: 'spike', dmg: 1.4 + 0.4 * (l - 1), delay: 0.6 - 0.08 * (l - 1), speed: 170, count: l >= 3 ? 2 : 1 }); },
+    apply(s, l) { gun(s, { id: 'spike', dmg: 1.9 + 0.5 * (l - 1), delay: 0.55 - 0.07 * (l - 1), speed: 170, count: l >= 3 ? 2 : 1 }); },
   },
   shotgun: {
     name: 'Splintering Jaw', from: 'spike', icon: ['spike', 'marrow'],
@@ -360,7 +360,7 @@ const MUTATIONS = {
     name: 'Proboscis', slot: 'MOUTH', overlay: ['proboscis'],
     desc: 'Hold fire to latch a draining beam onto prey. Drained blood heals you. The tube takes a moment to reach its prey, and to pull back before it can go for another; it cannot reach through walls.',
     short: 'Hold fire to latch on and drain. Blood heals you.',
-    apply(s, l) { s.beam += 0.25 + 0.1 * l; },
+    apply(s, l) { s.beam += 0.4 + 0.13 * l; },
   },
   siphon: {
     name: 'Forked Proboscis', from: 'proboscis', icon: ['proboscis', 'tentacles'],
@@ -479,7 +479,7 @@ const MUTATIONS = {
     name: 'Howling Throat', slot: 'MOUTH', boss: true,
     desc: 'A sonic cone that barely hurts but hurls enemies into walls and each other, and shreds their shots out of the air.',
     short: 'A sonic cone that hurls enemies and shreds shots.',
-    apply(s, l) { s.howl = { delay: 0.8 - 0.05 * (l - 1), dmg: 0.3 * l, force: 300 + 40 * l, range: 62, cone: 0.55, slam: 2 + 1.2 * l }; },
+    apply(s, l) { s.howl = { delay: 0.8 - 0.05 * (l - 1), dmg: 0.5 + 0.4 * l, force: 300 + 40 * l, range: 62, cone: 0.55, slam: 2.5 + 1.4 * l }; },
   },
   shockwave: {
     name: 'Booming Chest', from: 'howl', icon: ['howl', 'slam'],
@@ -598,7 +598,7 @@ const MUTATIONS = {
   silk: {
     name: 'Spinnerets', slot: 'MOUTH',
     desc: 'Fire spins a line of sticky web across the floor. Anything caught in it is stuck, and the silk cuts.',
-    apply(s, l) { s.silk = { delay: 0.8, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.2 + 0.6 * l }; },
+    apply(s, l) { s.silk = { delay: 0.85, len: 50 + 10 * l, max: 3 + l, life: 9, dmg: 1.1 + 0.5 * l }; },
   },
   stickyweb: {
     name: 'Glue Glands', from: 'silk', icon: ['silk', 'hide'],
@@ -620,8 +620,8 @@ const MUTATIONS = {
   },
   razorsilk: {
     name: 'Razor Spinnerets', from: 'silk', icon: ['silk', 'horns'],
-    desc: 'The silk is sharp: it cuts three times as deep.',
-    apply(s) { s.silk.dmg *= 3; },
+    desc: 'The silk is sharp: it cuts two and a half times as deep.',
+    apply(s) { s.silk.dmg *= 2.5; },
   },
   acidsilk: {
     name: 'Acid Spinnerets', from: 'razorsilk', icon: ['silk', 'bile'],
@@ -1387,13 +1387,13 @@ const MUTATIONS = {
   },
   cancer: {
     name: 'Tumor', from: 'starving', malignant: true, overlay: ['tumor'],
-    desc: '+10% damage for every room you clear, forever. The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
+    desc: 'More damage for every room you clear (about +10% a room at first, less as it grows: +55% after 10 rooms, +100% after 30). The tumor swells as it grows: every 6 rooms you get bigger (and easier to hit).',
     short: 'Stronger with every room. The tumor makes you bigger.',
     cost: 'It keeps swelling: every 6 rooms you grow bigger and easier to hit.',
     costShort: 'It keeps growing.',
     apply(s, l, p) {
       const rooms = (p && p.cancerRooms) || 0;
-      s.damageMul *= 1 + (s.cancerRate || 0.1) * rooms;
+      s.damageMul *= 1 + tumorBonus(rooms, TUMOR_GROWTH);
       s.bulk += Math.min(2, Math.floor(rooms / 6)); // the tumor swells as it grows
     },
   },
@@ -1405,11 +1405,11 @@ const MUTATIONS = {
   },
   metastasis: {
     name: 'Metastatic Tumor', from: 'cancer', malignant: true, icon: ['cancer', 'mitosis'],
-    desc: 'The growth spreads faster: +20% damage per room instead, and it swells faster too.',
+    desc: 'The growth spreads faster: +90% damage after 10 rooms, +150% after 30, and it swells faster too.',
     short: 'The growth spreads faster: more damage per room.',
     cost: 'It swells faster: you grow bigger sooner.',
     costShort: 'It spreads.',
-    apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + 0.2 * rooms) / (1 + 0.1 * rooms); s.bulk += Math.min(1, Math.floor(rooms / 4)); },
+    apply(s, l, p) { const rooms = (p && p.cancerRooms) || 0; s.damageMul *= (1 + tumorBonus(rooms, METASTASIS_GROWTH)) / (1 + tumorBonus(rooms, TUMOR_GROWTH)); s.bulk += Math.min(1, Math.floor(rooms / 4)); },
   },
 
   // --- Bone Plates: armor you can see, and it fights back ---
@@ -1459,7 +1459,7 @@ const MUTATIONS = {
     name: 'Barbed Gullet', slot: 'MOUTH', icon: ['spike', 'barbs'],
     desc: 'Fling barbed hooks that stick in what they hit, then rip out a moment later for more damage.',
     short: 'Hooks that stick, then rip out for more damage.',
-    apply(s, l) { gun(s, { id: 'barbs', dmg: 0.8 + 0.25 * l, delay: 0.7, speed: 150, r: 2, barb: 1.6 + 0.6 * l, color: '#d8ccb0', sound: 'spine' }); },
+    apply(s, l) { gun(s, { id: 'barbs', dmg: 1 + 0.3 * l, delay: 0.65, speed: 150, r: 2, barb: 2.2 + 0.7 * l, color: '#d8ccb0', sound: 'spine' }); },
   },
   fishhook: {
     name: 'Fishhook Barbs', from: 'barbs', icon: ['barbs', 'grapple'],
@@ -1495,7 +1495,7 @@ const MUTATIONS = {
   sneeze: {
     name: 'Spore Sinuses', slot: 'MOUTH', icon: ['membrane', 'toxic'],
     desc: 'A short, wide sneeze of spores. Whatever it hits is blinded for a moment.',
-    apply(s, l) { gun(s, { id: 'sneeze', dmg: 0.45 + 0.15 * l, delay: 0.6, speed: 115, range: 0.34, count: 5, spread: 0.32, r: 1.5, blind: 1.1 + 0.2 * l, round: true, fade: true, color: '#c4cca4', sound: 'spray' }); },
+    apply(s, l) { gun(s, { id: 'sneeze', dmg: 0.65 + 0.2 * l, delay: 0.6, speed: 115, range: 0.34, count: 5, spread: 0.32, r: 1.5, blind: 1.1 + 0.2 * l, round: true, fade: true, color: '#c4cca4', sound: 'spray' }); },
   },
   allergen: {
     name: 'Allergen Glands', from: 'sneeze', icon: ['toxic', 'eyes'],
@@ -1533,7 +1533,7 @@ const MUTATIONS = {
   leechspit: {
     name: 'Leech Gullet', slot: 'MOUTH', icon: ['proboscis', 'hemophage'],
     desc: 'Spit leeches that latch on and bleed their victims. Bled-out kills sometimes heal you.',
-    apply(s, l) { gun(s, { id: 'leech', dmg: 0.6 + 0.2 * l, delay: 0.65, speed: 130, r: 2, bleed: 1 + 0.4 * l, round: true, color: '#5e2229', sound: 'splat' }); s.leechFeed = Math.max(s.leechFeed || 0, 0.08); },
+    apply(s, l) { gun(s, { id: 'leech', dmg: 0.8 + 0.25 * l, delay: 0.6, speed: 130, r: 2, bleed: 1.5 + 0.5 * l, round: true, color: '#5e2229', sound: 'splat' }); s.leechFeed = Math.max(s.leechFeed || 0, 0.08); },
   },
   fatleech: {
     name: 'Fat Leeches', from: 'leechspit', icon: ['hemophage', 'overgrown'],
@@ -2380,13 +2380,18 @@ const DAMAGE_FIELDS = new Set(['dmg', 'dps', 'burstDmg', 'slam', 'spit', 'mul'])
 // Balance tuning: how much of the damage a part's tree adds you actually get,
 // by root (1 = as designed). Generated by the balance simulator's auto-tuner
 // (tools/run-balance.ps1 -Autotune); tweak by hand freely.
+// The tumor's damage bonus grows with the log of rooms cleared: quick at first, then slower
+// and slower, so it never runs away. bonus = k * ln(1 + rooms / n).
+const TUMOR_GROWTH = { k: 0.5, n: 5 }, METASTASIS_GROWTH = { k: 0.7, n: 4 };
+const tumorBonus = (rooms, g) => g.k * Math.log(1 + rooms / g.n);
+
 const TUNE = {
   // From a 4,800-run auto-tune (2026-11-20), applied halfway, only where the knob
   // clearly works and the bot plays the weapon properly. Left out on purpose:
   // Frog Tongue, Spore Sinuses, Proboscis, Miasma Pores, Ovipositor (the bot can't
   // play them well, so they read as weak), and Bile Spit (its strength is Spore Lungs'
   // mortar and ignition, which damage tuning doesn't reach: a design call, not a number).
-  mandibles: 0.8, tentacles: 0.8, polyp: 1.12, barbs: 1.08, howl: 0.96,
+  mandibles: 0.8, tentacles: 0.9, polyp: 1.12, barbs: 1.08, howl: 0.96,
   silk: 0.94, leechspit: 0.95, ratincisors: 0.94, toadgullet: 0.94,
 };
 const partTune = m => TUNE[m.path[0]] || 1;

@@ -697,6 +697,7 @@ function drawMiasma(ctx) {
 }
 
 // Howl: barely hurts, but hurls things into walls and into each other.
+const HOWL_BOSS_SLAM = 0.6; // share of the wall-slam damage a boss (which the howl cannot throw) takes
 function howl(p, mul = 1, around = false) {
   const s = p.stats, h = s.howl;
   const cone = around ? -1 : h.cone, range = h.range;
@@ -709,7 +710,7 @@ function howl(p, mul = 1, around = false) {
     damageEnemy(e, h.dmg * mul, dx, dy, true, 0);
     if (e.dead) continue;
     applyHitEffects(e, 'howl');
-    if (isBoss(e)) continue;
+    if (isBoss(e)) { damageEnemy(e, h.slam * HOWL_BOSS_SLAM * mul, dx, dy, true, 0); continue; } // too heavy to throw: it takes the slam where it stands
     const sp = Math.min(380, h.force * mul / enemyMass(e));
     e.thrown = { vx: dx / d * sp, vy: dy / d * sp, t: 0.35, dmg: h.slam, hit: new Set([e]), howled: true };
   }
@@ -957,8 +958,9 @@ function onWeb(x, y) {
   return game.webs.some(w => distToSegment(x, y, w.x1, w.y1, w.x2, w.y2) < 4);
 }
 
+const WEB_STACK = 0.5; // each extra web a creature is caught in cuts at this share (so piled-up webs don't multiply)
 function updateWebs(dt) {
-  const s = game.player.stats;
+  const s = game.player.stats, cuts = new Map();
   for (const w of game.webs) {
     w.t -= dt;
     if (!s.silk) { w.t = 0; continue; }
@@ -966,7 +968,8 @@ function updateWebs(dt) {
       if (w.t <= 0) break;
       if (e.dead || e.spawnT > 0) continue;
       if (distToSegment(e.x, e.y, w.x1, w.y1, w.x2, w.y2) > e.r + 2) continue;
-      damageEnemy(e, s.silk.dmg * dt, 0, 0, true);
+      const n = cuts.get(e) || 0; cuts.set(e, n + 1);
+      damageEnemy(e, s.silk.dmg * dt * (n ? WEB_STACK : 1), 0, 0, true);
       if (isBoss(e)) continue; // the silk cuts a boss, but can't hold one
       inflict(e, 'web', { t: 0.25 });
       if (w.touched.has(e)) continue;
