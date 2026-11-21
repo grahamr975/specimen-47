@@ -412,6 +412,7 @@ function render() {
   drawTexts(ctx);
   ctx.restore();
 
+  drawOffscreenPips(ctx); // (big rooms: enemies beyond the edge of the screen)
   if (game.fade > 0) {
     ctx.fillStyle = `rgba(4,2,4,${game.fade / 0.2})`;
     ctx.fillRect(0, ROOM_Y, VIEW_W, VIEW_ROOM_H);
@@ -491,4 +492,19 @@ function updateCamera(dt, snap) {
   if (snap) { c.x = t.x; c.y = t.y; return; }
   const k = 1 - Math.exp(-CAM_EASE * dt);
   c.x += (t.x - c.x) * k; c.y += (t.y - c.y) * k;
+}
+
+// In a big room, what you can't see is still coming: a red pip on the edge of the
+// screen points at each enemy beyond it (bigger for a boss).
+function drawOffscreenPips(ctx) {
+  if (ROOM_PX_W <= VIEW_ROOM_W && ROOM_PX_H <= VIEW_ROOM_H) return;
+  const cx = camX(), cy = camY(), blink = Math.floor(game.time * 4) % 2;
+  for (const e of game.enemies) {
+    if (e.dead || e.spawnT > 0 || ENEMY_TYPES[e.type].harmless) continue;
+    const sx = e.x - cx, sy = e.y - cy;
+    if (sx >= 0 && sx < VIEW_ROOM_W && sy >= 0 && sy < VIEW_ROOM_H) continue;
+    const px = Math.round(clamp(sx, 3, VIEW_ROOM_W - 4)), py = Math.round(clamp(sy, 3, VIEW_ROOM_H - 4)) + ROOM_Y, big = isBoss(e) ? 2 : 1;
+    ctx.fillStyle = PAL.black; ctx.fillRect(px - big - 1, py - big - 1, big * 2 + 3, big * 2 + 3);
+    ctx.fillStyle = blink || big > 1 ? '#ff3a3a' : '#a01020'; ctx.fillRect(px - big, py - big, big * 2 + 1, big * 2 + 1);
+  }
 }

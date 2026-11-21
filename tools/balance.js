@@ -66,7 +66,7 @@ function botFrame(strategy) {
     const foes = game.enemies.filter(e => e.spawnT <= 0 && !e.dead);
     const e = foes.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
     if (e) {
-      Input.mouse.x = e.x; Input.mouse.y = e.y + ROOM_Y;
+      Input.mouse.x = e.x - camX(); Input.mouse.y = e.y + ROOM_Y - camY(); // (screen = world - camera)
       const melee = !p.stats.guns.length && !p.stats.beam && !p.stats.howl && !p.stats.miasma;
       // Steering: a sum of pushes, turned into WASD.
       let vx = 0, vy = 0, danger = 0;
@@ -128,7 +128,7 @@ function tidyRoom(strategy) {
   for (const c of room.corpses.slice()) {
     p.x = clamp(c.x - (p.stats.guns.length ? 22 : 9), TILE + 6, ROOM_PX_W - TILE - 6); p.y = c.y;
     for (let k = 0; k < 150 && !c.dead && game.state === 'play'; k++) {
-      Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30);
+      Input.keys.clear(); Input.mouse.x = c.x - camX(); Input.mouse.y = c.y + ROOM_Y - camY(); Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30);
       update(1 / 60); Input.endFrame(); resolveMenus(strategy);
     }
   }
@@ -139,7 +139,7 @@ function tidyRoom(strategy) {
     const c = doorCenter(d);
     for (let k = 0; k < 600 && sealAt(room, d) && game.state === 'play'; k++) {
       p.x = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8); p.y = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8); p.mvx = p.mvy = 0;
-      Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = true;
+      Input.keys.clear(); Input.mouse.x = c.x - camX(); Input.mouse.y = c.y + ROOM_Y - camY(); Input.mouse.down = true;
       update(1 / 60); Input.endFrame(); resolveMenus(strategy);
     }
   }
@@ -150,7 +150,7 @@ function leaveRoom(strategy) {
   if (room.hatch) { p.x = ROOM_PX_W / 2; p.y = ROOM_PX_H / 2; frames(2, strategy); return; }
   const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);
   const dir = unv.length ? pick(unv) : pick(names);
-  const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
+  const spots = { up: [ROOM_PX_W / 2, 15], down: [ROOM_PX_W / 2, ROOM_PX_H - 15], left: [15, ROOM_PX_H / 2], right: [ROOM_PX_W - 15, ROOM_PX_H / 2] }; // (this room's door spots: rooms come in sizes)
   p.x = spots[dir][0]; p.y = spots[dir][1];
   for (let k = 0; k < 50 && game.room === room; k++) {
     Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd'); Input.mouse.down = false;

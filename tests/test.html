@@ -61,7 +61,7 @@ function step(n, god) {
       const p = game.player;
       const e = game.enemies.filter(e => e.spawnT <= 0).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
       if (e) {
-        Input.mouse.x = e.x; Input.mouse.y = e.y + ROOM_Y;
+        Input.mouse.x = e.x - camX(); Input.mouse.y = e.y + ROOM_Y - camY(); // (screen = world - camera)
         // melee builds walk toward their prey
         const melee = !p.stats.guns.length, dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
         if (melee && d > 14) { if (dx > 3) Input.keys.add('d'); if (dx < -3) Input.keys.add('a'); if (dy > 3) Input.keys.add('s'); if (dy < -3) Input.keys.add('w'); }
@@ -795,7 +795,7 @@ try {
       q = arena(); grow(q, 'haunches'); const xa = q.x; Input.mouse.x = q.x + 70; Input.mouse.y = q.y + ROOM_Y;
       Input.keys.clear(); Input.keys.add('a'); update(1 / 60); Input.endFrame(); Input.mouse.rightClicked = true; for (let i = 0; i < 25; i++) { q.inv = 0.01; update(1 / 60); Input.endFrame(); } Input.keys.clear();
       check(`haunches: moving, the leap goes the way you move, not at the mouse (${(q.x - xa).toFixed(0)}px)`, q.x < xa - 30);
-      q = arena(); grow(q, 'haunches'); const e = dummy(60, 99); e.speed = 0; Input.mouse.x = e.x; Input.mouse.y = e.y + ROOM_Y; q.inv = 0; q.limbCd = 0;
+      q = arena(); grow(q, 'haunches'); const e = dummy(60, 99); e.speed = 0; Input.mouse.x = e.x - camX(); Input.mouse.y = e.y + ROOM_Y - camY(); // (screen = world - camera) q.inv = 0; q.limbCd = 0;
       Input.mouse.rightClicked = true; let landedInv = 0; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); if (q.landT !== undefined && !landedInv && q.dashT <= 0) landedInv = q.inv; }
       const gap = Math.hypot(e.x - q.x, e.y - q.y) - e.r - q.r;
       check(`haunches: leaping at an enemy lands at striking distance (gap ${gap.toFixed(1)}px), the shockwave hits it (${(99 - e.hp).toFixed(1)}), and you're safe a moment (${landedInv.toFixed(2)}s)`, gap > 0 && e.hp < 99 && landedInv > 0.15);
@@ -1391,6 +1391,29 @@ try {
     check(`a cryo crawler crouches before every dart (${dashes} darts, ${untold} without a tell) and averages slower than a slug (${avg.toFixed(0)}px/s vs ${SLUG_SPEED})`, dashes >= 1 && !untold && avg < SLUG_SPEED * 0.8);
     game.depth = 1;
   }
+  { // 0j1v14) Big rooms: built big, the camera follows (leaning toward your aim), aim stays true, and doors still work.
+    let big = null;
+    for (let i = 0; i < 40 && !big; i++) { newRun(); big = game.floor.rooms.find(r => r.w > STD_ROOM_W); }
+    check(`some floors have a big room (${big ? big.w + 'x' + big.h : 'none'})`, !!big && big.tiles.length === big.w * big.h && big.decals.width === big.w * TILE);
+    big.cleared = true; enterRoom(big, Object.keys(big.doors)[0]); game.enemies = []; big.locked = false;
+    const q = game.player; q.inv = 99;
+    check(`entering it switches to its size (${ROOM_PX_W}x${ROOM_PX_H})`, ROOM_PX_W === big.w * TILE && ROOM_PX_H === big.h * TILE);
+    game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    q.x = ROOM_PX_W - TILE - 20; q.y = ROOM_PX_H - TILE - 20; Input.mouse.x = VIEW_ROOM_W - 10; Input.mouse.y = ROOM_Y + VIEW_ROOM_H - 10;
+    for (let i = 0; i < 90; i++) { update(1 / 60); Input.endFrame(); }
+    check(`the camera follows you to the far corner, and stops at the room's edge (${camX()},${camY()})`, camX() === ROOM_PX_W - VIEW_ROOM_W && camY() === ROOM_PX_H - VIEW_ROOM_H);
+    const mw = mouseWorld();
+    check(`the mouse still points into the room where it should (${mw.x},${mw.y})`, mw.x === VIEW_ROOM_W - 10 + camX() && mw.y === VIEW_ROOM_H - 10 + camY());
+    q.x = ROOM_PX_W / 2; q.y = ROOM_PX_H / 2; Input.mouse.x = VIEW_ROOM_W / 2 + 120; Input.mouse.y = ROOM_Y + VIEW_ROOM_H / 2;
+    for (let i = 0; i < 120; i++) { update(1 / 60); Input.endFrame(); }
+    const lean = camX() - (q.x - VIEW_ROOM_W / 2);
+    check(`aiming off to one side leans the view that way, a little (${lean}px)`, lean > 10 && lean <= CAM_LOOK_MAX);
+    render();
+    const d = Object.keys(big.doors)[0], next = big.doors[d]; next.cleared = true;
+    const dc = doorCenter(d); q.x = clamp(dc.x, TILE + 6, ROOM_PX_W - TILE - 6); q.y = clamp(dc.y, TILE + 6, ROOM_PX_H - TILE - 6);
+    Input.keys.clear(); Input.keys.add({ up: 'w', down: 's', left: 'a', right: 'd' }[d]); for (let i = 0; i < 40 && game.room === big; i++) { update(1 / 60); Input.endFrame(); } Input.keys.clear();
+    check(`walking out through its door works, and the next room is back to standard (${ROOM_PX_W}x${ROOM_PX_H}, camera ${camX()},${camY()})`, game.room === next && (next.w > STD_ROOM_W || (ROOM_PX_W === VIEW_ROOM_W && camX() === 0 && camY() === 0)));
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;
@@ -1711,7 +1734,7 @@ try {
     let shots = 0;
     p.x = clamp(c.x, TILE + 30, ROOM_PX_W - TILE - 30); p.y = clamp(c.y, TILE + 30, ROOM_PX_H - TILE - 30);
     for (let i = 0; i < 60 * 8 && sealAt(room, dir); i++) {
-      Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = true;
+      Input.keys.clear(); Input.mouse.x = c.x - camX(); Input.mouse.y = c.y + ROOM_Y - camY(); Input.mouse.down = true;
       const n0 = mine().length; update(1 / 60); Input.endFrame(); if (mine().length > n0) shots++;
     }
     Input.mouse.down = false;
@@ -1968,7 +1991,7 @@ try {
       if (game.player.held) throwHeld(game.player); // (the bot grabs things at random; let go before bursting corpses)
       for (const c of room.corpses.slice()) {
         const p = game.player; p.x = clamp(c.x - (p.stats.guns.length ? 22 : 9), TILE + 6, ROOM_PX_W - TILE - 6); p.y = c.y;
-        for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        for (let k = 0; k < 150 && !c.dead; k++) { Input.keys.clear(); Input.mouse.x = c.x - camX(); Input.mouse.y = c.y + ROOM_Y - camY(); Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
         if (!c.dead) { corpseFails++; if (!corpseBuilds.has(p.parts.map(m => m.id).join())) { corpseBuilds.add(p.parts.map(m => m.id).join()); log.push('corpse held vs ' + p.parts.map(m => m.path.join('>')).join(' | ') + ` (hp ${c.hp.toFixed(1)}, p ${p.x.toFixed(0)},${p.y.toFixed(0)} c ${c.x.toFixed(0)},${c.y.toFixed(0)})`); } }
       }
       for (const o of room.orbs.slice()) { game.player.x = o.x; game.player.y = o.y; step(20, true); }
@@ -1982,18 +2005,18 @@ try {
         const c = doorCenter(d), p = game.player;
         const sx = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8), sy = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8);
         // Hold position next to it, as a player would.
-        for (let k = 0; k < 600 && sealAt(room, d); k++) { p.x = sx; p.y = sy; p.mvx = p.mvy = 0; Input.keys.clear(); Input.mouse.x = c.x; Input.mouse.y = c.y + ROOM_Y; Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
+        for (let k = 0; k < 600 && sealAt(room, d); k++) { p.x = sx; p.y = sy; p.mvx = p.mvy = 0; Input.keys.clear(); Input.mouse.x = c.x - camX(); Input.mouse.y = c.y + ROOM_Y - camY(); Input.mouse.down = !((p.stats.charge || p.stats.tongue) && k % 40 > 30); p.hp = p.maxHp; update(1 / 60); Input.endFrame(); autoMenu(); }
         if (sealAt(room, d)) { sealFails++; log.push(`seal held vs ${p.parts.map(m => m.path.join('>')).join(' | ')} (door ${d}, hits ${room.seals[d].hits}, pos ${p.x.toFixed(0)},${p.y.toFixed(0)}, control ${p.controlT > 0}, withdrawn ${p.withdrawn}, fireT ${p.fireT.toFixed(2)} cd ${JSON.stringify(p.cd)} evolveT ${p.evolveT} evolving ${game.evolving} menu ${!!game.menu} ready ${evolveReady(p)} dashT ${p.dashT} lungeT ${p.lungeT} hitstop ${game.hitstop} burrow ${p.burrowT} pull ${p.pullT} state ${game.state} whips ${game.whips.length} lash ${p.stats.lash} pending ${game.pendingEvolutions.length})`); }
       }
       const names = Object.keys(room.doors), unv = names.filter(n => !room.doors[n].visited);
       const dir = unv.length ? pick(unv) : pick(names);
       if (reported && stallPath.length < 24) { stallPath.push(`${room.type}${game.floor.rooms.indexOf(room)}[${names.map(n => n[0] + ':' + room.doors[n].type[0] + game.floor.rooms.indexOf(room.doors[n]) + (room.doors[n].visited ? 'v' : '')).join(' ')}]>${dir[0]}`); if (stallPath.length === 24) log.push('STALL PATH ' + stallPath.join(' | ')); }
-      const spots = { up: [160, 15], down: [160, 177], left: [15, 96], right: [305, 96] };
+      const spots = { up: [ROOM_PX_W / 2, 15], down: [ROOM_PX_W / 2, ROOM_PX_H - 15], left: [15, ROOM_PX_H / 2], right: [ROOM_PX_W - 15, ROOM_PX_H / 2] }; // (this room's door spots: rooms come in sizes)
       game.player.x = spots[dir][0]; game.player.y = spots[dir][1];
       Input.keys.clear(); Input.keys.add(dir === 'up' ? 'w' : dir === 'down' ? 's' : dir === 'left' ? 'a' : 'd');
       Input.mouse.down = false; // walk through, don't lunge away from the door
       { const from = game.room, tr = []; for (let k = 0; k < 50 && game.room === from; k++) { update(1 / 60); Input.endFrame(); if (reported && !traced && k % 5 === 0) tr.push(`${game.player.x.toFixed(0)},${game.player.y.toFixed(0)}${game.player.lungeT > 0 ? 'L' : ''}${game.player.evolveT > 0 ? 'C' : ''}${game.menu ? 'M' : ''}${game.hitstop > 0 ? 'H' : ''}`); }
-        if (game.room !== from) { Input.mouse.x = ROOM_PX_W / 2; Input.mouse.y = ROOM_PX_H / 2 + ROOM_Y; } // aim into the new room (random dashes and lunges used to carry it straight back out)
+        if (game.room !== from) { Input.mouse.x = VIEW_ROOM_W / 2; Input.mouse.y = VIEW_ROOM_H / 2 + ROOM_Y; } // aim into the new room (random dashes and lunges used to carry it straight back out)
         if (reported && !traced) { traced = true; log.push(`STALL TRACE dir=${dir} keys=${[...Input.keys].join('')} mouseDown=${Input.mouse.down} left=${game.room !== from} :: ${tr.join(' ')}`); } }
       const exitRoom = game.floor.rooms.find(r => r.type === 'exit');
       if (exitRoom.visited && exitRoom.cleared && !unv.length) enterRoom(exitRoom, 'up');

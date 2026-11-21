@@ -10,6 +10,7 @@ const TILE = 16;
 // room doesn't need to know which room. A standard room is exactly the play area on
 // screen (VIEW_ROOM_W x VIEW_ROOM_H); bigger rooms scroll under a camera (main.js).
 const STD_ROOM_W = 20, STD_ROOM_H = 12;
+const LARGE_ROOM_W = 30, LARGE_ROOM_H = 18, LARGE_ROOM_CHANCE = 0.3, LARGE_ROOMS_MAX = 2; // (about 2.25x the floor)
 const VIEW_ROOM_W = STD_ROOM_W * TILE, VIEW_ROOM_H = STD_ROOM_H * TILE; // the play area on screen
 let ROOM_W = STD_ROOM_W, ROOM_H = STD_ROOM_H, ROOM_PX_W = ROOM_W * TILE, ROOM_PX_H = ROOM_H * TILE;
 const ROOM_Y = 32;           // screen y where the room is drawn (HUD above)
@@ -182,6 +183,8 @@ function generateFloor(depth) {
     room.seals = { [DIRS[name].opp]: seal };
     return room;
   };
+  // A few combat rooms are big (they scroll under the camera): never the start, the exit or a sealed room.
+  for (const r of rooms) if (r.type === 'combat' && rooms.filter(o => o.w > STD_ROOM_W).length < LARGE_ROOMS_MAX && Math.random() < LARGE_ROOM_CHANCE) { r.w = LARGE_ROOM_W; r.h = LARGE_ROOM_H; }
   attachSealed('vault', 'hazmat', depth === 1);
   if (depth >= 2) attachSealed('heart', 'flesh', false);
 
@@ -203,7 +206,7 @@ function buildRoom(room, depth) {
   }
   // Boss rooms are open arenas.
   const bossRoom = room.type === 'exit' && floorDef(depth).boss;
-  const layout = room.type === 'combat' ? pick(LAYOUTS) : room.type === 'exit' && !bossRoom ? LAYOUTS[1] : [];
+  const layout = room.type === 'combat' ? (room.w > STD_ROOM_W ? largeLayout(room.w, room.h) : pick(LAYOUTS)) : room.type === 'exit' && !bossRoom ? LAYOUTS[1] : [];
   layout.forEach((row, j) => {
     for (let i = 0; i < row.length; i++) if (row[i] === '#') tiles[(j + 1) * ROOM_W + (i + 1)] = T_BLOCK;
   });
@@ -498,4 +501,20 @@ function paintCancerWard(x) {
   }
   // And a few pools where something wept.
   for (let i = 0; i < 5; i++) pxCircle(x, rand(TILE * 2, ROOM_PX_W - TILE * 2), rand(TILE * 2, ROOM_PX_H - TILE * 2), rand(2, 5), '#2a0408');
+}
+
+// A big room's cover: clusters of crates and rubble scattered about, keeping wide lanes
+// open from the middle to every door, and a margin along the walls.
+function largeLayout(w, h) {
+  const iw = w - 2, ih = h - 2, grid = Array.from({ length: ih }, () => Array(iw).fill('.'));
+  const cx = iw / 2, cy = ih / 2, lane = (x, y) => Math.abs(x + 0.5 - cx) < 2.5 || Math.abs(y + 0.5 - cy) < 2.5;
+  for (let i = 0, placed = 0; i < 60 && placed < 9; i++) {
+    const bw = randInt(1, 3), bh = randInt(1, 2), x0 = randInt(2, iw - bw - 2), y0 = randInt(2, ih - bh - 2);
+    let ok = true;
+    for (let y = y0 - 1; y <= y0 + bh && ok; y++) for (let x = x0 - 1; x <= x0 + bw && ok; x++) if (lane(x, y) || (grid[y] && grid[y][x] === '#')) ok = false;
+    if (!ok) continue;
+    for (let y = y0; y < y0 + bh; y++) for (let x = x0; x < x0 + bw; x++) grid[y][x] = '#';
+    placed++;
+  }
+  return grid.map(r => r.join(''));
 }

@@ -227,6 +227,7 @@ function spawnRoomEnemies(room) {
   let n = game.depth === 1 ? randInt(3, 4) : 3 + Math.min(game.depth, 6) + randInt(0, 2);
   if (room.type === 'exit') n += 1;
   n = Math.min(n, 13);
+  if (room.w > STD_ROOM_W) n = Math.min(20, Math.round(n * 1.6)); // a big room holds more of them
   spawnWave(n);
   // Deeper floors come in waves: the next one pours in when this one is down to a third (see nextWave).
   room.wavesLeft = threatWaves() - 1; room.waveSize = n;
