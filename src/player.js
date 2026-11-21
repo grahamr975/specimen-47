@@ -348,7 +348,7 @@ function updatePlayer(dt) {
     firing = true;
   } else if (pad) firing = pad.fire; // gamepad, stick at rest: keep the last aim; RT still fires
   else {
-    const dx = Input.mouse.x - p.x, dy = (Input.mouse.y - ROOM_Y) - p.y, l = Math.hypot(dx, dy);
+    const mw = mouseWorld(), dx = mw.x - p.x, dy = mw.y - p.y, l = Math.hypot(dx, dy);
     if (l > 1) { p.aimX = dx / l; p.aimY = dy / l; }
     firing = Input.mouse.down;
   }
@@ -357,7 +357,7 @@ function updatePlayer(dt) {
     const a = Math.atan2(p.aimY, p.aimX) + (Math.sin(p.t * 2.3) + 0.5 * Math.sin(p.t * 5.7)) * s.aimDrift;
     p.aimX = Math.cos(a); p.aimY = Math.sin(a);
   }
-  if (pad) { Input.mouse.x = p.x + p.aimX * 40; Input.mouse.y = p.y + ROOM_Y + p.aimY * 40; } // gamepad: the crosshair sits out along your aim
+  if (pad) { Input.mouse.x = p.x + p.aimX * 40 - camX(); Input.mouse.y = p.y + ROOM_Y + p.aimY * 40 - camY(); } // gamepad: the crosshair sits out along your aim (on screen)
   if (s.parasiteGunner) parasiteGunner(p, dt); // fully grown, it shoots for you
   p.venting = !!(s.miasma && firing && !p.withdrawn); // Miasma: hold fire to vent
   // Berserker Host: while the parasite drives, it hunts the nearest enemy for you.
@@ -788,7 +788,7 @@ function fireGun(p, g, mul = 1) {
 function lobAt(p, g, scatter, mul = 1) {
   const s = p.stats;
   let tx, ty;
-  if (Input.mouse.x || Input.mouse.y) { tx = Input.mouse.x; ty = Input.mouse.y - ROOM_Y; }
+  if (Input.mouse.x || Input.mouse.y) { const mw = mouseWorld(); tx = mw.x; ty = mw.y; }
   const padM = Input.padUsed && Input.pad ? Math.hypot(Input.pad.ax, Input.pad.ay) : -1; // gamepad: push the stick further to lob further
   const aimDist = padM >= 0 ? (padM ? 30 + 110 * padM : 90) : tx === undefined ? 110 : Math.hypot(tx - p.x, ty - p.y);
   const d = clamp(aimDist, 24, 150);

@@ -48,6 +48,7 @@ function updateLighting(dt) {
 function drawLighting(ctx) {
   const p = game.player;
   const flickering = game.flicker > 0 && Math.floor(game.time * 24) % 2;
+  if (darkCanvas.width !== ROOM_PX_W || darkCanvas.height !== ROOM_PX_H) { darkCanvas.width = ROOM_PX_W; darkCanvas.height = ROOM_PX_H; } // (sized to the room you're in)
   dctx.globalCompositeOperation = 'source-over';
   dctx.globalAlpha = 1;
   dctx.clearRect(0, 0, ROOM_PX_W, ROOM_PX_H);
@@ -93,8 +94,8 @@ function drawLowHealth(ctx) {
     if ((i + Math.floor(game.time * 8)) % 2) continue; // dithered
     ctx.fillStyle = `rgba(140,10,24,${a})`;
     ctx.fillRect(i, ROOM_Y + i, VIEW_W - i * 2, 1);
-    ctx.fillRect(i, ROOM_Y + ROOM_PX_H - 1 - i, VIEW_W - i * 2, 1);
-    ctx.fillRect(i, ROOM_Y + i, 1, ROOM_PX_H - i * 2);
-    ctx.fillRect(VIEW_W - 1 - i, ROOM_Y + i, 1, ROOM_PX_H - i * 2);
+    ctx.fillRect(i, ROOM_Y + VIEW_ROOM_H - 1 - i, VIEW_W - i * 2, 1);
+    ctx.fillRect(i, ROOM_Y + i, 1, VIEW_ROOM_H - i * 2);
+    ctx.fillRect(VIEW_W - 1 - i, ROOM_Y + i, 1, VIEW_ROOM_H - i * 2);
   }
 }

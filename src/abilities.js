@@ -1146,7 +1146,7 @@ function leapStop(p, ux, uy, d) {
 function aimPoint(p, range) {
   let tx = p.x + p.aimX * range, ty = p.y + p.aimY * range;
   if (!Input.padUsed && !Input.down('arrowleft', 'arrowright', 'arrowup', 'arrowdown')) { // (gamepad: straight out along the aim)
-    const mx = Input.mouse.x, my = Input.mouse.y - ROOM_Y, d = Math.hypot(mx - p.x, my - p.y);
+    const mw = mouseWorld(), mx = mw.x, my = mw.y, d = Math.hypot(mx - p.x, my - p.y);
     if (d > 1) { const k = Math.min(1, range / d); tx = p.x + (mx - p.x) * k; ty = p.y + (my - p.y) * k; }
   }
   return { x: tx, y: ty };

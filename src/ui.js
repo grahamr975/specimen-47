@@ -290,7 +290,7 @@ function drawHUD(ctx) {
   const p = game.player;
   bakeHud();
   ctx.drawImage(SPR.hudTop, 0, 0);
-  ctx.drawImage(SPR.hudBottom, 0, ROOM_Y + ROOM_PX_H);
+  ctx.drawImage(SPR.hudBottom, 0, ROOM_Y + VIEW_ROOM_H);
 
   // Hearts (+ chitin shell)
   // Health is in half hearts: each heart icon is full, half or empty.
@@ -427,7 +427,7 @@ function fitText(s, maxW, maxLines) {
 const BAR_NARROW = 34; // pitch of an empty or locked cell; filled cells share what's left
 function drawMutationList(ctx) {
   const p = game.player;
-  const top = ROOM_Y + ROOM_PX_H + 3;
+  const top = ROOM_Y + VIEW_ROOM_H + 3;
   // Which part sits in which cell, and which cells are open.
   const seen = {}, cellPart = [], cellOpen = [];
   BAR_LAYOUT.forEach((loc, i) => {
@@ -617,7 +617,7 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 // The build shown in the corner of the title screen. Bump both when you put out a new version.
-const GAME_VERSION = '0.1.16', GAME_UPDATED = '2026-11-20';
+const GAME_VERSION = '0.1.17', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [

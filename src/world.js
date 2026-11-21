@@ -5,10 +5,13 @@
 // ---------------------------------------------------------------------------
 
 const TILE = 16;
-const ROOM_W = 20;           // tiles
-const ROOM_H = 12;
-const ROOM_PX_W = ROOM_W * TILE;
-const ROOM_PX_H = ROOM_H * TILE;
+// Rooms come in sizes. ROOM_W/H (tiles) and ROOM_PX_W/H are the CURRENT room's: they're
+// switched whenever a room is built or entered (useRoom), so the code that works inside a
+// room doesn't need to know which room. A standard room is exactly the play area on
+// screen (VIEW_ROOM_W x VIEW_ROOM_H); bigger rooms scroll under a camera (main.js).
+const STD_ROOM_W = 20, STD_ROOM_H = 12;
+const VIEW_ROOM_W = STD_ROOM_W * TILE, VIEW_ROOM_H = STD_ROOM_H * TILE; // the play area on screen
+let ROOM_W = STD_ROOM_W, ROOM_H = STD_ROOM_H, ROOM_PX_W = ROOM_W * TILE, ROOM_PX_H = ROOM_H * TILE;
 const ROOM_Y = 32;           // screen y where the room is drawn (HUD above)
 
 const T_FLOOR = 0, T_WALL = 1, T_BLOCK = 2, T_DOOR = 3;
@@ -20,21 +23,20 @@ const DIRS = {
   right: { dx: 1, dy: 0, opp: 'left' },
 };
 
-// Door tiles (2 tiles wide) for each side.
-const DOOR_TILES = {
-  up: [[9, 0], [10, 0]],
-  down: [[9, ROOM_H - 1], [10, ROOM_H - 1]],
-  left: [[0, 5], [0, 6]],
-  right: [[ROOM_W - 1, 5], [ROOM_W - 1, 6]],
-};
-
-// Where the player appears when entering through each door.
-const DOOR_SPAWN = {
-  up: { x: ROOM_PX_W / 2, y: TILE + 14 },
-  down: { x: ROOM_PX_W / 2, y: ROOM_PX_H - TILE - 14 },
-  left: { x: TILE + 14, y: ROOM_PX_H / 2 },
-  right: { x: ROOM_PX_W - TILE - 14, y: ROOM_PX_H / 2 },
-};
+// Door tiles (2 tiles wide, mid-wall) and where you appear coming through each one: for the current room.
+let DOOR_TILES, DOOR_SPAWN;
+function setRoomSize(w, h) {
+  ROOM_W = w; ROOM_H = h; ROOM_PX_W = w * TILE; ROOM_PX_H = h * TILE;
+  const mx = Math.floor(w / 2) - 1, my = Math.floor(h / 2) - 1;
+  DOOR_TILES = { up: [[mx, 0], [mx + 1, 0]], down: [[mx, h - 1], [mx + 1, h - 1]], left: [[0, my], [0, my + 1]], right: [[w - 1, my], [w - 1, my + 1]] };
+  DOOR_SPAWN = {
+    up: { x: ROOM_PX_W / 2, y: TILE + 14 }, down: { x: ROOM_PX_W / 2, y: ROOM_PX_H - TILE - 14 },
+    left: { x: TILE + 14, y: ROOM_PX_H / 2 }, right: { x: ROOM_PX_W - TILE - 14, y: ROOM_PX_H / 2 },
+  };
+}
+setRoomSize(STD_ROOM_W, STD_ROOM_H);
+// Work inside this room from now on (its size).
+function useRoom(room) { if (room) setRoomSize(room.w || STD_ROOM_W, room.h || STD_ROOM_H); }
 
 // Obstacle layouts for the 18x10 interior. '#' = crate, barrel, rubble or tank.
 // Keep the middle row/column paths to the doors open.
@@ -111,7 +113,7 @@ function generateFloor(depth) {
 
   const add = (gx, gy, type) => {
     const r = {
-      gx, gy, type, doors: {}, cleared: false, visited: false, seen: false,
+      gx, gy, type, w: STD_ROOM_W, h: STD_ROOM_H, doors: {}, cleared: false, visited: false, seen: false,
       locked: false, pickups: [], corpses: [], orbs: [], slime: [], hatch: false, tiles: null, bg: null,
     };
     grid.set(key(gx, gy), r);
@@ -184,10 +186,12 @@ function generateFloor(depth) {
   if (depth >= 2) attachSealed('heart', 'flesh', false);
 
   for (const r of rooms) buildRoom(r, depth);
+  if (typeof game !== 'undefined' && game.room) useRoom(game.room); // (back to the room you're in)
   return { rooms, start: rooms[0], depth };
 }
 
 function buildRoom(room, depth) {
+  useRoom(room); // (built at its own size)
   const tiles = new Array(ROOM_W * ROOM_H).fill(T_FLOOR);
   for (let y = 0; y < ROOM_H; y++) {
     for (let x = 0; x < ROOM_W; x++) {

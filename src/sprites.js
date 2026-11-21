@@ -943,7 +943,7 @@ function paintHudBar(h, seed, panels) {
 function bakeHud() {
   if (SPR.hudTop) return;
   SPR.hudTop = paintHudBar(ROOM_Y, 101, [[106, 2, 108, 13], [VIEW_W - 70, 1, 68, 29]]);
-  SPR.hudBottom = paintHudBar(VIEW_H - ROOM_Y - ROOM_PX_H, 102, []); // slot panels are drawn live (drawMutationList)
+  SPR.hudBottom = paintHudBar(VIEW_H - ROOM_Y - VIEW_ROOM_H, 102, []); // slot panels are drawn live (drawMutationList)
   SPR.dnaTube = paintDnaTube(100);
 }
 

@@ -52,6 +52,7 @@ function startFloor() {
 function enterRoom(room, side) {
   if (game.room && game.limbs) bakeAllLimbs(); // what was torn off stays on the old floor
   game.room = room;
+  useRoom(room); // its size (and doors) from now on
   if (!room.cleared && game.player && game.player.stats && game.player.stats.roomArmor) game.player.armor = Math.max(game.player.armor || 0, 1); // Bone Colossus
   room.visited = true;
   for (const d in room.doors) room.doors[d].seen = true;
@@ -90,6 +91,7 @@ function enterRoom(room, side) {
   }
   // The cancer ward: its growths are still standing, every time you come back in.
   if (room.type === 'heart') for (const g of room.growths || []) if (!g.gone) { const e = spawnEnemy('growth', g.x, g.y); e.spawnT = 0; e.growth = g; }
+  updateCamera(0, true); // straight to you, no swoop
   game.fade = 0.2;
 }
 
@@ -226,6 +228,7 @@ function update(dt) {
   updatePickups(dt);
   updateCorpses(dt);
   updateLimbs(dt);
+  updateCamera(dt);
   ageDecals(dt); // old stains darken into the floor
   updateFx(dt);
   updateExtras(dt);
@@ -373,7 +376,8 @@ function render() {
   const sx = game.shake > 0 ? Math.round(rand(-game.shake, game.shake)) : 0;
   const sy = game.shake > 0 ? Math.round(rand(-game.shake, game.shake)) : 0;
   ctx.save();
-  ctx.translate(sx, ROOM_Y + sy);
+  ctx.beginPath(); ctx.rect(0, ROOM_Y, VIEW_ROOM_W, VIEW_ROOM_H); ctx.clip(); // (only the play area)
+  ctx.translate(sx - camX(), ROOM_Y + sy - camY()); // the camera (a bigger room scrolls)
   // Everything in the dark...
   ctx.drawImage(game.room.bg, 0, 0);
   ctx.drawImage(game.room.decals, 0, 0);
@@ -410,7 +414,7 @@ function render() {
 
   if (game.fade > 0) {
     ctx.fillStyle = `rgba(4,2,4,${game.fade / 0.2})`;
-    ctx.fillRect(0, ROOM_Y, VIEW_W, ROOM_PX_H);
+    ctx.fillRect(0, ROOM_Y, VIEW_W, VIEW_ROOM_H);
   }
   drawLowHealth(ctx);
   drawHurtVignette(ctx); // you were just hit
@@ -461,3 +465,30 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// --- The camera ---------------------------------------------------------------------
+// In a room bigger than the screen it follows you, leaning toward where you aim: a soft
+// lock, so you stay on screen while the mouse (or right stick) pulls the view ahead.
+// It eases rather than snaps, and stops at the room's edges. In a standard room it never
+// moves (the room is exactly the screen).
+const CAM_LOOK = 0.3, CAM_LOOK_MAX = 56, CAM_EASE = 7;
+const camX = () => Math.round(game.cam ? game.cam.x : 0), camY = () => Math.round(game.cam ? game.cam.y : 0);
+// The mouse, in the room (screen position + where the camera is).
+function mouseWorld() { return { x: Input.mouse.x + camX(), y: Input.mouse.y - ROOM_Y + camY() }; }
+function cameraTarget() {
+  const p = game.player;
+  let lx, ly;
+  if (Input.padUsed) { lx = p.aimX * CAM_LOOK_MAX * 0.7; ly = p.aimY * CAM_LOOK_MAX * 0.7; }
+  else { const m = mouseWorld(); lx = clamp((m.x - p.x) * CAM_LOOK, -CAM_LOOK_MAX, CAM_LOOK_MAX); ly = clamp((m.y - p.y) * CAM_LOOK, -CAM_LOOK_MAX, CAM_LOOK_MAX); }
+  return {
+    x: clamp(p.x + lx - VIEW_ROOM_W / 2, 0, Math.max(0, ROOM_PX_W - VIEW_ROOM_W)),
+    y: clamp(p.y + ly - VIEW_ROOM_H / 2, 0, Math.max(0, ROOM_PX_H - VIEW_ROOM_H)),
+  };
+}
+function updateCamera(dt, snap) {
+  if (!game.player || !game.room) return;
+  const t = cameraTarget(), c = game.cam || (game.cam = { x: t.x, y: t.y });
+  if (snap) { c.x = t.x; c.y = t.y; return; }
+  const k = 1 - Math.exp(-CAM_EASE * dt);
+  c.x += (t.x - c.x) * k; c.y += (t.y - c.y) * k;
+}

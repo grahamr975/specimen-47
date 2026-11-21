@@ -296,7 +296,7 @@ function drawBossBar(ctx) {
   const parts = livingBossParts();
   if (!parts.length) return;
   const hp = parts.reduce((t, e) => t + Math.max(0, e.hp), 0);
-  const w = 200, x = (VIEW_W - w) / 2, y = ROOM_Y + ROOM_PX_H - 14;
+  const w = 200, x = (VIEW_W - w) / 2, y = ROOM_Y + VIEW_ROOM_H - 14;
   drawText(ctx, game.bossName, VIEW_W / 2, y - 8, PAL.red, 1, 'center');
   ctx.fillStyle = '#0b080a'; ctx.fillRect(x - 1, y - 1, w + 2, 6);
   ctx.fillStyle = '#3a0608'; ctx.fillRect(x, y, w, 4);
