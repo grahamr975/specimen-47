@@ -1169,7 +1169,7 @@ try {
     const f = spawnEnemy('frostbitten', q.x + 60, q.y + 20); f.spawnT = 0; const r0 = f.rateMul || 1; severPart(f, 'arm');
     check(`a frostbitten without its arm attacks less often (x${(f.rateMul || 1).toFixed(2)})`, (f.rateMul || 1) < r0);
     // Eating: the meat it lost comes off its corpse's worth, so nothing is gained by tearing it up.
-    game.enemies = []; game.limbs = []; game.room.corpses = [];
+    game.enemies = []; game.limbs = []; game.room.corpses = []; game.room.locked = false; // (you eat once the room is clear)
     const c = dummy(-40, 5); c.elite = false; severPart(c, 'head'); severPart(c, 'tail');
     const taken = c.limbDna; spawnCorpse(c, 'rat');
     const corpse = game.room.corpses[0], full = ENEMY_TYPES.rat.dna + q.stats.bacteria;
@@ -1331,7 +1331,7 @@ try {
     game.depth = 1;
   }
   { // 0j1v9) Eating a corpse takes a few quick bites, not an instant; a dash lets go.
-    newRun(); combatRoom(); game.enemies = []; game.room.corpses = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    newRun(); combatRoom(); game.enemies = []; game.room.corpses = []; game.room.locked = false; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
     const q = game.player; q.x = 100; q.y = 96; q.inv = 99; Input.keys.clear();
     const e = dummy(4, 5); spawnCorpse(e, 'rat'); game.enemies = []; const c = game.room.corpses[0];
     update(1 / 60); Input.endFrame();
@@ -1344,6 +1344,16 @@ try {
     for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
     const was = q.eating && q.eating.t; q.dashCd = 0; Input.keys.add('a'); Input.pressed.add(' '); update(1 / 60); Input.endFrame(); Input.keys.clear(); update(1 / 60); Input.endFrame();
     check(`a dash lets go mid-meal (was ${(was || 0).toFixed(2)}s in): the corpse stays`, was > 0 && !q.eating && !c2.dead);
+  }
+  { // 0j1v10) You only feed once the fight is over.
+    newRun(); combatRoom(); game.room.corpses = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    const q = game.player; q.x = 100; q.y = 96; q.inv = 99; Input.keys.clear();
+    for (const en of game.enemies) { en.x = 250; en.y = 40; en.speed = 0; en.spawnT = 99; }
+    const e = dummy(4, 5); spawnCorpse(e, 'rat'); game.enemies = game.enemies.filter(k => k !== e); const c = game.room.corpses[0];
+    game.room.locked = true; for (let i = 0; i < 40; i++) { q.hp = q.maxHp; update(1 / 60); Input.endFrame(); }
+    check(`mid-fight you don't stop to eat (eating ${!!q.eating}, corpse still there ${!c.dead})`, !q.eating && !c.dead && game.room.locked);
+    game.enemies = []; for (let i = 0; i < 60 && !c.dead; i++) { update(1 / 60); Input.endFrame(); }
+    check('once the room is clear, you eat it', c.dead && !game.room.locked);
   }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);

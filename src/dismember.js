@@ -156,7 +156,7 @@ function updateLimbs(dt) {
     }
   }
   // Walk over meat and you eat it.
-  if (p && !p.dead && p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
+  if (p && !p.dead && p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn && !game.room.locked) { // (not mid-fight)
     const l = game.limbs.find(l => !l.robot && !l.inert && l.t > 0.3 && Math.hypot(l.x - p.x, l.y - p.y) < LIMB_EAT_R + p.r);
     if (l) eatLimb(p, l);
   }

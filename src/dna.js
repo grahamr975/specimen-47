@@ -130,7 +130,7 @@ function updateCorpses(dt) {
   const p = game.player;
   for (const c of game.room.corpses) { c.t += dt; c.shake -= dt; }
   if (p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
-    if (!p.eating) {
+    if (!p.eating && !game.room.locked) { // (you feed once the fight is over)
       const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1 + (p.stats.devourReach || 0));
       if (c) startEating(p, c);
     }
@@ -224,7 +224,7 @@ function updateEating(p, dt) {
   const E = p.eating;
   if (!E) return;
   const c = E.c;
-  if (c.dead || c.held || p.dashT > 0 || p.burrowT > 0 || p.withdrawn || p.evolveT > 0 || !game.room.corpses.includes(c) ||
+  if (c.dead || c.held || game.room.locked || p.dashT > 0 || p.burrowT > 0 || p.withdrawn || p.evolveT > 0 || !game.room.corpses.includes(c) ||
       Math.hypot(c.x - p.x, c.y - p.y) > c.r + p.r + 6 + (p.stats.devourReach || 0)) { stopEating(p); return; }
   E.t += dt;
   c.eaten = Math.min(1, E.t / EAT_TIME);
