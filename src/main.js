@@ -57,7 +57,7 @@ function enterRoom(room, side) {
   for (const d in room.doors) room.doors[d].seen = true;
   game.enemies = []; game.bullets = []; game.puddles = []; game.deathFx = []; game.particles = []; game.texts = []; game.fx = [];
   game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.shells = []; game.decoy = null; game.webs = []; game.actShots = [];
-  game.telegraphs = []; game.bombs = []; game.bossName = null;
+  game.telegraphs = []; game.bombs = []; game.bossMarks = []; game.bossName = null;
   game.player.held = null; game.player.trail = []; game.player.burrowT = 0; game.player.eating = null;
   game.player.tongue = null; game.player.grappleShot = null; game.whips = [];
   game.player.plates = game.player.stats.plates || 0; // Bone Plates regrow in every room

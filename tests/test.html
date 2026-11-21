@@ -1355,6 +1355,24 @@ try {
     game.enemies = []; for (let i = 0; i < 60 && !c.dead; i++) { update(1 / 60); Input.endFrame(); }
     check('once the room is clear, you eat it', c.dead && !game.room.locked);
   }
+  { // 0j1v11) Every boss attack has a tell: nothing fires the instant it's decided.
+    newRun(); combatRoom(); game.enemies = []; game.bullets = []; const q = game.player; q.x = 60; q.y = 96; q.inv = 99;
+    const col = spawnEnemy('colossus', 200, 96); col.spawnT = 0; startWindup(col, 'breath', 0.6, Math.PI);
+    let early = 0; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); early += game.bullets.filter(b => b.team === 'enemy').length; game.bullets = []; }
+    const flying = () => game.bullets.filter(b => b.team === 'enemy').length;
+    for (let i = 0; i < 10 && !flying(); i++) { update(1 / 60); Input.endFrame(); }
+    check(`the colossus's frost breath: a tell first (${early} shots during it), then the cone (${flying()})`, early === 0 && flying() >= 9);
+    render(); game.enemies = []; game.bullets = [];
+    const dir = spawnEnemy('director', 200, 96); dir.spawnT = 0; dir.atkT = 99; startWindup(dir, 'volley', 0.55, Math.PI, { n: 3 });
+    early = 0; for (let i = 0; i < 30; i++) { update(1 / 60); Input.endFrame(); early += flying(); game.bullets = []; }
+    for (let i = 0; i < 8 && !flying(); i++) { update(1 / 60); Input.endFrame(); }
+    check(`the director's volleys: red lines first (${early} shots during), then fire down them (${flying()})`, early === 0 && flying() >= 5);
+    game.enemies = []; game.bullets = []; game.bossMarks = [];
+    const bt = spawnEnemy('biotank', 200, 96); bt.spawnT = 0; bt.atkT = 0; bt.minionT = 99;
+    for (let i = 0; i < 40 && !game.bossMarks.length && bt.state !== 'aim'; i++) { update(1 / 60); Input.endFrame(); bt.minionT = 99; }
+    check(`specimen zero: its mortars mark where they'll land, its charge shows its line (${game.bossMarks.length} marks, aiming ${bt.state === 'aim'})`, game.bossMarks.length > 0 || (bt.state === 'aim' && game.telegraphs.length > 0));
+    render(); game.enemies = [];
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

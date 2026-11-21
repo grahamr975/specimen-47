@@ -41,6 +41,8 @@ function updateBossFx(dt) {
     Sfx.play('slam');
   }
   game.telegraphs = game.telegraphs.filter(t => !t.done);
+  for (const m of game.bossMarks || []) m.t -= dt; // where lobbed shots will land
+  if (game.bossMarks) game.bossMarks = game.bossMarks.filter(m => m.t > 0);
 
   for (const b of game.bombs) {
     b.t -= dt;
@@ -59,6 +61,7 @@ function updateBossFx(dt) {
 // Drawn above the darkness so you can always see what's coming.
 function drawBossFx(ctx) {
   drawBossSweeps(ctx);
+  drawBossTells(ctx); // wind-ups and landing marks
   for (const tg of game.telegraphs) {
     const x2 = tg.x + Math.cos(tg.ang) * tg.len, y2 = tg.y + Math.sin(tg.ang) * tg.len;
     const k = 1 - tg.t / tg.max;
@@ -407,18 +410,15 @@ const countAlive = type => game.enemies.filter(o => !o.dead && o.type === type).
 // half health the ice cracks, it starts walking, and Frostbitten break free.
 function updateColossus(e, dt, p) {
   const ph2 = bossPhase(e, 'thawed', { text: 'THE ICE CRACKS', sub: 'It can move now', color: '#a0e0ff' }, () => {
-    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 100, vy: Math.sin(a) * 100, r: 2, team: 'enemy', kind: 'enemy', life: 1.4, color: '#d8f0ff', chill: true }); }
-    burst(e.x, e.y, '#d8f0ff', 30, 140, 0.6); Sfx.play('clank');
+    startWindup(e, 'ring', 0.8, 0); // it swells, then the ice bursts off it (see tickWindup)
   });
   const a = Math.atan2(p.y - e.y, p.x - e.x);
+  if (tickWindup(e, dt)) return [0, 0]; // winding up: it stops and shows you where
   if ((e.atkT = (e.atkT ?? 2) - dt) <= 0) {
     e.atkT = ph2 ? rand(1.5, 2.1) : rand(2.1, 2.7);
     if (Math.random() < 0.5) { // ice spikes: a fan of telegraphed lines
       for (const off of ph2 ? [-0.5, -0.25, 0, 0.25, 0.5] : [-0.35, 0, 0.35]) telegraphLine(e.x, e.y, a + off, 185, 9, 0.8, 1, ICE_LOOK);
-    } else { // frost breath: a wide cone of chilling shards
-      for (let k = -4; k <= 4; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a + k * 0.12) * 130, vy: Math.sin(a + k * 0.12) * 130, r: 2, team: 'enemy', kind: 'enemy', life: 1.1, color: '#a0e0ff', chill: true });
-      Sfx.play('spray');
-    }
+    } else startWindup(e, 'breath', ph2 ? 0.5 : 0.65, a); // frost breath: it inhales, the cone frosts over, then it breathes
   }
   if (!ph2) return [0, 0];
   if ((e.spawnFT = (e.spawnFT ?? 3) - dt) <= 0) { e.spawnFT = 7; if (countAlive('frostbitten') < 3) { bossMinion('frostbitten', e.x + rand(-20, 20), e.y + 18); floatText(e.x, e.y - 20, 'IT SHEDS', '#a0e0ff'); } }
@@ -442,6 +442,7 @@ function updateBiotank(e, dt, p) {
       for (let i = 0; i < (ph2 ? 5 : 3); i++) {
         const tx = p.x + (i ? rand(-34, 34) : 0), ty = p.y + (i ? rand(-26, 26) : 0), fl = clamp(Math.hypot(tx - e.x, ty - e.y) / 90, 0.5, 1.4);
         spawnBullet({ x: e.x, y: e.y - 6, vx: (tx - e.x) / fl, vy: (ty - e.y) / fl, r: 3, team: 'enemy', kind: 'glob', life: fl, maxLife: fl, color: PAL.lime });
+        markLanding(tx, ty, fl, PAL.lime); // (a ring where it comes down)
       }
       Sfx.play('enemyShot');
     } else { // a charge, telegraphed first
@@ -458,7 +459,8 @@ function updateBiotank(e, dt, p) {
 function updateArchive(e, dt, p) {
   const ph2 = bossPhase(e, 'rewritten', { text: 'IT REWRITES ITSELF', sub: 'A new sample crawls out', color: '#e8a0b8' }, () => bossMinion('chimera', e.x, e.y + 22));
   e.spinA = (e.spinA || 0) + dt * (ph2 ? 1.7 : 1.1);
-  e.patT = (e.patT || 0) + dt;
+  e.patT = (e.patT ?? 3) + dt; // (starts in a lull: even its first burst gets the tell)
+  { const w = e.patT % 5; e.charging = w > 4.2 ? (w - 4.2) / 0.8 : 0; if (w > 4.2 && !e.chargeSounded) { e.chargeSounded = true; Sfx.play('chargeFull'); } if (w < 4.2) e.chargeSounded = false; } // it flares before it spins
   if (e.patT % 5 < 3 && (e.fireT = (e.fireT ?? 0.5) - dt) <= 0) { // spiral bursts: three seconds on, two off
     e.fireT = ph2 ? 0.17 : 0.24;
     const arms = ph2 ? 4 : 3;
@@ -481,6 +483,7 @@ function updateDirector(e, dt, p) {
     Sfx.play('door');
   });
   const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  if (tickWindup(e, dt)) return [0, 0];
   if (e.sweep) { // a sweeping laser: a warning flicker, then the beam swings across
     const S = e.sweep;
     S.t -= dt;
@@ -497,11 +500,11 @@ function updateDirector(e, dt, p) {
       const dir = Math.random() < 0.5 ? 1 : -1, dur = ph2 ? 1.6 : 1.9;
       e.sweep = { a: Math.atan2(uy, ux) - dir * 1.0, dir, speed: ph2 ? 1.5 : 1.1, len: 210, dur, t: dur + 0.6 };
       Sfx.play('flicker');
-    } else e.volleys = ph2 ? 4 : 3;
+    } else startWindup(e, 'volley', 0.55, Math.atan2(uy, ux), { n: ph2 ? 4 : 3 }); // he raises the gun: red lines where it'll fire
   }
   if (e.volleys > 0 && (e.volT = (e.volT || 0) - dt) <= 0) { // aimed volleys
     e.volleys--; e.volT = 0.3;
-    const base = Math.atan2(uy, ux);
+    const base = e.volBase ?? Math.atan2(uy, ux); // (down the lines he showed you)
     for (const off of [-0.3, -0.15, 0, 0.15, 0.3]) spawnBullet({ x: e.x, y: e.y - 4, vx: Math.cos(base + off) * 130, vy: Math.sin(base + off) * 130, r: 2, team: 'enemy', kind: 'enemy', life: 2.4, color: PAL.red });
     Sfx.play('enemyShot');
   }
@@ -521,5 +524,64 @@ function drawBossSweeps(ctx) {
     if (S.t > S.dur) { // warning: where it starts
       if (Math.floor(game.time * 16) % 2) { ctx.fillStyle = '#ff6060'; const n = S.len / 3; for (let i = 0; i < n; i += 2) ctx.fillRect(Math.round(e.x + (x2 - e.x) * i / n), Math.round(e.y + (y2 - e.y) * i / n), 1, 1); }
     } else { pxLine(ctx, e.x, e.y, x2, y2, '#600808', 3, 0); pxLine(ctx, e.x, e.y, x2, y2, Math.random() < 0.5 ? '#ff3030' : '#ff9090', 1, 0); }
+  }
+}
+
+// --- Tells: every boss attack shows itself before it lands ---------------------------
+// A WINDUP: the boss stops, shows exactly where the attack will go (its aim locks when
+// the tell starts, so you can step out of it), then lets it go. MARKS: rings on the
+// floor where lobbed shots will come down.
+function startWindup(e, kind, t, ang, extra) {
+  e.windup = Object.assign({ kind, t, max: t, ang }, extra);
+  if (kind === 'breath') Sfx.play('creak'); else Sfx.play('chargeFull');
+}
+function tickWindup(e, dt) {
+  const W = e.windup;
+  if (!W) return false;
+  if (W.kind === 'breath' && Math.random() < dt * 30) { // frost gathering in its mouth
+    const a = rand(0, Math.PI * 2), r = rand(10, 22);
+    game.particles.push({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r, vx: -Math.cos(a) * 60, vy: -Math.sin(a) * 60, life: 0.25, color: '#d8f0ff', size: 1 });
+  }
+  if ((W.t -= dt) > 0) return true;
+  e.windup = null;
+  if (W.kind === 'breath') { // the cone it showed you
+    for (let k = -4; k <= 4; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(W.ang + k * 0.12) * 130, vy: Math.sin(W.ang + k * 0.12) * 130, r: 2, team: 'enemy', kind: 'enemy', life: 1.1, color: '#a0e0ff', chill: true });
+    Sfx.play('spray');
+  } else if (W.kind === 'ring') { // the thaw: shards burst out all around
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; spawnBullet({ x: e.x, y: e.y, vx: Math.cos(a) * 100, vy: Math.sin(a) * 100, r: 2, team: 'enemy', kind: 'enemy', life: 1.4, color: '#d8f0ff', chill: true }); }
+    burst(e.x, e.y, '#d8f0ff', 30, 140, 0.6); Sfx.play('clank');
+  } else if (W.kind === 'volley') { e.volleys = W.n; e.volBase = W.ang; e.volT = 0; }
+  return true;
+}
+function markLanding(x, y, t, color) { (game.bossMarks || (game.bossMarks = [])).push({ x, y, t, max: t, color }); }
+
+// Drawn over the darkness, like the other warnings.
+function drawBossTells(ctx) {
+  const blink = Math.floor(game.time * 14) % 2;
+  for (const e of game.enemies) {
+    if (e.dead) continue;
+    const W = e.windup;
+    if (W) {
+      const k = 1 - W.t / W.max; // 0 -> 1 as it comes
+      if (W.kind === 'breath') { // the cone it will breathe, frosting over
+        const len = 140;
+        for (const side of [-1, 1]) { const a = W.ang + side * 0.5; for (let i = 6; i < len; i += 3) { ctx.fillStyle = blink ? '#a0e0ff' : '#4a7aa0'; ctx.fillRect(Math.round(e.x + Math.cos(a) * i), Math.round(e.y + Math.sin(a) * i), 1, 1); } }
+        ctx.globalAlpha = 0.12 + 0.2 * k; ctx.fillStyle = '#a0e0ff'; ctx.beginPath(); ctx.moveTo(e.x, e.y);
+        ctx.arc(e.x, e.y, len * (0.3 + 0.7 * k), W.ang - 0.5, W.ang + 0.5); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+      } else if (W.kind === 'ring') { // it swells before it bursts
+        pxRing(ctx, e.x, e.y, e.r + 4 + 30 * (1 - k), blink ? '#d8f0ff' : '#4a7aa0');
+      } else if (W.kind === 'volley') { // the lines it will fire down
+        for (const off of [-0.3, -0.15, 0, 0.15, 0.3]) for (let i = 10; i < 150; i += 4) if ((i / 4 + (blink ? 1 : 0)) % 2 < 1) { ctx.fillStyle = '#ff4040'; ctx.fillRect(Math.round(e.x + Math.cos(W.ang + off) * i), Math.round(e.y - 4 + Math.sin(W.ang + off) * i), 1, 1); }
+      }
+    }
+    if (e.type === 'archive' && e.charging) { // about to spin up: its eyes flare, a ring closes in
+      const k = e.charging;
+      pxRing(ctx, e.x, e.y, e.r + 6 + 24 * (1 - k), blink ? '#ffd0e0' : '#e8a0b8');
+    }
+  }
+  for (const m of game.bossMarks || []) { // where it's coming down: a ring tightening to the moment it lands
+    const k = 1 - m.t / m.max;
+    pxRing(ctx, m.x, m.y, 3 + 9 * (1 - k), blink ? m.color : '#2a3010');
+    ctx.fillStyle = m.color; ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
   }
 }
