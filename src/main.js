@@ -226,6 +226,7 @@ function update(dt) {
   updatePickups(dt);
   updateCorpses(dt);
   updateLimbs(dt);
+  ageDecals(dt); // old stains darken into the floor
   updateFx(dt);
   updateExtras(dt);
   updateBossFx(dt);

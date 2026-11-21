@@ -146,3 +146,18 @@ function goreExplode(e) {
   hitstop(0.04);
   Sfx.play('splat');
 }
+
+// Old blood sinks into the floor: every few seconds the room's stains darken a touch
+// (only the stains: the floor itself isn't on this canvas), so fresh gore stays readable
+// and a long fight's mess never drowns out what can hurt you.
+const DECAL_AGE_EVERY = 3, DECAL_AGE_STEP = 0.07;
+function ageDecals(dt) {
+  const room = game.room;
+  if (!room || !room.decals) return;
+  if ((room.decalAgeT = (room.decalAgeT ?? DECAL_AGE_EVERY) - dt) > 0) return;
+  room.decalAgeT = DECAL_AGE_EVERY;
+  const d = decalCtx();
+  d.save(); d.globalCompositeOperation = 'source-atop';
+  d.fillStyle = `rgba(14,10,11,${DECAL_AGE_STEP})`; d.fillRect(0, 0, ROOM_PX_W, ROOM_PX_H);
+  d.restore();
+}

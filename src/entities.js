@@ -211,6 +211,16 @@ function spawnFragments(x, y, angle, n, dmg, homing, acid, exclude) {
   }
 }
 
+// The look of anything that hurts you (enemy shots, enemy pools): one color language, so
+// you learn it once. Bright on dark, orange (no creature bleeds orange), and it moves.
+const DANGER = { outline: '#120602', rim: '#ff8a20', rim2: '#ffc040', core: '#fff4c8' };
+function dangerCore(c) { // keep a hint of what it is (frost, acid), but always bright
+  if (!c) return DANGER.core;
+  if (/^#(a0e0ff|d8f0ff)/i.test(c)) return '#e8f8ff';
+  if (c === PAL.lime || /^#(b0c040|c0e040)/i.test(c)) return '#f0ffb0';
+  return DANGER.core;
+}
+
 function drawBullets(ctx) {
   for (const b of game.bullets) {
     const x = Math.round(b.x), y = Math.round(b.y);
@@ -234,12 +244,17 @@ function drawBullets(ctx) {
       const t = 1 - b.life / b.maxLife;
       const h = Math.sin(t * Math.PI) * 14;
       pxCircle(ctx, x, y, 2, 'rgba(0,0,0,0.35)');
-      pxCircle(ctx, x, y - h, 3, PAL.red);
-      pxCircle(ctx, x, y - h, 2, '#6a1440');
+      pxCircle(ctx, x, y - h, 4, DANGER.outline); // a lobbed blob: outlined, hot-rimmed, its own color inside
+      pxCircle(ctx, x, y - h, 3, DANGER.rim);
+      pxCircle(ctx, x, y - h, 2, b.color || DANGER.core);
+      ctx.fillStyle = DANGER.core; ctx.fillRect(x - 1, Math.round(y - h) - 1, 1, 1);
     } else if (b.team === 'enemy') {
-      // Enemy shots get a red danger rim so they read clearly in the dark.
-      pxCircle(ctx, x, y, b.r + 1, PAL.red);
-      pxCircle(ctx, x, y, b.r, '#f0e890');
+      // Enemy shots all wear the same danger look: a dark outline, a hot orange rim and a
+      // bright core (tinted by what it is: frost, acid). Orange is a color nothing bleeds,
+      // so a shot never melts into the gore on the floor.
+      pxCircle(ctx, x, y, b.r + 2, DANGER.outline);
+      pxCircle(ctx, x, y, b.r + 1, Math.floor(game.time * 12 + b.x * 0.1) % 2 ? DANGER.rim : DANGER.rim2);
+      pxCircle(ctx, x, y, b.r, dangerCore(b.color));
     } else if (b.kind === 'thrown') {
       const img = b.corpse && anatSprite(b.corpse.sprite, b.corpse.missing, '_dead');
       if (img) drawCentered(ctx, img, x, y - 3);
@@ -304,25 +319,25 @@ function drawPuddles(ctx) {
     const fade = Math.min(1, p.life / 0.6);
     const r = p.r * (0.6 + 0.4 * Math.min(1, (p.maxLife - p.life) * 6)) * (0.5 + 0.5 * fade);
     const enemy = p.team === 'enemy'; // enemy pools are necrotic rot; yours are bile
-    pxCircle(ctx, p.x, p.y, r, enemy ? '#2a0a1a' : '#3a4214');
-    pxCircle(ctx, p.x, p.y, r - 2, enemy ? '#4a1030' : '#5e6a1e');
+    pxCircle(ctx, p.x, p.y, r, enemy ? '#2a1206' : '#3a4214'); // (enemy pools burn orange: nothing bleeds that color)
+    pxCircle(ctx, p.x, p.y, r - 2, enemy ? '#5a2408' : '#5e6a1e');
     if (enemy) { // it's dangerous: a seething surface, bubbles swelling and popping
       const seed = (p.x * 7 + p.y * 13) % 17;
       for (let i = 0; i < 4; i++) {
         const ph = (game.time * 1.3 + i * 0.27 + seed * 0.05) % 1, cyc = Math.floor(game.time * 1.3 + i * 0.27 + seed * 0.05);
         const a = hash2(i, cyc, seed) * Math.PI * 2, d = hash2(cyc, i, 7) * r * 0.6;
         const bx = p.x + Math.cos(a) * d, by = p.y + Math.sin(a) * d * 0.7;
-        if (ph < 0.8) pxRing(ctx, bx, by, 0.5 + ph * 1.6, '#c02040');
-        else { ctx.fillStyle = '#ff6080'; ctx.fillRect(Math.round(bx) - 1, Math.round(by), 3, 1); } // pop
+        if (ph < 0.8) pxRing(ctx, bx, by, 0.5 + ph * 1.6, DANGER.rim2);
+        else { ctx.fillStyle = DANGER.core; ctx.fillRect(Math.round(bx) - 1, Math.round(by), 3, 1); } // pop
       }
-      ctx.fillStyle = '#7a1838'; // a slow sheen drifting across it
+      ctx.fillStyle = '#a04a10'; // a slow sheen drifting across it
       const sx = p.x - r * 0.6 + ((game.time * 6 + seed) % (r * 1.2));
       ctx.fillRect(Math.round(sx), Math.round(p.y - r * 0.3), 2, 1);
     }
     // Bubbles
     if (Math.random() < 0.15) {
       const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.7;
-      ctx.fillStyle = enemy ? '#c02040' : '#b0c040';
+      ctx.fillStyle = enemy ? DANGER.rim : '#b0c040';
       ctx.fillRect(Math.round(p.x + Math.cos(a) * d), Math.round(p.y + Math.sin(a) * d), 1, 1);
     }
   }
@@ -335,7 +350,7 @@ function drawPuddleGlow(ctx) {
     if (p.team !== 'enemy') continue;
     const fade = Math.min(1, p.life / 0.6), r = p.r * (0.6 + 0.4 * Math.min(1, (p.maxLife - p.life) * 6)) * (0.5 + 0.5 * fade);
     ctx.globalAlpha = (0.35 + 0.3 * Math.sin(game.time * 5 + p.x * 0.1)) * fade;
-    pxRing(ctx, p.x, p.y, r, '#ff3a5a');
+    pxRing(ctx, p.x, p.y, r, DANGER.rim);
     ctx.globalAlpha = 1;
   }
 }
