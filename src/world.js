@@ -406,7 +406,7 @@ function sealAt(room, dir) {
 // An attack landing at (x, y) with some `reach`: hit any sealed door there.
 function strikeSeal(x, y, reach) {
   const room = game.room;
-  if (!room || !room.seals) return false;
+  if (!room || !room.seals || room.locked) return false; // (not mid-fight: the doors hold until the room is clear)
   for (const dir in room.seals) {
     const s = sealAt(room, dir);
     if (!s) continue;

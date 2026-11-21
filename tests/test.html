@@ -1312,6 +1312,16 @@ try {
     game.depth = 4; check('deeper, they hold whole hearts', growthSpots(4)[0].amount === HP_PER_HEART);
     game.depth = 1;
   }
+  { // 0j1v8) Sealed doors can't be broken mid-fight.
+    newRun(); game.depth = 2; game.floor = generateFloor(2);
+    const ward = game.floor.rooms.find(r => r.type === 'heart'), host = Object.values(ward.doors)[0], dir = Object.keys(host.doors).find(d => host.doors[d] === ward);
+    game.room = host; host.locked = true; const c = doorCenter(dir);
+    for (let i = 0; i < 6; i++) { host.seals[dir].cd = 0; strikeSeal(c.x, c.y, 10); }
+    check(`a locked room's sealed door holds, however hard you hit it (${host.seals[dir].hits} hits)`, host.seals[dir].hits === 0 && !host.seals[dir].broken);
+    host.locked = false; for (let i = 0; i < 6; i++) { host.seals[dir].cd = 0; strikeSeal(c.x, c.y, 10); }
+    check('...and gives once the room is clear', host.seals[dir].broken);
+    game.depth = 1;
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;
@@ -1896,8 +1906,9 @@ try {
       orbsLeft += room.orbs.length;
       for (const pk of room.pickups.slice()) { game.player.x = pk.x; game.player.y = pk.y; step(3, true); }
       if (room.hatch) { game.player.x = ROOM_PX_W / 2; game.player.y = ROOM_PX_H / 2; step(2, true); continue; }
-      // A hazmat seal: walk up to it and attack until it breaks.
-      for (const d in room.seals || {}) {
+      // A hazmat seal (or the cancer ward's door of meat): walk up to it and attack until it breaks.
+      // (Not before the bot has a weapon: it can arrive still digesting its first vial.)
+      for (const d in (game.player.parts.some(m => m.loc === 'MOUTH') && room.seals) || {}) {
         if (!sealAt(room, d)) continue;
         const c = doorCenter(d), p = game.player;
         const sx = clamp(c.x, TILE + 8, ROOM_PX_W - TILE - 8), sy = clamp(c.y, TILE + 8, ROOM_PX_H - TILE - 8);

@@ -593,6 +593,11 @@ function paintHazmat(horiz, dmg) {
     P.scratch([[w * 0.55, h * 0.3], [w * 0.7, h * 0.55], [w * 0.85, h * 0.6], [w * 0.75, h * 0.85]], '#060404');
     P.dot(Math.round(w * 0.7), Math.round(h * 0.6), '#c96a8f'); // the vault's glow leaks through
   }
+  if (dmg >= 3) { // buckled in, split open: one more hit
+    P.blob(w / 2, h / 2, horiz ? 6 : 3.4, horiz ? 3.4 : 6, R.socket, { noise: 0 });
+    P.scratch([[w * 0.5, h * 0.15], [w * 0.42, h * 0.4], [w * 0.58, h * 0.6], [w * 0.5, h * 0.88]], '#060404');
+    for (const [fx, fy] of [[0.45, 0.45], [0.55, 0.55], [0.5, 0.5]]) P.dot(Math.round(w * fx), Math.round(h * fy), '#e88ab0'); // the vial's glow pours out
+  }
   return P.outline().toCanvas();
 }
 
@@ -604,10 +609,15 @@ function paintFleshDoor(horiz, dmg) {
   for (let i = 0; i < 6; i++) P.vein(hash2(i, 1, 9) * w, hash2(i, 2, 9) * h, 8, i % 2 ? '#c02838' : '#e04a54', hash2(i, 3, 9) * 6); // red veins over the meat
   // Growths bulging out of it: the more you've torn, the fewer are left whole.
   const lumps = [[0.3, 0.3, 3.4], [0.7, 0.4, 2.8], [0.45, 0.7, 3], [0.82, 0.78, 2.2], [0.15, 0.75, 2], [0.55, 0.2, 1.8]];
-  lumps.slice(0, lumps.length - dmg * 2).forEach(([fx, fy, r]) => P.blob(fx * w, fy * h, horiz ? r * 1.2 : r, horiz ? r : r * 1.2, R.blood, { spec: 1, noise: 0.15 }));
+  lumps.slice(0, Math.max(0, lumps.length - dmg * 2)).forEach(([fx, fy, r]) => P.blob(fx * w, fy * h, horiz ? r * 1.2 : r, horiz ? r : r * 1.2, R.blood, { spec: 1, noise: 0.15 }));
   for (const [fx, fy] of [[0.3, 0.3], [0.7, 0.4]]) P.dot(fx * w + 0.6, fy * h - 0.6, '#ff8a90'); // wet shine
   if (dmg >= 1) P.scratch([[w * 0.2, h * 0.2], [w * 0.45, h * 0.55], [w * 0.4, h * 0.8]], '#1a0204');
   if (dmg >= 2) { P.blob(w * 0.6, h * 0.55, 2.4, 2.4, R.socket, { noise: 0 }); P.scratch([[w * 0.55, h * 0.3], [w * 0.75, h * 0.6], [w * 0.7, h * 0.9]], '#1a0204'); }
+  if (dmg >= 3) { // torn wide, strands of it hanging across the hole: one more hit
+    P.blob(w / 2, h / 2, horiz ? 7 : 3.8, horiz ? 3.8 : 7, R.socket, { noise: 0 });
+    for (let i = 0; i < 3; i++) P.scratch(horiz ? [[w * (0.3 + i * 0.2), h * 0.2], [w * (0.35 + i * 0.18), h * 0.8]] : [[w * 0.2, h * (0.3 + i * 0.2)], [w * 0.8, h * (0.35 + i * 0.18)]], '#a01828');
+    P.blob(w * 0.25, h * 0.25, 1.4, 1.4, R.blood, { spec: 1 }).blob(w * 0.75, h * 0.8, 1.2, 1.2, R.blood, { spec: 1 });
+  }
   return P.outline().toCanvas();
 }
 
@@ -1482,9 +1492,9 @@ function withFlash(name, img) {
     const k = horiz ? 'h_' : 'v_';
     SPR.doors[k + 'bossOpen'] = paintBossDoor(horiz, false);
     SPR.doors[k + 'bossLocked'] = paintBossDoor(horiz, true);
-    for (const d of [0, 1, 2]) SPR.doors[k + 'hazmat' + d] = paintHazmat(horiz, d);
+    for (const d of [0, 1, 2, 3]) SPR.doors[k + 'hazmat' + d] = paintHazmat(horiz, d);
     SPR.doors[k + 'hazmatFlash'] = silhouette(SPR.doors[k + 'hazmat0'], '#fff0c0');
-    for (const d of [0, 1, 2]) SPR.doors[k + 'flesh' + d] = paintFleshDoor(horiz, d); // the cancer ward's door
+    for (const d of [0, 1, 2, 3]) SPR.doors[k + 'flesh' + d] = paintFleshDoor(horiz, d); // the cancer ward's door
     SPR.doors[k + 'fleshFlash'] = silhouette(SPR.doors[k + 'flesh0'], '#ffd0d0');
   }
 })();

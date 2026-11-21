@@ -301,8 +301,8 @@ function update(dt) {
 }
 
 // --- Rendering -----------------------------------------------------------------
-// A sealed vault door says "hit me": target brackets close in on it, and pips just
-// inside show how many hits it has taken (and how many it needs).
+// A sealed door says "hit me": target brackets close in on it. (How far it has given shows
+// in the door itself: it dents, cracks and tears a little more with every hit.)
 const SEAL_PULSE = 2.2;
 function drawSealCue(ctx, dir, seal, fighting) {
   const c = doorCenter(dir), ix = -DIRS[dir].dx, iy = -DIRS[dir].dy; // (pointing into the room)
@@ -316,13 +316,6 @@ function drawSealCue(ctx, dir, seal, fighting) {
       ctx.fillRect(sx < 0 ? bx : bx - 2, by, 3, 1); ctx.fillRect(bx, sy < 0 ? by : by - 2, 1, 3);
     }
     ctx.globalAlpha = 1;
-  }
-  // Hit pips: one per hit it can take, filled as it gives.
-  const n = SEAL_HITS, along = iy ? [1, 0] : [0, 1];
-  for (let i = 0; i < n; i++) {
-    const o = (i - (n - 1) / 2) * 4, px = Math.round(cx + along[0] * o) - 1, py = Math.round(cy + along[1] * o) - 1;
-    ctx.fillStyle = '#1a1408'; ctx.fillRect(px - 1, py - 1, 4, 4);
-    ctx.fillStyle = i < seal.hits ? '#ffd070' : '#5a4a18'; ctx.fillRect(px, py, 2, 2);
   }
 }
 
@@ -344,7 +337,7 @@ function drawDoors(ctx) {
     const seal = sealAt(room, name);
     if (seal) {
       // Hazmat seal: dents and cracks as you hit it; flashes on each hit.
-      const dmg = Math.min(2, Math.floor(seal.hits * 3 / SEAL_HITS));
+      const dmg = Math.min(3, Math.floor(seal.hits * 4 / SEAL_HITS)); // a new stage of damage with every hit
       const sk = seal.kind === 'flesh' ? 'flesh' : 'hazmat'; // (the cancer ward's door is meat)
       let img = SPR.doors[(horiz ? 'h_' : 'v_') + sk + dmg];
       if (seal.flash > 0) { seal.flash -= 1 / 60; img = SPR.doors[(horiz ? 'h_' : 'v_') + sk + 'Flash']; }
