@@ -1392,10 +1392,19 @@ try {
     game.depth = 1;
   }
   { // 0j1v14) Big rooms: built big, the camera follows (leaning toward your aim), aim stays true, and doors still work.
+    const share = d => { let bigN = 0, all = 0; for (let i = 0; i < 20; i++) { game.depth = d; const f = generateFloor(d); for (const r of f.rooms) if (r.type === 'combat') { all++; if (r.w > STD_ROOM_W) bigN++; } } return bigN / all; };
+    const s1 = share(1), s4 = share(4);
+    check(`big rooms are where it's crowded: none on floor 1 (${(s1 * 100).toFixed(0)}%), most combat rooms by floor 4 (${(s4 * 100).toFixed(0)}%)`, s1 === 0 && s4 > 0.5);
     let big = null;
-    for (let i = 0; i < 40 && !big; i++) { newRun(); big = game.floor.rooms.find(r => r.w > STD_ROOM_W); }
-    check(`some floors have a big room (${big ? big.w + 'x' + big.h : 'none'})`, !!big && big.tiles.length === big.w * big.h && big.decals.width === big.w * TILE);
-    big.cleared = true; enterRoom(big, Object.keys(big.doors)[0]); game.enemies = []; big.locked = false;
+    for (let i = 0; i < 40 && !big; i++) { newRun(); game.depth = 3; game.floor = generateFloor(3); big = game.floor.rooms.find(r => r.w > STD_ROOM_W); }
+    check(`deep floors have big rooms (${big ? big.w + 'x' + big.h : 'none'})`, !!big && big.tiles.length === big.w * big.h && big.decals.width === big.w * TILE);
+    { // they hold no more enemies than a standard room: the space is for you
+      const counts = room => { const nRuns = []; for (let i = 0; i < 12; i++) { room.cleared = false; enterRoom(room, Object.keys(room.doors)[0]); nRuns.push(game.enemies.filter(e => !ENEMY_TYPES[e.type].harmless).length); } return nRuns.reduce((a, b) => a + b, 0) / nRuns.length; };
+      const std = game.floor.rooms.find(r => r.type === 'combat' && r.w === STD_ROOM_W);
+      const nb = counts(big), ns = std ? counts(std) : nb;
+      check(`a big room holds no more enemies than a standard one (${nb.toFixed(1)} vs ${ns.toFixed(1)})`, nb <= ns + 1.5);
+    }
+    big.cleared = true; enterRoom(big, Object.keys(big.doors)[0]); game.enemies = []; big.locked = false; game.depth = 3;
     const q = game.player; q.inv = 99;
     check(`entering it switches to its size (${ROOM_PX_W}x${ROOM_PX_H})`, ROOM_PX_W === big.w * TILE && ROOM_PX_H === big.h * TILE);
     game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);

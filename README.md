@@ -31,7 +31,7 @@ A controller works too: any gamepad the browser sees, with an Xbox-style layout 
 ## How it works
 
 - **Culture Blobs** divide once; the copy can't divide and carries no biomass.
-- **Big rooms.** Some combat rooms are larger than the screen. The camera follows you, leaning a little toward where you aim, and stops at the walls. They hold more enemies; a red pip on the screen's edge points at any you can't see.
+- **Big rooms.** On the crowded deeper floors, most combat rooms are larger than the screen (none on floor 1, a few on floor 2): the same number of enemies, with room to dodge and kite. The camera follows you, leaning a little toward where you aim, and stops at the walls; a red pip on the screen's edge points at any enemy you can't see.
 - **Burst corpses.** Some kills leave a usable corpse (it glints pink). Walk into it to devour it (the biomass goes straight into you), or attack it from range until it bursts and collect the glowing globules of biomass that spill out. Spawnlings and drones never leave one, and rats often don't.
 - **Tear them apart.** Hard hits and badly hurt enemies lose parts, and overkill tears everything off. A rat without legs drags itself, a frostbitten without its arm attacks less often, and anything that loses its head goes blind and bleeds out. Severed parts tumble away bleeding; walk over one to eat it (a little biomass, taken from what its corpse would have held).
 - **Visceral.** Kill something up close and its blood splashes onto you; it wears off as you walk, dripping as you go. Harder hits spurt more blood and tear chunks off enemies that fly, trail blood and splat against the walls; overkill bursts bodies apart; badly wounded enemies drip as they move. The stronger you get, the messier it gets.

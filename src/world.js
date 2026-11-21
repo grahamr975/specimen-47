@@ -10,7 +10,11 @@ const TILE = 16;
 // room doesn't need to know which room. A standard room is exactly the play area on
 // screen (VIEW_ROOM_W x VIEW_ROOM_H); bigger rooms scroll under a camera (main.js).
 const STD_ROOM_W = 20, STD_ROOM_H = 12;
-const LARGE_ROOM_W = 30, LARGE_ROOM_H = 18, LARGE_ROOM_CHANCE = 0.3, LARGE_ROOMS_MAX = 2; // (about 2.25x the floor)
+// Big rooms (about 2.25x the floor) are for breathing room where it's crowded: none on floor 1,
+// now and then on floor 2, most combat rooms from floor 3 on. They hold no more enemies than a
+// standard room, so deep floors' crowds have space to dodge and kite in.
+const LARGE_ROOM_W = 30, LARGE_ROOM_H = 18;
+const LARGE_ROOM_CHANCE = depth => [0, 0, 0.25, 0.55, 0.7, 0.8][Math.min(depth, 5)];
 const VIEW_ROOM_W = STD_ROOM_W * TILE, VIEW_ROOM_H = STD_ROOM_H * TILE; // the play area on screen
 let ROOM_W = STD_ROOM_W, ROOM_H = STD_ROOM_H, ROOM_PX_W = ROOM_W * TILE, ROOM_PX_H = ROOM_H * TILE;
 const ROOM_Y = 32;           // screen y where the room is drawn (HUD above)
@@ -184,7 +188,7 @@ function generateFloor(depth) {
     return room;
   };
   // A few combat rooms are big (they scroll under the camera): never the start, the exit or a sealed room.
-  for (const r of rooms) if (r.type === 'combat' && rooms.filter(o => o.w > STD_ROOM_W).length < LARGE_ROOMS_MAX && Math.random() < LARGE_ROOM_CHANCE) { r.w = LARGE_ROOM_W; r.h = LARGE_ROOM_H; }
+  for (const r of rooms) if (r.type === 'combat' && Math.random() < LARGE_ROOM_CHANCE(depth)) { r.w = LARGE_ROOM_W; r.h = LARGE_ROOM_H; }
   attachSealed('vault', 'hazmat', depth === 1);
   if (depth >= 2) attachSealed('heart', 'flesh', false);
 
