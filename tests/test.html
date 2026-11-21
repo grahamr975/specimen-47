@@ -1279,6 +1279,16 @@ try {
     const gaps = heard.slice(1).map((h, i) => h[2] - heard[i][2]);
     check(`creatures make their noises now and then (${heard.length} in 20s: ${[...new Set(heard.map(h => h[0]))].join(',')}), one at a time (min gap ${Math.min(...gaps).toFixed(2)}s), quietly (max ${Math.max(...heard.map(h => h[1])).toFixed(2)})`, heard.length >= 6 && heard.length <= 40 && Math.min(...gaps) >= VOICE_GAP - 0.02 && heard.every(h => h[1] <= 1));
   }
+  { // 0j1v6) Getting hit: a long safe window after, and it's unmistakable.
+    newRun(); combatRoom(); game.enemies = []; const q = game.player; q.inv = 0; q.armor = 0; q.hp = q.maxHp;
+    const h0 = q.hp; hurtPlayer(1);
+    check(`a hit: you're safe for a good while after (${q.inv.toFixed(2)}s), the screen goes red (${(game.hurtT || 0).toFixed(2)}), your body flashes (${(q.hurtFlashT || 0).toFixed(2)})`, q.hp < h0 && q.inv >= 1.5 && game.hurtT > 0 && q.hurtFlashT > 0);
+    const h1 = q.hp; hurtPlayer(1);
+    check('...and nothing lands again during it', q.hp === h1);
+    q.inv = 0; q.armor = 1; hurtPlayer(1);
+    check(`armor taking a hit still leaves you safe a while (${q.inv.toFixed(2)}s)`, q.inv >= BLOCK_INV - 1e-9 && q.armor === 0);
+    render(); check('the hurt flash and red edges draw without errors', true);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

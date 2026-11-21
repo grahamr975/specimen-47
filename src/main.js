@@ -434,6 +434,7 @@ function render() {
     ctx.fillRect(0, ROOM_Y, VIEW_W, ROOM_PX_H);
   }
   drawLowHealth(ctx);
+  drawHurtVignette(ctx); // you were just hit
 
   drawCocoonPulse(ctx); // the screen throbs with the cocoon's heartbeat
   if (game.cocoonFlash > 0) game.cocoonFlash -= 1 / 60;

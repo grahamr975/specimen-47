@@ -296,7 +296,9 @@ function drawHUD(ctx) {
   const hearts = Math.ceil(p.maxHp / HP_PER_HEART);
   for (let i = 0; i < hearts; i++) {
     const left = p.hp - i * HP_PER_HEART; // what's left in this heart
-    ctx.drawImage(left >= HP_PER_HEART ? SPR.heart : left > 0 ? halfHeart() : SPR.heartEmpty, 4 + i * 9, 3);
+    const sh = game.hurtT > HURT_FX * 0.4 ? (Math.floor(game.time * 40 + i) % 2 ? 1 : -1) : 0; // just hit: the hearts shudder
+    ctx.drawImage(left >= HP_PER_HEART ? SPR.heart : left > 0 ? halfHeart() : SPR.heartEmpty, 4 + i * 9 + sh, 3);
+    if (sh && left > 0 && left <= HP_PER_HEART) { ctx.globalAlpha = 0.6; ctx.drawImage(tintedSprite(SPR.heart, '#ffffff'), 4 + i * 9 + sh, 3); ctx.globalAlpha = 1; } // (the one that took it flashes)
   }
   if (!SPR.armorHeart) SPR.armorHeart = silhouette(SPR.heart, '#a8a8b8');
   for (let i = 0; i < (p.armor || 0); i++) ctx.drawImage(SPR.armorHeart, 4 + (hearts + i) * 9, 3); // grey armor hearts
@@ -613,7 +615,7 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 // The build shown in the corner of the title screen. Bump both when you put out a new version.
-const GAME_VERSION = '0.1.4', GAME_UPDATED = '2026-11-20';
+const GAME_VERSION = '0.1.5', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [

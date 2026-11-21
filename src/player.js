@@ -192,6 +192,9 @@ function setProc(x, y) {
 
 const STAGE_AT = [0, 2, 4, 7, 11];
 const HOP_STEER = 12; // Haunches: how hard a hop bends toward your keys mid-air
+// Getting hit: invulnerable for a while after (stats.invuln for a real hit), and a shorter
+// spell after one your armor or a block soaks. HURT_FX: how long the screen stays red.
+const BLOCK_INV = 1.0, HURT_FX = 0.55, HURT_FLASH = 0.35;
 const LEAP_LAND_INV = 0.3; // Haunches: safe for a moment after a leap lands
 const POUNCE_RANGE = 130, POUNCE_CONE = 0.87; // Huntsman: prey within ~30 degrees of your leap
 
@@ -305,7 +308,7 @@ function movement(p) {
 
 function updatePlayer(dt) {
   const p = game.player, s = p.stats;
-  p.t += dt; p.inv -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
+  p.t += dt; p.inv -= dt; if (p.hurtFlashT > 0) p.hurtFlashT -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
   for (const k in p.cd) p.cd[k] -= dt;
   if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
   updateStatuses(p, dt); // chill, net
@@ -1307,14 +1310,14 @@ function hurtPlayer(dmg) {
   // Ossified Skull: while the headbutt is ready, the skull takes the hit.
   if (s.skullGuard && s.headActive && p.headCd <= 0) {
     p.headCd = p.headCdMax = ACTIVES[s.headActive.kind].cd(s.headActive.l) * s.headCdMul;
-    p.inv = 0.6; burst(p.x, p.y - 6, '#d9cfa0', 10, 70);
+    p.inv = BLOCK_INV; burst(p.x, p.y - 6, '#d9cfa0', 10, 70);
     floatText(p.x, p.y - 14, 'SKULL TAKES IT', '#d9cfa0'); Sfx.play('clank');
     boneBlock(p);
     return true;
   }
   // Pressure Marrow: a held charge braces you against one hit.
   if (s.chargeGuard && p.chargeT > 0.3) {
-    p.chargeT = 0; p.inv = 0.6; burst(p.x, p.y, '#d9cfa0', 10, 70);
+    p.chargeT = 0; p.inv = BLOCK_INV; burst(p.x, p.y, '#d9cfa0', 10, 70);
     floatText(p.x, p.y - 14, 'BRACED', '#d9cfa0'); Sfx.play('clank');
     boneBlock(p);
     return true;
@@ -1323,7 +1326,7 @@ function hurtPlayer(dmg) {
     boneBlock(p);
     p.shieldUp = false;
     p.shieldT = s.shieldCd;
-    p.inv = 0.6;
+    p.inv = BLOCK_INV;
     burst(p.x, p.y, '#8a7a5a', 14, 90);
     if (s.shieldRing) fireRing(p, s.shieldRing);
     if (s.shieldBrood) { for (let i = 0; i < s.shieldBrood; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); } // Brood Shell
@@ -1351,7 +1354,7 @@ function hurtPlayer(dmg) {
   // Bone Cage: every third hit glances off.
   if (s.hitIgnore && ++p.hitsTaken % s.hitIgnore === 0) {
     boneBlock(p);
-    p.inv = 0.6;
+    p.inv = BLOCK_INV;
     burst(p.x, p.y, '#d9cfa0', 10, 70);
     floatText(p.x, p.y - 14, 'GLANCED', '#d9cfa0');
     Sfx.play('clank');
@@ -1361,7 +1364,7 @@ function hurtPlayer(dmg) {
   if (p.evolveT > 0) { p.evolveT = 0; floatText(p.x, p.y - 18, 'COCOON TORN', COST_COLOR); }
   p.cocoonWait = -1.2; // a hit: don't wrap back up right away
   if (p.armor > 0) { // an armor heart cracks instead
-    p.armor--; p.inv = Math.max(0.6, s.invuln * 0.6);
+    p.armor--; p.inv = Math.max(BLOCK_INV, s.invuln * 0.6);
     burst(p.x, p.y, '#b8b8c8', 12, 90); gibs(p.x, p.y, 2, ['#b8b8c8', '#7a7a88'], FLUID.blood);
     floatText(p.x, p.y - 14, 'ARMOR CRACKS', '#b8b8c8');
     game.shake = Math.max(game.shake, 3); Sfx.play('clank');
@@ -1370,6 +1373,7 @@ function hurtPlayer(dmg) {
   p.hp -= dmg * s.hitCost; // Hollow Body: every hit costs double
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
+  hurtFeedback(p); // make sure you know it landed
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
   if (s.purge) purge(p, s.purge); // Purge: you throw it all back up
@@ -1450,8 +1454,8 @@ function drawFx(ctx) {
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#120a0e', 2);
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#a8534f', 1);
     } else if (f.kind === 'ring') {
-      pxRing(ctx, f.x, f.y, f.r, '#9a9284');
-      pxRing(ctx, f.x, f.y, f.r - 2, '#5e5450');
+      pxRing(ctx, f.x, f.y, f.r, f.color || '#9a9284');
+      pxRing(ctx, f.x, f.y, f.r - 2, f.color ? '#5a0a12' : '#5e5450');
     } else if (f.kind === 'slamline') {
       // A huge tendril slamming down along a telegraphed line.
       pxLine(ctx, f.x1, f.y1, f.x2, f.y2, '#2a1c22', 4, 1);
@@ -1517,7 +1521,7 @@ function drawPlayer(ctx) {
     return;
   }
   drawCentipede(ctx, p);
-  if (p.inv > 0 && p.dashT <= 0 && !p.withdrawn && Math.floor(p.inv * 16) % 2) return;
+  if (p.inv > 0 && p.dashT <= 0 && !p.withdrawn && !(p.hurtFlashT > 0) && Math.floor(p.inv * 12) % 3 === 0) return; // invulnerable: a blink (mostly visible, so you never lose track of yourself)
 
   // Altitude, squash & stretch, tilt (see bodyfx.js).
   const mvNow = movement(p), pose = p.pose = bodyPose(p);
@@ -1528,7 +1532,7 @@ function drawPlayer(ctx) {
   ctx.fillRect(Math.round(p.x - sw), Math.round(p.y + 4), sw * 2, 3);
   ctx.fillRect(Math.round(p.x - sw + 2), Math.round(p.y + 3), sw * 2 - 4, 5);
   const x = p.x, y = p.y - 4 - Math.round(pose.alt);
-  const hurt = p.inv > s.invuln - 0.2;
+  const hurt = p.hurtFlashT > 0; // just hit: white for a beat, then red
   const left = p.aimX < 0;
   // A slug inches along: its body stretches and contracts as it crawls.
   const squash = s.slug && p.moving ? Math.floor(p.t * 3.5) % 2 : !p.moving && Math.floor(p.t * 1.6) % 2;
@@ -1555,7 +1559,7 @@ function drawPlayer(ctx) {
   ctx.save(); ctx.translate(x, ay); if (pose.rot) ctx.rotate(pose.rot); ctx.scale(pose.sx, pose.sy); ctx.translate(-x, -ay);
   for (const ov of BEHIND_ORDER) if (overlays.has(ov) && (limbsOk || !LIMB_OVERLAYS.has(ov)) && !(legs && ov === 'spiderlegs') && !(tents && ov === 'tentlimbs') && !limbOverlayHidden(p, ov)) drawCentered(ctx, ovSet[limbFrame(p, ov)], x, y);
   const fb = bodyFrames(p);
-  let body = hurt ? fb.hurt : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
+  let body = hurt ? (p.hurtFlashT > HURT_FLASH - 0.08 ? tintedSprite(fb.body, '#fff4ec') : fb.hurt) : fb[(squash ? 'body2' : 'body') + (left ? '_L' : '')];
   // Coloration from your parts (half strength over a set's body form, which has its own colors).
   if (p.tint && !hurt) body = tintedFrame(body, p.tint, p.form ? 0.5 : 1);
   if (p.eatT > 0) {
@@ -1754,4 +1758,25 @@ function updateSacChannel(p, dt, firing, canAttack) {
     plantPolyp(p);
     Sfx.play('hatch');
   }
+}
+
+// A hit that hurts you: a split-second freeze, a white-then-red flash of your body, a red
+// ring of blood bursting out, the screen's edges pulsing red, and the hearts shuddering.
+function hurtFeedback(p) {
+  hitstop(0.09);
+  p.hurtFlashT = HURT_FLASH;
+  game.hurtT = HURT_FX;
+  game.fx.push({ kind: 'ring', x: p.x, y: p.y, r: 3, max: 22, t: 0.22, color: '#e02838' });
+  Sfx.play('heartbeat');
+}
+
+// The screen's edges, red and fading, after a hit (drawn over the room, under the HUD).
+function drawHurtVignette(ctx) {
+  if (!(game.hurtT > 0)) return;
+  const k = game.hurtT / HURT_FX;
+  game.hurtT -= 1 / 60;
+  const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.28, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85);
+  g.addColorStop(0, 'rgba(160,0,10,0)');
+  g.addColorStop(1, `rgba(200,10,20,${(0.55 * k).toFixed(3)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }

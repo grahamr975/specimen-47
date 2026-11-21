@@ -95,7 +95,7 @@ function baseStats() {
     antennae: false, echo: 0, compound: 0, parasite: false, symbiote: false,
     // --- Defense ---
     maxHp: 0, shieldCd: 0, shieldRing: 0, regen: 0, hemophage: 0, thorns: 0,
-    invuln: 1.0, adrenal: 0, adrenalRage: false, toxicBlood: 0, secondHeart: false,
+    invuln: 1.6, adrenal: 0, adrenalRage: false, toxicBlood: 0, secondHeart: false,
     eggsac: 0, pustules: 0, molt: false, lure: false,
     // --- Organs ---
     brood: 0, bacteria: 0, twin: false,
