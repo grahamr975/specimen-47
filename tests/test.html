@@ -482,14 +482,22 @@ try {
   { // 0q) Colored vials. You're born with nothing; the first room holds a MOUTH vial.
     newRun(); let p = game.player;
     const v = game.room.pickups.find(k => k.kind === 'vial');
-    check(`the first room holds a red WEAPON vial (${v && v.loc}), sealed in the cell with you`, v && v.loc === 'MOUTH' && !!game.room.cage);
+    check(`the first room holds your WEAPON vial (${v && v.loc}), sealed in the cell with you`, v && v.loc === 'MOUTH' && !!game.room.cage);
     p.x = v.x; p.y = v.y; update(1 / 60); Input.endFrame();
     for (let i = 0; i < 150 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
-    check(`picking it up: a WEAPON screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'WEAPON VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
-    { game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame(); check('esc cannot put off your first weapon', !!game.menu && game.menu.title === 'WEAPON VIAL' && !game.menu.choices.some(c => c.id === '_gorge')); }
+    check(`picking it up: a WEAPON screen (${game.menu && game.menu.choices.map(c => c.id).join(',')})`, game.menu && game.menu.title === 'MUTAGEN VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
+    { game.menu.t = 1; game.menu.stageT = 1; Input.pressed.add('escape'); update(1 / 60); Input.endFrame(); check('esc cannot put off your first weapon', !!game.menu && game.menu.title === 'MUTAGEN VIAL' && !game.menu.choices.some(c => c.id === '_gorge')); }
     game.menu = null; game.evolving = false;
     const vault = game.floor.rooms.find(r => r.type === 'vault');
-    check(`floor 1's vault holds a blue LIMBS vial for the slug (${vault && vault.vialLoc})`, vault && vault.vialLoc === 'LIMBS');
+    check(`floor 1 has a mutagen vault (${!!vault})`, !!vault);
+    { // A vial grows what you're missing: a weapon, then limbs, then any empty open slot; else anything.
+      newRun(); const q = game.player; q.capacity = 4;
+      grow(q); q.capacity = 4; const t0 = vialTarget(q);
+      grow(q, 'spike'); q.capacity = 4; const t1 = vialTarget(q);
+      grow(q, 'spike', 'crablegs'); q.capacity = 4; const t2 = vialTarget(q);
+      grow(q, 'spike', 'crablegs', 'eyes'); q.capacity = capacityFor(q); const t3 = vialTarget(q);
+      check(`a vial grows what you're missing first (nothing: ${t0}, weapon only: ${t1}, + limbs: ${t2}, all open slots full: ${t3})`, t0 === 'MOUTH' && t1 === 'LIMBS' && (t2 === 'HEAD' || t2 === 'BACK') && t3 === null);
+    }
     for (const loc of VIAL_LOCS) {
       let bad = 0;
       for (let i = 0; i < 40; i++) { newRun(); const q = game.player; q.capacity = 5; grow(q, 'spike', 'spines'); q.capacity = 5; const cs = rollChoices(q, 3, 'uncommon', loc); if (cs.some(c => c.id !== '_gorge' && locOf(c.id) !== loc)) bad++; }
@@ -499,7 +507,7 @@ try {
     const cs = rollChoices(p, 3, null, 'HEAD');
     check(`a vial with nothing to grow falls back to a mixed roll (${cs.map(c => c.id).join(',')})`, cs.length > 0);
     newRun(); combatRoom(); game.room.pickups = []; const e = spawnPickup('vial', 50, 50);
-    check(`elite vials get a color (${e.loc})`, VIAL_LOCS.includes(e.loc));
+    check(`vials have no color or kind of their own until opened (${e.loc})`, !e.loc);
     render();
   }
   { // 0r) Defense: armor hearts from kills, Bone Plates, Mirror Cyst; boss picks in vials.
@@ -568,7 +576,7 @@ try {
   { // 0u) Walk into a corpse to devour it.
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.orbs = []; q.x = 120; q.y = 96; const d0 = q.dna;
     game.room.corpses = [{ x: q.x + 4, y: q.y, r: 5, sprite: 'rat', dna: 3, hp: 2.5, fluid: FLUID.blood, gib: ['#5e5450'], t: 0, shake: 0 }];
-    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
+    for (let i = 0; i < 10 + Math.ceil(EAT_TIME * 60); i++) { update(1 / 60); Input.endFrame(); } // (a few bites, then the gulp)
     check(`walking into a corpse devours it, biomass and all (${d0} -> ${q.dna})`, !game.room.corpses.length && q.dna >= d0 + 3);
   }
   { // 0v) The one-evolution parts (once 'you are what you eat' traits) are in the normal pool, with set tags.
@@ -807,7 +815,7 @@ try {
       check(`...you can't walk out of it (x ${z.x.toFixed(0)}, wall ${c.x0})`, z.x >= c.x0 && !!game.room.cage);
       render();
       z.x = v.x; z.y = v.y; for (let i = 0; i < 160 && !game.menu; i++) { update(1 / 60); Input.endFrame(); }
-      check('eating the vial breaks the glass and offers your first weapon', !game.room.cage && game.menu && game.menu.title === 'WEAPON VIAL');
+      check('eating the vial breaks the glass and offers your first weapon', !game.room.cage && game.menu && game.menu.title === 'MUTAGEN VIAL' && game.menu.choices.every(c => locOf(c.id) === 'MOUTH'));
       check('no card carries a birth defect any more', game.menu.choices.every(c => !c.quirk) && typeof QUIRKS === 'undefined');
       game.menu = null; game.evolving = false; }
     // Wild cards in the first limbs vial too.
@@ -1322,6 +1330,21 @@ try {
     check('...and gives once the room is clear', host.seals[dir].broken);
     game.depth = 1;
   }
+  { // 0j1v9) Eating a corpse takes a few quick bites, not an instant; a dash lets go.
+    newRun(); combatRoom(); game.enemies = []; game.room.corpses = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    const q = game.player; q.x = 100; q.y = 96; q.inv = 99; Input.keys.clear();
+    const e = dummy(4, 5); spawnCorpse(e, 'rat'); game.enemies = []; const c = game.room.corpses[0];
+    update(1 / 60); Input.endFrame();
+    check('touching a corpse starts eating it, not an instant gulp', q.eating && !c.dead);
+    const x0 = q.x; Input.keys.add('d'); let frames = 1, done = false;
+    for (let i = 0; i < 60 && !done; i++) { update(1 / 60); Input.endFrame(); frames++; done = c.dead; }
+    Input.keys.clear();
+    check(`...you're latched on while you feed (moved ${Math.abs(q.x - x0).toFixed(1)}px), and it's quick (${(frames / 60).toFixed(2)}s)`, Math.abs(q.x - x0) < 1 && done && frames / 60 >= EAT_TIME - 0.05 && frames / 60 <= EAT_TIME + 0.2);
+    const e2 = dummy(4, 5); spawnCorpse(e2, 'rat'); game.enemies = []; const c2 = game.room.corpses.find(k => !k.dead);
+    for (let i = 0; i < 10; i++) { update(1 / 60); Input.endFrame(); }
+    const was = q.eating && q.eating.t; q.dashCd = 0; Input.keys.add('a'); Input.pressed.add(' '); update(1 / 60); Input.endFrame(); Input.keys.clear(); update(1 / 60); Input.endFrame();
+    check(`a dash lets go mid-meal (was ${(was || 0).toFixed(2)}s in): the corpse stays`, was > 0 && !q.eating && !c2.dead);
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;
@@ -1450,7 +1473,7 @@ try {
     newRun(); combatRoom(); const q = game.player; game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t); q.x = 60; q.y = 96;
     const far = dummy(120, 1); damageEnemy(far, 5, 0, 0, true);
     check('a kill across the room leaves you clean', !(q.gore && q.gore.length));
-    const near = dummy(12, 1); damageEnemy(near, 5, 0, 0, true); game.limbs = []; render(); // (its torn-off parts lie in pools of their own: not what this measures)
+    const near = dummy(12, 1); damageEnemy(near, 5, 0, 0, true); game.limbs = []; game.room.corpses = []; render(); // (its torn-off parts and corpse: not what this measures)
     check(`a close kill splatters you (${q.gore ? q.gore.length : 0} splats)`, q.gore && q.gore.length >= 3);
     const n0 = q.gore.length; for (let i = 0; i < 25; i++) { Input.keys.clear(); Input.keys.add('d'); q.inv = 1; update(1 / 60); Input.endFrame(); } Input.keys.clear();
     check(`...walking starts to clean it off (${n0} -> ${q.gore.reduce((a, g) => a + g.life, 0).toFixed(1)} left)`, q.gore.reduce((a, g) => a + g.life, 0) < n0 * 0.95);

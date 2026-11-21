@@ -38,9 +38,8 @@ function startFloor() {
   game.player.twinDead = false; // a new twin grows each floor
   if (game.player.stats && game.player.stats.calcified) game.player.armor = Math.min(2, (game.player.armor || 0) + 1); // Calcified Organs
   game.floor = generateFloor(game.depth);
-  // Each vault's vial color is decided now, so the minimap and its seal can show it.
+  // (Vaults hold a mutagen vial; it decides what to grow when you open it: vialTarget.)
   // Floor 1's is LIMBS while you're still a slug.
-  for (const r of game.floor.rooms) if (r.type === 'vault') r.vialLoc = game.depth === 1 && !partAt(game.player, 'LIMBS') ? 'LIMBS' : pick(VIAL_LOCS);
   game.player.x = ROOM_PX_W / 2;
   game.player.y = ROOM_PX_H / 2;
   enterRoom(game.floor.start, null);
@@ -59,7 +58,7 @@ function enterRoom(room, side) {
   game.enemies = []; game.bullets = []; game.puddles = []; game.deathFx = []; game.particles = []; game.texts = []; game.fx = [];
   game.allies = game.allies.filter(a => a.kind === 'twin'); game.clouds = []; game.shells = []; game.decoy = null; game.webs = []; game.actShots = [];
   game.telegraphs = []; game.bombs = []; game.bossName = null;
-  game.player.held = null; game.player.trail = []; game.player.burrowT = 0;
+  game.player.held = null; game.player.trail = []; game.player.burrowT = 0; game.player.eating = null;
   game.player.tongue = null; game.player.grappleShot = null; game.whips = [];
   game.player.plates = game.player.stats.plates || 0; // Bone Plates regrow in every room
 
@@ -78,7 +77,7 @@ function enterRoom(room, side) {
       Sfx.play('door');
     } else {
       room.cleared = true;
-      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, game.depth === 1 && room.vialLoc === 'LIMBS' ? { loc: 'LIMBS', minRarity: null, plain: true } : { loc: room.vialLoc }); // floor 1's limbs: any limbs, and maybe a wild card
+      if (room.type === 'vault') spawnPickup('vial', ROOM_PX_W / 2, ROOM_PX_H / 2, game.depth === 1 ? { minRarity: null, plain: true } : {}); // floor 1's limbs: any limbs, and maybe a wild card
       // You're born with nothing, sealed in a containment cell with your first weapon's vial.
       // Eat it and the glass gives way.
       if (room.type === 'start' && game.depth === 1 && !partAt(p, 'MOUTH')) {
@@ -348,7 +347,7 @@ function drawDoors(ctx) {
       if (pulse) { ctx.globalAlpha = 0.55 * (1 - ph / 0.3); ctx.drawImage(SPR.doors[(horiz ? 'h_' : 'v_') + sk + 'Flash'], tx * TILE + rx, ty * TILE + ry); ctx.globalAlpha = 1; }
 
       const behind = room.doors[name]; // a glint of the vial waiting behind the seal
-      if (behind && behind.vialLoc && Math.floor(game.time * 2) % 2) { const c = doorCenter(name); ctx.fillStyle = vialColor(behind.vialLoc); ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3); }
+      if (behind && behind.type === 'vault' && (!behind.visited || behind.pickups.some(k => k.kind === 'vial')) && Math.floor(game.time * 2) % 2) { const c = doorCenter(name); ctx.fillStyle = VIAL_COLOR; ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3); }
       continue;
     }
     const lair = isLairDoor(room, name);

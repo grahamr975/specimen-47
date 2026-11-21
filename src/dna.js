@@ -115,10 +115,8 @@ function nextEvolution() {
 // biomass goes straight into you. (Attacks still burst corpses from range.)
 function devourCorpse(p, c) {
   const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1;
-  moveEntity(game.room, p, dx / d * 3, dy / d * 3); // lunge onto it
-  p.eatT = 0.4;
+  p.eatT = 0.4; // (the gulp: a lump slides down you)
   bloodSpray(c.x, c.y, -dx / d, -dy / d, 18, c.fluid, 120);
-  game.fx.push({ kind: 'bite', x: c.x, y: c.y, t: 0.12 });
   hitstop(0.04);
   game.shake = Math.max(game.shake, 2);
   Sfx.play('chomp'); Sfx.play('gulp');
@@ -132,9 +130,12 @@ function updateCorpses(dt) {
   const p = game.player;
   for (const c of game.room.corpses) { c.t += dt; c.shake -= dt; }
   if (p.burrowT <= 0 && p.evolveT <= 0 && !p.withdrawn) {
-    const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1 + (p.stats.devourReach || 0));
-    if (c) devourCorpse(p, c);
+    if (!p.eating) {
+      const c = game.room.corpses.find(c => !c.dead && !c.held && Math.hypot(c.x - p.x, c.y - p.y) < c.r + p.r - 1 + (p.stats.devourReach || 0));
+      if (c) startEating(p, c);
+    }
   }
+  updateEating(p, dt);
 
   for (const o of game.room.orbs) {
     o.t += dt;
@@ -163,7 +164,10 @@ function drawCorpses(ctx) {
     const img = anatSprite(c.sprite, c.missing, '_dead');
     if (!img || c.held) continue;
     const jx = c.shake > 0 ? (Math.floor(c.t * 40) % 2 ? 1 : -1) : 0;
-    drawCentered(ctx, img, c.x + jx, c.y + 1);
+    if (c.eaten > 0) { // being torn apart: it shrinks as you eat it down
+      const k = 1 - 0.45 * c.eaten, w = Math.max(2, Math.round(img.width * k)), h = Math.max(2, Math.round(img.height * k));
+      ctx.drawImage(img, Math.round(c.x + jx - w / 2), Math.round(c.y + 1 + img.height / 2 - h), w, h);
+    } else drawCentered(ctx, img, c.x + jx, c.y + 1);
   }
 }
 
@@ -201,4 +205,40 @@ function drawCorpseGlow(ctx) {
     ctx.fillStyle = '#fff0f4';
     ctx.fillRect(Math.round(o.x) - 1, Math.round(o.y + bob) - 1, 1, 1);
   }
+}
+
+// Eating isn't instant: you latch on and tear it apart in a few quick, wet bites, then
+// gulp it down (devourCorpse). Each bite jerks you into it, rips a chunk off, sprays it
+// past you and shrinks what's left. You can't walk while you feed (you can still fight);
+// dash, take a hit, or have it knocked away, and you let go of it half-eaten.
+const EAT_TIME = 0.5, EAT_BITES = 4;
+function startEating(p, c) {
+  p.eating = { c, t: 0, bites: 0 };
+  c.eaten = 0;
+}
+function stopEating(p) {
+  if (p.eating) p.eating.c.eaten = 0;
+  p.eating = null;
+}
+function updateEating(p, dt) {
+  const E = p.eating;
+  if (!E) return;
+  const c = E.c;
+  if (c.dead || c.held || p.dashT > 0 || p.burrowT > 0 || p.withdrawn || p.evolveT > 0 || !game.room.corpses.includes(c) ||
+      Math.hypot(c.x - p.x, c.y - p.y) > c.r + p.r + 6 + (p.stats.devourReach || 0)) { stopEating(p); return; }
+  E.t += dt;
+  c.eaten = Math.min(1, E.t / EAT_TIME);
+  const bite = Math.min(EAT_BITES, 1 + Math.floor(E.t / EAT_TIME * EAT_BITES));
+  if (bite > E.bites) { E.bites = bite; tearBite(p, c, bite); }
+  if (E.t >= EAT_TIME) { p.eating = null; devourCorpse(p, c); }
+}
+function tearBite(p, c, n) {
+  const dx = c.x - p.x, dy = c.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  p.chewT = 0.09; p.chewX = ux; p.chewY = uy; // you jerk forward into it
+  c.shake = 0.12;
+  bloodSpray(c.x - ux * 2, c.y - uy * 2, -ux + rand(-0.4, 0.4), -uy + rand(-0.4, 0.4), 6, c.fluid, 100); // it sprays back past you
+  game.particles.push({ x: c.x, y: c.y, vx: -ux * rand(40, 80) + rand(-30, 30), vy: -uy * rand(40, 80) + rand(-30, 30), life: rand(0.3, 0.5), color: pick(c.gib || ['#8a1020']), size: randInt(2, 3), fluid: c.fluid, gib: true }); // a chunk torn loose
+  stainPx(c.x + rand(-3, 3), c.y + rand(1, 4), c.fluid, 2);
+  if (n === 1) splatterPlayer(p, c, c.fluid); // your face, in it
+  Sfx.play(n % 2 ? 'chomp' : 'squelch');
 }

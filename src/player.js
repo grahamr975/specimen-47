@@ -308,7 +308,7 @@ function movement(p) {
 
 function updatePlayer(dt) {
   const p = game.player, s = p.stats;
-  p.t += dt; p.inv -= dt; if (p.hurtFlashT > 0) p.hurtFlashT -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
+  p.t += dt; p.inv -= dt; if (p.hurtFlashT > 0) p.hurtFlashT -= dt; if (p.chewT > 0) p.chewT -= dt; p.dashCd -= dt; p.fireT -= dt; p.adrenalT -= dt; p.limbWear -= dt; p.twinT -= dt; p.ambushT -= dt;
   for (const k in p.cd) p.cd[k] -= dt;
   if (p.frenzyT > 0 && (p.frenzyT -= dt) <= 0) recomputeStats(p); // a frenzy wears off
   updateStatuses(p, dt); // chill, net
@@ -509,6 +509,7 @@ function updatePlayer(dt) {
     }
   }
   if (hasStatus(p, 'net') && p.dashT <= 0) { vx = vy = 0; p.mvx = p.mvy = 0; } // pinned under a net
+  if (p.eating && p.dashT <= 0) { vx = vy = 0; p.mvx = p.mvy = 0; } // latched on, feeding (your keys still aim a dash out)
   if (p.pullT <= 0 && moveEntity(game.room, p, vx * dt, vy * dt) && mv.accel) { p.mvx *= 0.3; p.mvy *= 0.3; }
   updateCentipede(p);
 
@@ -1374,6 +1375,7 @@ function hurtPlayer(dmg) {
   if (s.bulletTime) game.slowT = s.bulletTime; // Fight or Flight: the world slows around you
   p.inv = s.invuln;
   hurtFeedback(p); // make sure you know it landed
+  if (p.eating) stopEating(p); // a hit tears you off your meal
   if (s.eggsac) { for (let i = 0; i < s.eggsac; i++) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); Sfx.play('hatch'); }
   if (s.quillOnHurt) fireRing(p, s.quillCount || 6); // Pincushion
   if (s.purge) purge(p, s.purge); // Purge: you throw it all back up
@@ -1531,7 +1533,8 @@ function drawPlayer(ctx) {
   ctx.fillStyle = `rgba(0,0,0,${(0.35 * hk).toFixed(2)})`;
   ctx.fillRect(Math.round(p.x - sw), Math.round(p.y + 4), sw * 2, 3);
   ctx.fillRect(Math.round(p.x - sw + 2), Math.round(p.y + 3), sw * 2 - 4, 5);
-  const x = p.x, y = p.y - 4 - Math.round(pose.alt);
+  const chew = p.chewT > 0 ? 2 : 0; // feeding: each bite jerks you into the body
+  const x = p.x + Math.round((p.chewX || 0) * chew), y = p.y - 4 - Math.round(pose.alt) + Math.round((p.chewY || 0) * chew);
   const hurt = p.hurtFlashT > 0; // just hit: white for a beat, then red
   const left = p.aimX < 0;
   // A slug inches along: its body stretches and contracts as it crawls.

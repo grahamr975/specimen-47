@@ -2866,3 +2866,14 @@ function applyChoice(p, c) {
   recomputeStats(p);
   checkApex(p);
 }
+
+// A mutagen vial (they're all one kind now) decides what to grow when you open it: the
+// first kind of part you're missing, by priority: a weapon, then limbs, then any other
+// open slot that's still empty. With nothing missing, it's a mixed roll (null).
+function vialTarget(p) {
+  const empty = loc => freeSlotsAt(p, loc) > 0 && !partsAt(p, loc).length;
+  if (empty('MOUTH')) return 'MOUTH';
+  if (empty('LIMBS')) return 'LIMBS';
+  const rest = ['HEAD', 'BACK'].filter(empty);
+  return rest.length ? pick(rest) : null;
+}

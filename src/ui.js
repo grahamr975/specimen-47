@@ -11,6 +11,7 @@
 function openEvolution(opts) {
   const p = game.player;
   if (opts.apex) { becomeApex(p); return; } // the ultimate metamorphosis has no cards
+  if (opts.vial && !opts.loc) opts.loc = vialTarget(p); // a mutagen vial grows what you're missing (or anything, if nothing is)
   game.menu = {
     choices: opts.evolve && p.parts.includes(opts.evolve) && childrenOf(opts.evolve.id).length ? childrenOf(opts.evolve.id).map(id => ({ id, kind: 'branch', part: opts.evolve }))
       : opts.levelUp ? rollLevelUps(p, 3) : rollChoices(p, 3, opts.minRarity, opts.slot || opts.loc, opts.plain, opts.opened),
@@ -18,7 +19,7 @@ function openEvolution(opts) {
     slotsLeft: freeSlots(p),
     src: opts,
     title: opts.title || 'EVOLUTION',
-    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${LOC_NAME[opts.loc] || opts.loc}` + (opts.minRarity ? ' - UNCOMMON OR BETTER' : '') : `LEVEL ${p.level} - CHOOSE A MUTATION`,
+    sub: opts.evolve ? MUTATIONS[opts.evolve.id].name.toUpperCase() + ' IS READY TO CHANGE' : opts.levelUp ? `LEVEL ${p.level} - GROW A PART` : opts.slot ? 'ITS CORE BECOMES YOURS' : opts.loc ? `GROW A ${LOC_NAME[opts.loc] || opts.loc}` : opts.vial ? 'IT GROWS WHATEVER IT LIKES' : `LEVEL ${p.level} - CHOOSE A MUTATION`,
     hover: -1, t: 0,
     stage: 'cards', stageT: 0,
   };
@@ -327,10 +328,10 @@ function drawHUD(ctx) {
   else if (evolveReady(p) && !room.locked && p.snoozeRoom === room && Math.floor(game.time * 2.5) % 2) { msg = 'HOLD [F] TO EVOLVE'; col = VIAL_COLOR; }
   else if (room.locked) { if (Math.floor(game.time * 3) % 2) { msg = 'CONTAINMENT LOCKDOWN'; col = PAL.red; } }
   else if (room.hatch) { msg = 'HATCH OPEN - DESCEND'; col = PAL.lime; }
-  else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial' && k.loc === 'MOUTH')) { msg = 'YOU HAVE NO WEAPON - TAKE THE RED VIAL'; col = vialColor('MOUTH'); }
+  else if (!partAt(p, 'MOUTH') && room.pickups.some(k => k.kind === 'vial')) { msg = 'YOU HAVE NO WEAPON - TAKE THE VIAL'; col = VIAL_COLOR; }
   else if (room.orbs.length) { msg = 'BIOMASS SPILLED'; col = VIAL_COLOR; }
   else if (room.corpses.length) { msg = 'FRESH MEAT - DEVOUR IT'; col = VIAL_COLOR; }
-  else if (room.type === 'vault') { msg = (room.vialLoc || 'MUTAGEN') + ' VAULT'; col = vialColor(room.vialLoc); }
+  else if (room.type === 'vault') { msg = 'MUTAGEN VAULT'; col = VIAL_COLOR; }
   else if (room.seals && Object.keys(room.seals).some(d => sealAt(room, d) && sealAt(room, d).kind !== 'flesh')) { msg = 'SEALED SAMPLE - BREAK IT OPEN'; col = '#e8c020'; } // (the meat door says nothing)
   if (msg) drawText(ctx, msg, VIEW_W / 2, 24, col, 1, 'center');
 
@@ -383,7 +384,7 @@ function drawMinimap(ctx) {
     ctx.fillRect(x, y, 6, 4);
     let mark = null;
     if (r.type === 'exit') mark = PAL.red;
-    if (r.type === 'vault') mark = vialColor(r.vialLoc);
+    if (r.type === 'vault') mark = VIAL_COLOR;
     if (r.type === 'heart') mark = '#e02838'; // the cancer ward
     if ((r.corpses.length || r.orbs.length) && r.visited) mark = '#e8a0b8';
     if (mark && !current) { ctx.fillStyle = mark; ctx.fillRect(x + 2, y + 1, 2, 2); }
@@ -616,7 +617,7 @@ function drawCrosshair(ctx) {
 // monitor traces its pulse, and the controls panel shows whatever you last touched
 // (keyboard or gamepad).
 // The build shown in the corner of the title screen. Bump both when you put out a new version.
-const GAME_VERSION = '0.1.10', GAME_UPDATED = '2026-11-20';
+const GAME_VERSION = '0.1.11', GAME_UPDATED = '2026-11-20';
 const TITLE_CYCLE = 1.5; // seconds per mutation in the tank
 // What it might become: each cycle a different strain (a set's body form) grows five parts.
 const TITLE_BUILDS = [

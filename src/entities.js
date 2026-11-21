@@ -389,18 +389,16 @@ function drawTexts(ctx) {
 
 // --- Pickups ---------------------------------------------------------------------
 // kind: 'vial', 'heart' or 'core'. Stored per room so they persist.
-// A VIAL is colored by the kind of part it grows: red MOUTH, blue LIMBS,
-// yellow HEAD, bone BACK. Picking one up is a free evolution offering only
-// that kind (uncommon or better, except the first room's mouth vial).
+// A VIAL (mutagen: all one color) is a free evolution. It grows the first kind of
+// part you're missing (a weapon, then limbs, then any empty slot: vialTarget), or
+// anything at all once your body is full. The first room's vial is always your weapon.
 const VIAL_COLOR = '#c96a8f'; // biomass pink (the HUD, globules)
-const VIAL_LOCS = ['MOUTH', 'LIMBS', 'HEAD', 'BACK'];
-const VIAL_COLORS = { MOUTH: '#e04848', LIMBS: '#4a8ae0', HEAD: '#e8c020', BACK: '#e0d8b8' };
-const vialColor = loc => VIAL_COLORS[loc] || VIAL_COLOR;
+const VIAL_LOCS = ['MOUTH', 'LIMBS', 'HEAD', 'BACK']; // (the kinds a vial can grow: see vialTarget)
 
 const WHOLE_HEART_CHANCE = 0.15; // heart pickups are half hearts; now and then a whole one
 function spawnPickup(kind, x, y, extra) {
   const p = Object.assign({ kind, x, y, t: Math.random() * 6, waitForLeave: false }, extra);
-  if (kind === 'vial' && !p.loc) p.loc = pick(VIAL_LOCS);
+  // (a vial chooses what to grow when you open it: vialTarget. Only the first-room vial is set: a weapon.)
   if (kind === 'heart' && !p.amount) p.amount = Math.random() < WHOLE_HEART_CHANCE ? HP_PER_HEART : 1; // usually half a heart
   game.room.pickups.push(p);
   return p;
@@ -441,9 +439,9 @@ function updatePickups(dt) {
     } else if (p.kind === 'vial') {
       p.dead = true;
       Sfx.play('gulp');
-      floatText(p.x, p.y - 8, LOC_NAME[p.loc] + ' VIAL', vialColor(p.loc));
+      floatText(p.x, p.y - 8, 'MUTAGEN', VIAL_COLOR);
       if (game.room.cage) breakCage(game.room); // eating your first vial breaks you out of the cell
-      game.pendingEvolutions.push({ loc: p.loc, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, title: LOC_NAME[p.loc] + ' VIAL', color: vialColor(p.loc) });
+      game.pendingEvolutions.push({ vial: true, loc: p.loc || null, minRarity: p.minRarity === undefined ? 'uncommon' : p.minRarity, plain: !!p.plain, title: 'MUTAGEN VIAL', color: VIAL_COLOR });
 
     }
   }
@@ -462,8 +460,8 @@ function drawPickups(ctx) {
       if (beat) pxRing(ctx, p.x, p.y + bob, 10, '#7a1420');
       drawCentered(ctx, beat ? SPR.bossCore2 : SPR.bossCore, p.x, p.y + bob);
     } else {
-      if (Math.floor(p.t * 3) % 2) pxRing(ctx, p.x, p.y + bob, 8, vialColor(p.loc));
-      drawCentered(ctx, vialSprite(vialColor(p.loc)), p.x, p.y + bob);
+      if (Math.floor(p.t * 3) % 2) pxRing(ctx, p.x, p.y + bob, 8, VIAL_COLOR);
+      drawCentered(ctx, vialSprite(VIAL_COLOR), p.x, p.y + bob);
     }
   }
 }
