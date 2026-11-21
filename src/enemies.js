@@ -20,7 +20,7 @@ const ENEMY_TYPES = {
   scavenger:{ name: 'Scavenger Maggot', hp: 1, r: 4, speed: 34, dna: 0, corpse: 0,  fluid: FLUID.bile,  gib: ['#9a8c70', '#6a5e48'], eyes: [[4, -1]], harmless: true },
   // --- Floor 2: Cryo Wing ---
   frostbitten: { name: 'Frostbitten',      hp: 7, r: 6, speed: 26, dna: 2, corpse: 0.6, fluid: FLUID.blood, gib: ['#9aaab8', '#3a4a5a', '#d8f0ff'], eyes: [[4, -6]] },
-  cryocrawler: { name: 'Cryo Crawler',     hp: 4, r: 5, speed: 70, dna: 1, corpse: 0.5, fluid: FLUID.ichor, gib: ['#9aaab8', '#4a7aa0', '#d8f0ff'], eyes: [[6, 0]] },
+  cryocrawler: { name: 'Cryo Crawler',     hp: 4, r: 5, speed: 50, dna: 1, corpse: 0.5, fluid: FLUID.ichor, gib: ['#9aaab8', '#4a7aa0', '#d8f0ff'], eyes: [[6, 0]] },
   jarthing:    { name: 'Thawed Specimen',  hp: 9, r: 6, speed: 50, dna: 3, corpse: 0.8, fluid: FLUID.rot,   gib: ['#9aaab8', '#3a4a5a', '#5a2a3a'], eyes: [[7, -2]], startState: 'dormant' },
   // --- Floor 3: Bio-Weapons ---
   carrier:     { name: 'Plague Carrier',   hp: 7, r: 6, speed: 30, dna: 2, corpse: 0.6, fluid: FLUID.bile,  gib: ['#b0605a', '#aac25a', '#5a2228'], eyes: [[3, -6]] },
@@ -447,22 +447,29 @@ const ENEMY_BEHAVIOR = {
     },
   },
   cryocrawler: {
-    update(e, dt, c) { // skitters in, stops, sprays a frost cone that chills you
+    update(e, dt, c) { // creeps, crouches (a tell), darts in; up close it stops and sprays a frost cone
       const { d, ux, uy } = c;
-      let mx = 0, my = 0;
-      if (e.state === 'spray') {
+      if (e.state === 'spray') { // stopped, gland swelling: the cone it'll spray flickers (drawEnemyGlow), aimed where you were
         if (e.timer <= 0) {
-          e.state = 'move'; e.timer = rand(1.8, 2.6);
-          const base = Math.atan2(uy, ux);
-          for (let k = -2; k <= 2; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(base + k * 0.18) * 125, vy: Math.sin(base + k * 0.18) * 125, r: 2, team: 'enemy', kind: 'enemy', life: 0.5, color: '#a0e0ff', chill: true });
+          e.state = 'move'; e.timer = rand(1.8, 2.6); e.skT = rand(0.5, 0.9);
+          for (let k = -2; k <= 2; k++) spawnBullet({ x: e.x, y: e.y, vx: Math.cos(e.sprayA + k * 0.18) * 125, vy: Math.sin(e.sprayA + k * 0.18) * 125, r: 2, team: 'enemy', kind: 'enemy', life: 0.5, color: '#a0e0ff', chill: true });
           Sfx.play('spray');
         }
-        return [mx, my];
+        return [0, 0];
       }
-      const w = Math.sin(e.t * 10) * 0.8;
-      mx = (ux - uy * w) * e.speed; my = (uy + ux * w) * e.speed;
-      if (e.timer <= 0) { if (d < 85) { e.state = 'spray'; e.timer = 0.45; } else e.timer = rand(0.8, 1.6); }
-      return [mx, my];
+      e.skT = (e.skT ?? rand(0.3, 0.9)) - dt;
+      if (e.state === 'crouch') { // the tell: it bunches up, frost flaring, before it darts
+        if (e.skT <= 0) { e.state = 'dash'; e.skT = CRAWLER_DASH; e.dashX = ux; e.dashY = uy; }
+        return [0, 0];
+      }
+      if (e.state === 'dash') { // a short, straight dart: sidestep it
+        if (e.skT <= 0) { e.state = 'move'; e.skT = rand(0.6, 1.0); }
+        return [e.dashX * e.speed * 2.1, e.dashY * e.speed * 2.1];
+      }
+      if (e.timer <= 0) { if (d < 85) { e.state = 'spray'; e.timer = 0.55; e.sprayA = Math.atan2(uy, ux); return [0, 0]; } e.timer = rand(0.8, 1.6); }
+      if (e.skT <= 0) { e.state = 'crouch'; e.skT = CRAWLER_TELL; Sfx.play('scrape'); return [0, 0]; }
+      const w = Math.sin(e.t * 10) * 0.8; // between darts: a slow, twitching creep
+      return [(ux - uy * w) * e.speed * 0.35, (uy + ux * w) * e.speed * 0.35];
     },
   },
   jarthing: {
@@ -897,8 +904,22 @@ function drawEnemies(ctx) {
 }
 
 // Drawn on top of the darkness: spawn warnings, glinting eyes, elite health.
+// Cryo Crawler: a beat of crouching before each dart, and where its dart and spray go.
+const CRAWLER_TELL = 0.3, CRAWLER_DASH = 0.3;
+
 function drawEnemyGlow(ctx) {
   const p = game.player;
+  for (const e of game.enemies) { // a Cryo Crawler about to dart (frost flaring, a short line where it'll go) or spray (its cone)
+    if (e.dead || e.type !== 'cryocrawler') continue;
+    const blink = Math.floor(game.time * 18) % 2;
+    if (e.state === 'crouch') {
+      const a = Math.atan2(p.y - e.y, p.x - e.x);
+      pxRing(ctx, e.x, e.y, e.r + 2 + (blink ? 1 : 0), blink ? '#d8f0ff' : '#4a7aa0');
+      for (let i = 6; i < 30; i += 3) { ctx.fillStyle = '#a0e0ff'; ctx.fillRect(Math.round(e.x + Math.cos(a) * i), Math.round(e.y + Math.sin(a) * i), 1, 1); }
+    } else if (e.state === 'spray' && e.sprayA !== undefined && blink) {
+      for (const side of [-1, 1]) for (let i = 6; i < 50; i += 3) { const a = e.sprayA + side * 0.36; ctx.fillStyle = '#a0e0ff'; ctx.fillRect(Math.round(e.x + Math.cos(a) * i), Math.round(e.y + Math.sin(a) * i), 1, 1); }
+    }
+  }
   for (const e of game.enemies) { // a Hunter-Killer's lock-on line
     if (e.dead || e.type !== 'hunter' || e.state !== 'aim') continue;
     const n = Math.max(1, Math.round(Math.hypot(e.tx - e.x, e.ty - e.y) / 3));

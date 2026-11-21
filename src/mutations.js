@@ -1648,8 +1648,8 @@ const MUTATIONS = {
   // --- Hive HEAD: the brood answers to you ---
   broodcrest: {
     name: 'Brood Crest', slot: 'HEAD', shallow: true, icon: ['antennae', 'eggsac'],
-    desc: 'A ridge of chitin crowns your head. Every few seconds your brood swarms the prey you are aiming at, biting faster for a while.',
-    short: 'Your brood swarms what you aim at.',
+    desc: 'A ridge of chitin crowns your head. Every few seconds your brood swarms the prey you are aiming at, biting faster for a while. Have no brood? The crest hatches a pair of its own to answer, briefly.',
+    short: 'Your brood swarms your prey. None? It hatches some.',
     apply(s, l) { s.headActive = { kind: 'swarmcall', l }; },
   },
   pheromone: {

@@ -1373,6 +1373,24 @@ try {
     check(`specimen zero: its mortars mark where they'll land, its charge shows its line (${game.bossMarks.length} marks, aiming ${bt.state === 'aim'})`, game.bossMarks.length > 0 || (bt.state === 'aim' && game.telegraphs.length > 0));
     render(); game.enemies = [];
   }
+  { // 0j1v12) Brood Crest with no brood: it hatches a short-lived pair of its own to answer the call.
+    newRun(); combatRoom(); game.enemies = []; game.allies = []; const q = game.player; q.inv = 99; grow(q, 'broodcrest');
+    const prey = dummy(60, 99); prey.speed = 0; q.aimX = 1; q.aimY = 0; q.headCd = 0; autoHead(q);
+    const kids = game.allies.filter(a => a.kind === 'spiderling' && !a.dead);
+    check(`brood crest with no brood hatches its own (${kids.length}, living ${kids[0] && kids[0].life}s)`, kids.length === CREST_BROOD && kids.every(a => a.crest && a.life <= CREST_BROOD_LIFE));
+    game.allies = []; spawnAlly('maggot', q.x, q.y); q.headCd = 0; autoHead(q);
+    check('...but with brood of your own, it just calls them', game.allies.filter(a => !a.dead).length === 1);
+  }
+  { // 0j1v13) Cryo Crawlers crouch (a tell) before every dart, and can't outrun a slug.
+    newRun(); game.depth = 2; combatRoom(); game.enemies = []; game.room.tiles = game.room.tiles.map(t => t === T_BLOCK ? T_FLOOR : t);
+    const q = game.player; q.x = 40; q.y = 96; q.inv = 99;
+    const cr = spawnEnemy('cryocrawler', 260, 96); cr.spawnT = 0; cr.muts = []; cr.speed = ENEMY_TYPES.cryocrawler.speed; cr.affixes = [];
+    let prev = cr.state, untold = 0, dashes = 0; const x0 = cr.x;
+    for (let i = 0; i < 120; i++) { q.x = 40; q.y = 96; q.hp = q.maxHp; update(1 / 60); Input.endFrame(); if (cr.state === 'dash' && prev !== 'dash') { dashes++; if (prev !== 'crouch') untold++; } prev = cr.state; }
+    const avg = (x0 - cr.x) / 2;
+    check(`a cryo crawler crouches before every dart (${dashes} darts, ${untold} without a tell) and averages slower than a slug (${avg.toFixed(0)}px/s vs ${SLUG_SPEED})`, dashes >= 1 && !untold && avg < SLUG_SPEED * 0.8);
+    game.depth = 1;
+  }
   { // 0j1w) Gore setting: G on the pause screen cycles full -> reduced -> off; off still costs enemies their parts.
     const was = GORE; setGore(2);
     newRun(); combatRoom(); game.enemies = []; game.limbs = []; game.particles = []; const q = game.player;

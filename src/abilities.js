@@ -56,6 +56,7 @@ function lurePoint(p) {
 //     long-lived, and safe from the thing it's latched onto.
 // Enemies that touch a spiderling or maggot hurt it.
 const BROOD_KINDS = new Set(['spiderling', 'maggot']);
+const CREST_BROOD = 2, CREST_BROOD_LIFE = 6; // Brood Crest with no brood: it hatches its own, briefly
 const BROOD = {
   spiderling: { hp: 1, life: 8 },
   maggot:     { hp: 3, life: 18 },
@@ -1190,7 +1191,7 @@ function headTarget(p, kind) {
     else if (kind === 'headbutt') v = d < 16 ? -d : null;                         // whatever gets in your face
     else if (kind === 'blackout') v = d < 90 ? 1 : null;                          // anything closing in
     else if (kind === 'pollenburst') v = d < 50 ? 1 : null;                       // anything close
-    else if (kind === 'swarmcall') v = d < 180 && (p.stats.crestHatch || game.allies.some(a => BROOD_KINDS.has(a.kind) && !a.dead)) ? ((e.x - p.x) * p.aimX + (e.y - p.y) * p.aimY) / (d + e.r) : null; // the prey nearest your aim (if you have a brood to call)
+    else if (kind === 'swarmcall') v = d < 180 ? ((e.x - p.x) * p.aimX + (e.y - p.y) * p.aimY) / (d + e.r) : null; // the prey nearest your aim (if you have a brood to call)
     if (v != null && v > score) { score = v; best = e; }
   }
   return best;
@@ -1287,6 +1288,8 @@ function useActive(p, a, target) {
     case 'swarmcall': { // Brood Crest: your brood swarms the prey you aim at, biting faster for a while
       const e = target; if (!e) return false;
       p.broodTarget = e; p.broodRushT = 3;
+      // No brood of your own? The crest hatches a pair of short-lived ones to answer the call.
+      if (!game.allies.some(a => BROOD_KINDS.has(a.kind) && !a.dead)) for (let i = 0; i < CREST_BROOD; i++) { const a = spawnAlly('spiderling', p.x + rand(-4, 4), p.y - 4 + rand(-2, 2)); a.life = CREST_BROOD_LIFE; a.crest = true; }
       if (s.crestHatch) spawnAlly('spiderling', p.x + rand(-4, 4), p.y + rand(-3, 3)); // Hatching Crest
       floatText(e.x, e.y - 14, 'SWARM', SETS.HIVE.color); Sfx.play('hatch');
       return true;

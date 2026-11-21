@@ -318,7 +318,7 @@ function rollAffixes(e) {
     const a = pick(pool);
     if (!e.affixes.includes(a)) e.affixes.push(a);
   }
-  if (e.affixes.includes('hasted')) e.speed *= 1.5;
+  if (e.affixes.includes('hasted')) e.speed *= 1.25; // (was x1.5: they ran you down)
   if (e.affixes.includes('mutated')) {
     e.mut = pick(['spines', 'wings', 'shell']);
     if (e.mut === 'wings') { e.flying = true; e.speed *= 1.3; }
@@ -332,7 +332,7 @@ function updateAffixes(e, dt) {
   if (!e.affixes) return;
   if (e.shieldT > 0) e.shieldT -= dt;
   if (hasAffix(e, 'hasted')) {
-    e.timer -= dt * 0.5; // attacks come faster too
+    e.timer -= dt * 0.3; // attacks come a little faster too
     if (Math.random() < dt * 20) game.particles.push({ x: e.x - 2, y: e.y - 2, vx: 0, vy: 0, life: 0.1, color: '#5a2028', size: 4 });
   }
   if (e.mut === 'spines') {
