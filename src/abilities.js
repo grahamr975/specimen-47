@@ -1002,6 +1002,12 @@ function webCutFx(w, e) {
   dotFlash(e, 'silkcut');
   const T = ENEMY_TYPES[e.type];
   if (!T.robot) bloodSpray(cx, cy, 0, 0, Math.max(1, Math.round(2 * goreScale(e))), T.fluid, 35);
+  if (GORE && !T.robot) { // drops on the floor under the strand, more from bigger things
+    const n = Math.max(1, Math.round(2 * goreScale(e)));
+    const ux = (w.x2 - w.x1) / Math.sqrt(L2), uy = (w.y2 - w.y1) / Math.sqrt(L2), sp = e.r + 3; // spread along the strand, past the body
+    for (let i = 0; i < n; i++) { const t = rand(-sp, sp); stainPx(cx + ux * t + rand(-1, 1), cy + uy * t + rand(0, 3), T.fluid, Math.random() < 0.3 ? 2 : 1); }
+    if (Math.random() < 0.25 * goreScale(e)) stain(cx + ux * rand(-sp, sp), cy + uy * rand(-sp, sp) + rand(1, 3), rand(0.8, 1.4), T.fluid);
+  }
   burst(cx, cy, '#f4eee8', 2, 45, 0.18); // the silk glints as it bites
   w.cutX = cx; w.cutY = cy; w.cutT = 0.2;
   if (Math.abs(game.time - webSndAt) > 0.15) { webSndAt = game.time; Sfx.play('silkcut'); }
